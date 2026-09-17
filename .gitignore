@@ -1,0 +1,43 @@
+# --- данные и результаты прогонов (в репозиторий не коммитим) ---
+data/raw/*
+!data/raw/.gitkeep
+artifacts/*
+!artifacts/.gitkeep
+reports/*
+!reports/.gitkeep
+*.csv
+!tests/**/*.csv
+*.pkl
+*.pt
+*.html
+*.log
+
+# --- служебные каталоги CatBoost ---
+catboost_info/
+
+# --- docs/results: зафиксированные результаты прогона, их коммитим ---
+# (правила выше глобальные, поэтому нужны явные исключения)
+!docs/**/*.csv
+!docs/**/*.html
+!docs/**/*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# --- IDE / ОС / инструменты ---
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db

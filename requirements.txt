@@ -1,0 +1,21 @@
+# Минимальный набор для обучения и симуляции
+numpy>=1.24
+pandas>=2.0
+pyyaml>=6.0
+scikit-learn>=1.3
+catboost>=1.2
+
+# Нейросеть (можно не ставить: nn.enabled=false в конфиге)
+torch>=2.0
+
+# Графики и отчёты
+plotly>=5.18
+matplotlib>=3.7
+
+# Разработка
+pytest>=7.4
+ruff>=0.4
+
+# Примечание: pandas_ta больше НЕ нужен — ADX/DI считаются внутри
+# forexmodel/features/indicators.py (библиотека регулярно ломается на новых
+# версиях numpy). MetaTrader5/optuna из ноутбука тоже не требуются.

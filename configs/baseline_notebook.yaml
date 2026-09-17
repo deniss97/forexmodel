@@ -1,0 +1,132 @@
+# ======================================================================
+# Конфиг, максимально близкий к исходному ноутбуку (ячейки 39/43):
+# симметричная разметка ±0.75%, фиксированные TP/SL, ансамбль «agreement»,
+# порог уверенности 0.5, все признаки (включая абсолютные уровни).
+#
+# Нужен как ТОЧКА ОТСЧЁТА: прогоните его и configs/default.yaml на одних и тех
+# же данных, чтобы видеть, что дала каждая группа изменений.
+#
+# Утечки, которые чинятся в коде (rolling rsi_z, embargo, scaler на train,
+# seq_len, барьеры от сырой цены), здесь НЕ возвращаются — иначе сравнение
+# не имеет смысла.
+# ======================================================================
+
+data:
+  csv_path: data/raw/LKOH_1m_15-26.csv
+  time_col: begin
+  volume_candidates: [value, volume]
+  base_timeframe: 1h
+  signal_tf_minutes: 60
+  splits:
+    train_end: "2024-12-30 21:00:00"
+    test_start: "2024-12-30 21:00:00"
+    test_end: "2025-12-30 21:00:00"
+    sim_start: "2025-12-30 21:00:00"
+    embargo_bars: null
+
+features:
+  sma_periods: [3, 7]
+  ema_periods: [3, 7]
+  rsi_period: 4
+  adx_period: 4
+  macd_fast: 3
+  macd_slow: 8
+  macd_signal: 3
+  atr_period: 14
+  bb_period: 5
+  bb_std: 2
+  lags: [1, 2, 5, 8, 13]
+  rsi_z_window: 200
+  extension_windows: [6, 12, 24]
+  use_extension_features: false   # как в ноутбуке: признаков растяжения не было
+  use_volume_features: false      # объём терялся при ресемплинге
+  dimensionless_only: false       # абсолютные уровни цены остаются в обучении
+  extra_exclude: []
+
+labeling:
+  mode: first_touch
+  horizon: 10
+  threshold: 0.0075
+  tp_atr: 1.5
+  sl_atr: 0.75
+  atr_col: atr_14
+  min_minutes_after: 1
+  use_next_open: true
+  require_close_beyond: false
+  use_uniqueness_weights: false
+
+trend:
+  enabled: true
+  mode: confirm
+  timeframe: 4h
+  slope_period: 4
+  adx_period: 14
+  adx_min: 15
+  adx_max: 40
+  require_adx_rising: true
+  ema_period: 7
+  adx_threshold: 15
+  max_ffill_bars: 5
+  require_slope_agreement: true
+  pullback_atr_threshold: 0.4
+
+catboost:
+  iterations: 500
+  learning_rate: 0.05
+  depth: 8
+  l2_leaf_reg: 3.0
+  random_seed: 42
+  verbose: 100
+  early_stopping_rounds: 100
+  test_size: 0.2
+  val_size: 0.15
+  use_class_weights: true
+
+nn:
+  enabled: true
+  seq_len: 20
+  epochs: 20
+  batch_size: 128
+  lr: 0.001
+  hidden_size: 64
+  num_layers: 2
+  conv_channels: 32
+  dropout: 0.3
+  test_size: 0.2
+  early_stopping_patience: 5
+  random_seed: 42
+  device: auto
+
+meta:
+  enabled: false
+
+simulation:
+  exit_mode: fixed_pct
+  commission_pct: 0.15
+  open_delay_minutes: 61
+  horizon_minutes: null
+  stop_loss_pct: 0.75
+  take_profit_pct: 0.75
+  sl_atr: 1.0
+  tp_atr: 2.0
+  trail_atr: 1.5
+  activate_atr: 1.0
+  atr_col: atr_14
+  signal_source: ensemble
+  ensemble_rule: agreement
+  min_conf_cb: 0.5
+  min_conf_nn: 0.5
+  use_expected_value_filter: false
+  min_expected_value_pct: 0.0
+  max_extension_atr: null
+  extension_col: ext_from_low_24
+  use_trend_filter: true
+  trend_col: trend_4h
+  close_on_trend_flip: false
+  trend_flip_mode: opposite
+  allow_overlapping_positions: false
+
+paths:
+  artifacts_dir: artifacts
+  reports_dir: reports
+  run_name: lkoh_1h_baseline
