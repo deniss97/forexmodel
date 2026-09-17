@@ -5,7 +5,9 @@
     "polar_precision": 0.3317329675354367,
     "polar_baseline": 0.3201874714220393,
     "polar_edge": 0.011545496113397391,
-    "n_polar_predictions": 4374
+    "n_polar_predictions": 4374,
+    "refit_on_full_train": 1.0,
+    "refit_iterations": 74.0
   },
   "nn": {
     "accuracy": 0.3713592233009709,
@@ -13,12 +15,15 @@
     "polar_precision": 0.3504779244424215,
     "polar_baseline": 0.3215748748293127,
     "polar_edge": 0.0289030496131088,
-    "n_polar_predictions": 4394
+    "n_polar_predictions": 4394,
+    "refit_on_full_train": 1.0,
+    "refit_epochs": 1.0
   },
   "meta": {
     "roc_auc": 0.5915158880187236,
     "precision_at_threshold": 0.44495412844036697,
-    "kept_share": 0.07374830852503383
+    "kept_share": 0.07374830852503383,
+    "refit_on_full_train": 1.0
   },
   "n_train": 26780,
   "n_features": 85

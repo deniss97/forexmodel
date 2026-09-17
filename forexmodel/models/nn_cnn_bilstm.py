@@ -302,6 +302,13 @@ def train_nn(
         title="CNN-BiLSTM val",
     )
 
+    # рефит — строго ПОСЛЕ расчёта метрик: иначе модель, обученная на val,
+    # отчитывалась бы по val, и метрика перестала бы быть честной
+    if cfg.refit_on_full_train and n_val > 0 and best_epoch > 0:
+        model = _refit_nn_on_full(scaled, y_enc, cfg, label_map, device, weights, best_epoch)
+        metrics["refit_on_full_train"] = 1.0
+        metrics["refit_epochs"] = float(best_epoch)
+
     return NNModel(
         state_dict={k: v.detach().cpu() for k, v in model.state_dict().items()},
         scaler=scaler,
@@ -311,6 +318,64 @@ def train_nn(
         cfg=cfg,
         metrics=metrics,
     )
+
+
+def _refit_nn_on_full(
+    scaled: np.ndarray,
+    y_enc: np.ndarray,
+    cfg: NNConfig,
+    label_map: Dict[int, int],
+    device,
+    class_weights,
+    epochs: int,
+):
+    """Переобучение сети на всей обучающей выборке за найденное число эпох.
+
+    Число эпох выбрано early stopping'ом по val, поэтому здесь val не нужен и
+    ранней остановки нет — иначе количество эпох подбиралось бы по тем же
+    данным, на которых сеть учится. Scaler остаётся тем, что фитился на train:
+    пересчитывать его пришлось бы вместе с перемасштабированием всего ряда, а
+    выигрыш от уточнения средних по 35% данных пренебрежимо мал.
+    """
+    torch = _torch()
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, TensorDataset
+
+    X_all, y_all, _ = make_sequences(scaled, cfg.seq_len, y_enc)
+    section(log, f"CNN-BiLSTM: рефит на всей выборке ({len(X_all)} последовательностей, {epochs} эпох)")
+
+    torch.manual_seed(cfg.random_seed)
+    model = _module_cls()(input_dim=scaled.shape[1], num_classes=len(label_map), cfg=cfg).to(device)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
+
+    loader = DataLoader(
+        TensorDataset(torch.tensor(X_all, dtype=torch.float32), torch.tensor(y_all, dtype=torch.long)),
+        batch_size=cfg.batch_size,
+        shuffle=True,
+    )
+    bar = Progress(epochs, label="CNN-BiLSTM (рефит)", unit="эпох", logger=log, min_interval=0.0)
+
+    model.train()
+    for epoch in range(epochs):
+        total = 0.0
+        batches = Progress(
+            len(loader), label=f"  рефит, эпоха {epoch + 1}/{epochs}", unit="батч", logger=log, min_interval=20.0
+        )
+        for xb, yb in loader:
+            xb, yb = xb.to(device), yb.to(device)
+            optimizer.zero_grad()
+            loss = criterion(model(xb), yb)
+            loss.backward()
+            optimizer.step()
+            total += loss.item() * len(xb)
+            batches.update()
+        bar.set(epoch + 1, f"train_loss={total / max(len(X_all), 1):.4f}")
+
+    bar.finish("сеть видит историю целиком")
+    model.eval()
+    return model
 
 
 def predict_nn(bundle: NNModel, df: pd.DataFrame, time_col: str = "time") -> pd.DataFrame:

@@ -143,7 +143,51 @@ def train_primary(
             title="CatBoost holdout",
         )
 
+    best_iterations = model.tree_count_
+    if cfg.refit_on_full_train and len(val_idx) + len(hold_idx) > 0:
+        model = _refit_on_full(df, features, y_all, class_map, params, best_iterations, weight_col)
+        metrics["refit_on_full_train"] = 1.0
+        metrics["refit_iterations"] = float(best_iterations)
+
     return PrimaryModel(model=model, features=list(features), class_map=class_map, metrics=metrics)
+
+
+def _refit_on_full(
+    df: pd.DataFrame,
+    features: List[str],
+    y_all: pd.Series,
+    class_map: Dict[int, int],
+    params: Dict[str, Any],
+    iterations: int,
+    weight_col: Optional[str],
+) -> Any:
+    """Переобучение на ВСЕЙ обучающей выборке с уже найденным числом деревьев.
+
+    Зачем: блоки val и holdout — это хронологически последние 35% истории, то
+    есть годы, ближайшие к периоду торговли. Модель, обученная только на первых
+    65%, к моменту бэктеста отстаёт от рынка на пару лет. Холдаут нужен, чтобы
+    ЧЕСТНО измерить качество и выбрать число итераций; после того как измерение
+    сделано, выбрасывать эти данные из обучения незачем.
+
+    Число итераций берётся от первой модели (его выбрал val, который в этой
+    оценке не участвовал), поэтому eval_set здесь не нужен и early stopping
+    не запускается — иначе число деревьев подбиралось бы по данным, на которых
+    модель учится.
+    """
+    from catboost import CatBoostClassifier, Pool
+
+    section(log, f"CatBoost primary: рефит на всей выборке ({len(df)} баров, {iterations} деревьев)")
+    weights = df[weight_col].to_numpy() if weight_col and weight_col in df.columns else None
+    full_pool = Pool(df[features], y_all.map(class_map).to_numpy(), weight=weights)
+
+    full_params = dict(params)
+    full_params["iterations"] = iterations
+    tracker = CatBoostProgress(iterations, label="CatBoost primary (рефит)", logger=log)
+
+    model = CatBoostClassifier(**full_params)
+    model.fit(full_pool, callbacks=[tracker])
+    tracker.progress.finish(f"модель видит историю целиком: {df['time'].iloc[0]} .. {df['time'].iloc[-1]}")
+    return model
 
 
 def predict_primary(bundle: PrimaryModel, df: pd.DataFrame, time_col: str = "time") -> pd.DataFrame:

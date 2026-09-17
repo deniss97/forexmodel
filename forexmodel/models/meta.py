@@ -274,6 +274,27 @@ def train_meta_model(meta_df: pd.DataFrame, meta_features: Sequence[str], cfg: C
         metrics["precision_at_threshold"] = float((y_hold[pred == 1] == 1).mean()) if (pred == 1).any() else float("nan")
         metrics["kept_share"] = float((pred == 1).mean())
 
+    if mc.refit_on_full_train and len(val_idx) + len(hold_idx) > 0:
+        # та же логика, что в primary: холдаут уже отработал как измеритель,
+        # держать его вне обучения финальной модели смысла нет
+        iterations = model.tree_count_
+        section(log, f"Мета-модель: рефит на всей мета-выборке ({len(meta_df)} строк, {iterations} деревьев)")
+        tracker = CatBoostProgress(iterations, label="Мета-модель (рефит)", logger=log)
+        model = CatBoostClassifier(
+            iterations=iterations,
+            learning_rate=mc.learning_rate,
+            depth=mc.depth,
+            l2_leaf_reg=mc.l2_leaf_reg,
+            loss_function="Logloss",
+            eval_metric="AUC",
+            random_seed=mc.random_seed,
+            verbose=False,
+            class_weights=class_weights,
+        )
+        model.fit(X, y, callbacks=[tracker])
+        tracker.progress.finish("мета-модель видит мета-выборку целиком")
+        metrics["refit_on_full_train"] = 1.0
+
     return MetaModel(model=model, features=list(meta_features), threshold=mc.threshold, metrics=metrics)
 
 

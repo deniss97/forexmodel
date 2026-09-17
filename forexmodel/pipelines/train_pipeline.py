@@ -132,6 +132,13 @@ def format_training_summary(cfg: Config, metrics: Dict[str, Any], ds: Dataset) -
         "=" * 78,
         f"  Обучающая выборка : {metrics['n_train']} баров, признаков {metrics['n_features']}",
         f"  Период обучения   : {ds.train['time'].iloc[0]} .. {ds.train['time'].iloc[-1]}",
+        "  Финальные модели  : "
+        + (
+            "переобучены на ВСЕЙ обучающей выборке (refit_on_full_train)"
+            if cfg.catboost.refit_on_full_train
+            else f"обучены на первых {(1 - cfg.catboost.test_size - cfg.catboost.val_size) * 100:.0f}% выборки "
+            "(refit_on_full_train: false — val и holdout в обучении не участвуют)"
+        ),
         f"  Разметка          : {cfg.labeling.mode}, horizon={cfg.labeling.horizon}, "
         f"TP={cfg.labeling.tp_atr} ATR / SL={cfg.labeling.sl_atr} ATR",
         "",

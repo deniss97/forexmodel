@@ -175,6 +175,12 @@ class CatBoostConfig:
     test_size: float = 0.2              # доля холдаута (хронологически последняя)
     val_size: float = 0.15              # доля train под early stopping
     use_class_weights: bool = True
+    # После честной оценки на холдауте финальная модель переобучается на ВСЕЙ
+    # обучающей выборке с найденным числом итераций. Иначе модель, которая
+    # торгует, не видит последних 35% истории (val + holdout) — а это самые
+    # свежие годы, ближайшие к периоду торговли. Метрики холдаута при этом
+    # остаются от первой модели, которая холдаут не видела.
+    refit_on_full_train: bool = True
 
 
 @dataclass
@@ -192,6 +198,7 @@ class NNConfig:
     early_stopping_patience: int = 5
     random_seed: int = 42
     device: str = "auto"                # auto | cpu | cuda
+    refit_on_full_train: bool = True    # см. CatBoostConfig.refit_on_full_train
 
 
 @dataclass
@@ -209,6 +216,7 @@ class MetaConfig:
     threshold: float = 0.55
     size_by_proba: bool = False
     random_seed: int = 42
+    refit_on_full_train: bool = True    # см. CatBoostConfig.refit_on_full_train
 
 
 @dataclass

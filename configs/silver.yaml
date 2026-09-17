@@ -85,6 +85,10 @@ catboost:
   test_size: 0.2
   val_size: 0.15
   use_class_weights: true
+  # после оценки на холдауте финальная модель переобучается на ВСЕЙ обучающей
+  # выборке: иначе она не видит последних 35% истории (val + holdout) — самых
+  # свежих лет. Метрики холдаута при этом остаются от модели, которая его не видела
+  refit_on_full_train: true
 
 nn:
   enabled: true
@@ -100,6 +104,7 @@ nn:
   early_stopping_patience: 5
   random_seed: 42
   device: auto
+  refit_on_full_train: true
 
 meta:
   enabled: true
@@ -115,6 +120,7 @@ meta:
   threshold: 0.55
   size_by_proba: false
   random_seed: 42
+  refit_on_full_train: true
 
 simulation:
   exit_mode: trailing
