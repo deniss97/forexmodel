@@ -129,7 +129,7 @@ def run_backtest(
 
     if save:
         with stages.stage("Сохранение и графики"):
-            _save_outputs(cfg, split, signals, trades, report, diagnostics)
+            _save_outputs(cfg, split, signals, trades, report, diagnostics, ds.minute_slice(split))
 
     stages.finish(save=save)
     return BacktestResult(signals=signals, trades=trades, report=report, diagnostics=diagnostics)
@@ -221,6 +221,7 @@ def _save_outputs(
     trades: pd.DataFrame,
     report: Dict[str, Any],
     diagnostics: Dict[str, pd.DataFrame],
+    minute_prices: Optional[pd.DataFrame] = None,
 ) -> None:
     out_dir: Path = cfg.reports_path()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -244,17 +245,23 @@ def _save_outputs(
     summary_path.write_text(_build_summary_text(cfg, split, signals, trades, report, diagnostics), encoding="utf-8")
     written.append(summary_path)
 
-    written += _build_charts(cfg, split, signals, trades)
+    written += _build_charts(cfg, split, signals, trades, minute_prices)
 
     log.info("Записано %d файлов в %s:", len(written), out_dir)
     for path in written:
         log.info("    %s", path)
 
 
-def _build_charts(cfg: Config, split: str, signals: pd.DataFrame, trades: pd.DataFrame) -> list[Path]:
+def _build_charts(
+    cfg: Config,
+    split: str,
+    signals: pd.DataFrame,
+    trades: pd.DataFrame,
+    minute_prices: Optional[pd.DataFrame] = None,
+) -> list[Path]:
     """Графики строятся сразу после бэктеста: отдельная команда `chart` остаётся,
     но лазить за ней после каждого прогона незачем."""
-    from ..viz.charts import create_equity_chart, create_trading_chart
+    from ..viz.charts import create_equity_chart, create_trade_detail_chart, create_trading_chart
 
     out_dir = cfg.reports_path()
     paths: list[Path] = []
@@ -279,6 +286,27 @@ def _build_charts(cfg: Config, split: str, signals: pd.DataFrame, trades: pd.Dat
             paths.append(equity_chart)
         except Exception as exc:
             log.warning("График капитала не построен: %s", exc)
+
+    if not trades.empty and minute_prices is not None and not minute_prices.empty:
+        sim = cfg.simulation
+        # худшие сделки: именно по ним видно, выбило ли нас откатом на пути
+        # к цели или движение действительно пошло против
+        for select, label in (("worst", "худшие"), ("best", "лучшие")):
+            path = out_dir / f"trades_{select}_{split}.html"
+            try:
+                create_trade_detail_chart(
+                    trades,
+                    minute_prices,
+                    output_file=path,
+                    title=f"{cfg.paths.run_name} — {split}: {label} сделки",
+                    sl_atr=sim.sl_atr,
+                    trail_atr=sim.trail_atr,
+                    activate_atr=sim.activate_atr,
+                    select=select,
+                )
+                paths.append(path)
+            except Exception as exc:
+                log.warning("Разбор сделок (%s) не построен: %s", select, exc)
 
     return paths
 

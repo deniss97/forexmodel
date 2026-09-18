@@ -76,6 +76,18 @@ python -m forexmodel.cli train -c configs/default.yaml --set catboost.depth=4 --
 Эквивалентные точки входа — `python scripts/train.py`, `scripts/backtest.py`,
 `scripts/diagnose.py` (для тех, кому удобнее запускать файл, а не модуль).
 
+Пороги входа и правила выхода к обучению отношения не имеют, поэтому перебираются
+на готовых моделях за секунды — без `sweep`, который переобучает всё заново:
+
+```bash
+# пороги мета-модели, EV-фильтр, тренд-фильтр
+python scripts/compare_filters.py -c configs/default.yaml --thresholds 0.55 0.50 0.45
+
+# правила выхода: ширина стопа, момент включения трейлинга, горизонт удержания
+python scripts/compare_exits.py -c configs/silver.yaml --set simulation.signal_source=cb
+python scripts/compare_exits.py -c configs/silver.yaml --sl-sweep 0.75 1 1.5 2 3
+```
+
 Из ноутбука/REPL:
 
 ```python
@@ -103,6 +115,10 @@ reports/<run_name>/
   chart_<split>.html        свечи + фон тренда + все сделки (plotly, интерактив)
   equity_<split>.html       кривая капитала, просадка, распределение PnL,
                             суммарный PnL по причинам выхода
+  trades_worst_<split>.html разбор 12 худших сделок: панель на сделку с минутным
+  trades_best_<split>.html  путём цены, линией входа, уровнем стопа и уровнем
+                            включения трейлинга — видно, выбило ли откатом
+                            или движение реально пошло против
   summary_<split>.txt       вся сводка текстом: метрики, диагностика, примеры сделок
   trades_<split>.csv        каждая сделка: вход/выход/PnL/причина выхода
   report_<split>.csv        метрики прогона одной строкой (удобно склеивать прогоны)

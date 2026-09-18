@@ -117,7 +117,7 @@ def cmd_sweep(cfg: Config, args: argparse.Namespace) -> None:
 def cmd_chart(cfg: Config, args: argparse.Namespace) -> None:
     import pandas as pd
 
-    from .viz.charts import create_equity_chart, create_trading_chart
+    from .viz.charts import create_equity_chart, create_trade_detail_chart, create_trading_chart
 
     reports = cfg.reports_path()
     signals_path = reports / f"signals_{args.split}.csv"
@@ -135,9 +135,30 @@ def cmd_chart(cfg: Config, args: argparse.Namespace) -> None:
         title=f"{cfg.paths.run_name} — {args.split}: свечи, тренд и сделки",
         trend_col=cfg.simulation.trend_col,
     )
-    if not trades.empty:
-        create_equity_chart(trades, output_file=reports / f"equity_{args.split}.html",
-                            title=f"{cfg.paths.run_name} — {args.split}")
+    if trades.empty:
+        return
+
+    create_equity_chart(trades, output_file=reports / f"equity_{args.split}.html",
+                        title=f"{cfg.paths.run_name} — {args.split}")
+
+    # для разбора сделок нужны минутные цены — их приходится собрать заново,
+    # в CSV отчётов они не лежат (это сотни мегабайт)
+    from .pipelines.dataset import build_dataset
+
+    log.info("Собираю минутные цены для разбора сделок (это ~30 с)")
+    ds = build_dataset(cfg)
+    sim = cfg.simulation
+    for select, label in (("worst", "худшие"), ("best", "лучшие")):
+        create_trade_detail_chart(
+            trades,
+            ds.minute_slice(args.split),
+            output_file=reports / f"trades_{select}_{args.split}.html",
+            title=f"{cfg.paths.run_name} — {args.split}: {label} сделки",
+            sl_atr=sim.sl_atr,
+            trail_atr=sim.trail_atr,
+            activate_atr=sim.activate_atr,
+            select=select,
+        )
 
 
 COMMANDS = {
@@ -193,6 +214,8 @@ def _log_artifact_locations(cfg: Config, args: argparse.Namespace, elapsed: floa
         for name, what in (
             (f"chart_{split}.html", "свечи, фон тренда и все сделки"),
             (f"equity_{split}.html", "кривая капитала, просадка, распределение PnL"),
+            (f"trades_worst_{split}.html", "12 худших сделок: минутный путь цены и уровни"),
+            (f"trades_best_{split}.html", "12 лучших сделок"),
         ):
             path = reports / name
             mark = "" if path.exists() else "  (не создан)"
