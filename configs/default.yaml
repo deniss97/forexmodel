@@ -117,7 +117,7 @@ meta:
 
 simulation:
   exit_mode: trailing         # trailing | atr | fixed_pct
-  commission_pct: 0.15        # за круг, вычитается из PnL (в барьеры НЕ зашивается)
+  commission_pct: 0.04        # за круг, вычитается из PnL (в барьеры НЕ зашивается); тариф брокера по LKOH
   open_delay_minutes: 61      # согласовано с labeling.use_next_open
   horizon_minutes: null       # null -> labeling.horizon * data.signal_tf_minutes
   stop_loss_pct: 0.75         # для exit_mode: fixed_pct

@@ -74,9 +74,13 @@ def run_training(cfg: Config, dataset: Optional[Dataset] = None, save: bool = Tr
         with stages.stage("Мета-модель"):
             # признаки растяжения обязаны быть в мета-модели: именно она отвечает
             # на вопрос «сигнал есть, но не поздно ли»
-            market_features = list(
-                dict.fromkeys(features + [c for c in extension_columns(cfg.features) if c in meta_df.columns])
-            )
+            extra = extension_columns(cfg.features)
+            if cfg.features.use_orderflow_features:
+                # «стоит ли за сигналом крупный игрок» — вопрос ровно мета-модели
+                from ..features.orderflow import orderflow_columns
+
+                extra = extra + orderflow_columns(cfg.features)
+            market_features = list(dict.fromkeys(features + [c for c in extra if c in meta_df.columns]))
             meta_features = build_meta_features(meta_df, market_features)
             meta_model = train_meta_model(meta_df, meta_features, cfg)
 

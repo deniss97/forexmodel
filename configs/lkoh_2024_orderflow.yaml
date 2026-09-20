@@ -1,0 +1,160 @@
+# ======================================================================
+# LKOH, 1m -> 1h, ТОЛЬКО период с данными потока сделок (2024-01 .. 2026-04).
+#
+# Пара конфигов для честного сравнения «с orderflow / без»:
+#   lkoh_2024_base.yaml       — те же признаки, что в default.yaml
+#   lkoh_2024_orderflow.yaml  — плюс признаки потока сделок (features/orderflow.py)
+# Всё остальное — одинаково. Нейросеть выключена: при signal_source=meta она
+# в сигнал не попадает, а на 5 тысячах баров и не обучится.
+# ======================================================================
+
+data:
+  # ВАЖНО: укажите свой путь к минутному CSV (колонки begin/open/high/low/close/value)
+  csv_path: data/raw/LKOH_1m_15-26.csv
+  time_col: begin
+  volume_candidates: [value, volume]
+  base_timeframe: 1h
+  signal_tf_minutes: 60
+  orderflow_path: data/raw/orderflow_lkoh_1s.parquet   # секундные агрегаты, время UTC
+  orderflow_tz_shift_hours: 3
+  splits:
+    # Поток сделок есть с 2024-01-03 по 2026-04-06 — выборки ограничены им.
+    # ~14 часовых баров в день: train ~5200, test ~1750, sim ~900 баров.
+    train_start: "2024-01-03 00:00:00"
+    train_end: "2025-07-01 00:00:00"
+    test_start: "2025-07-01 00:00:00"
+    test_end: "2026-01-01 00:00:00"
+    sim_start: "2026-01-01 00:00:00"
+    sim_end: "2026-04-06 23:59:00"
+    embargo_bars: null        # null -> labeling.horizon + 1
+
+features:
+  sma_periods: [3, 7]
+  ema_periods: [3, 7]
+  rsi_period: 4
+  adx_period: 4
+  macd_fast: 3
+  macd_slow: 8
+  macd_signal: 3
+  atr_period: 14
+  bb_period: 5
+  bb_std: 2
+  lags: [1, 2, 5, 8, 13]
+  rsi_z_window: 200
+  extension_windows: [6, 12, 24]
+  use_extension_features: true
+  use_volume_features: true
+  dimensionless_only: true    # выкинуть абсолютные уровни цены из обучения
+  extra_exclude: []
+  use_orderflow_features: true
+  orderflow_large_quantile: 0.95
+  orderflow_large_lookback_days: 5
+  orderflow_windows: [6, 24]
+  orderflow_profile_bars: 70
+  orderflow_profile_bin: 10.0
+
+labeling:
+  mode: atr_asym              # atr_asym | first_touch
+  horizon: 10                 # баров рабочего ТФ
+  threshold: 0.0075           # только для first_touch
+  tp_atr: 1.5                 # асимметрия: цель дальше стопа -> «поздний» бар получает класс 1
+  sl_atr: 0.75
+  atr_col: atr_14             # должен соответствовать features.atr_period
+  min_minutes_after: 1
+  use_next_open: true
+  require_close_beyond: false
+  use_uniqueness_weights: true
+
+trend:
+  enabled: true
+  mode: early                 # early (опережающий) | confirm (подтверждающий)
+  timeframe: 4h
+  slope_period: 6
+  adx_period: 9
+  adx_min: 15
+  adx_max: 40                 # запрет входа в перегретый тренд
+  require_adx_rising: true
+  ema_period: 7               # дальше — только для mode: confirm
+  adx_threshold: 15
+  max_ffill_bars: 5
+  require_slope_agreement: true
+  pullback_atr_threshold: 0.4
+
+catboost:
+  iterations: 2000
+  learning_rate: 0.05
+  depth: 6
+  l2_leaf_reg: 6.0
+  random_seed: 42
+  verbose: 200
+  early_stopping_rounds: 100
+  test_size: 0.2
+  val_size: 0.15
+  use_class_weights: true
+  # после оценки на холдауте финальная модель переобучается на ВСЕЙ обучающей
+  # выборке: иначе она не видит последних 35% истории (val + holdout) — самых
+  # свежих лет. Метрики холдаута при этом остаются от модели, которая его не видела
+  refit_on_full_train: true
+
+nn:
+  enabled: false
+  seq_len: 20
+  epochs: 40
+  batch_size: 128
+  lr: 0.001
+  hidden_size: 64
+  num_layers: 2
+  conv_channels: 32
+  dropout: 0.3
+  test_size: 0.2
+  early_stopping_patience: 5
+  random_seed: 42
+  device: auto
+  refit_on_full_train: true
+
+meta:
+  enabled: true
+  n_splits: 5
+  embargo_bars: null          # null -> 2 * labeling.horizon
+  iterations: 500
+  learning_rate: 0.05
+  depth: 4
+  l2_leaf_reg: 6.0
+  early_stopping_rounds: 50
+  test_size: 0.2
+  val_size: 0.15
+  threshold: 0.55
+  size_by_proba: false
+  random_seed: 42
+  refit_on_full_train: true
+
+simulation:
+  exit_mode: trailing         # trailing | atr | fixed_pct
+  commission_pct: 0.04        # за круг, вычитается из PnL (в барьеры НЕ зашивается); тариф брокера по LKOH
+  open_delay_minutes: 61      # согласовано с labeling.use_next_open
+  horizon_minutes: null       # null -> labeling.horizon * data.signal_tf_minutes
+  stop_loss_pct: 0.75         # для exit_mode: fixed_pct
+  take_profit_pct: 0.75
+  sl_atr: 1.0                 # для exit_mode: atr / trailing
+  tp_atr: 2.0
+  trail_atr: 1.5
+  activate_atr: 1.0
+  atr_col: atr_14
+  signal_source: meta         # meta | ensemble | cb | nn
+  ensemble_rule: agreement
+  min_conf_cb: null
+  min_conf_nn: null
+  use_expected_value_filter: true
+  min_expected_value_pct: 0.0
+  max_extension_atr: null     # напр. 1.5 — грубый отсев поздних входов
+  extension_col: ext_from_low_24
+  use_trend_filter: true
+  trend_col: trend_4h
+  close_on_trend_flip: false
+  trend_flip_mode: opposite
+  allow_overlapping_positions: false
+
+paths:
+  artifacts_dir: artifacts
+  reports_dir: reports
+  run_name: lkoh_2024_orderflow

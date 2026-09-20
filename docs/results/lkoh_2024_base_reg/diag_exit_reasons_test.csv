@@ -1,0 +1,3 @@
+exit_reason,n,avg_pnl,total_pnl
+timeout,1,0.178,0.178
+stop_loss,3,-0.824,-2.473

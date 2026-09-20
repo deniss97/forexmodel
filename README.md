@@ -23,7 +23,48 @@ ML-пайплайн для внутридневной торговли одно�
 делать дальше — там же.
 
 Конфигурации: [configs/default.yaml](configs/default.yaml) (LKOH),
-[configs/silver.yaml](configs/silver.yaml) (серебро).
+[configs/silver.yaml](configs/silver.yaml) (серебро),
+[configs/lkoh_2024_base.yaml](configs/lkoh_2024_base.yaml) и
+[configs/lkoh_2024_orderflow.yaml](configs/lkoh_2024_orderflow.yaml) — пара для
+сравнения «с признаками потока сделок / без» на периоде, где эти данные есть.
+
+### Признаки потока сделок (order flow)
+
+Если есть секундные агрегаты ленты сделок (MOEX ALGOPACK: объём по стороне
+агрессора, число сделок, средний размер), их можно подключить:
+
+```yaml
+data:
+  orderflow_path: data/raw/orderflow_lkoh_1s.parquet   # время в UTC
+  orderflow_tz_shift_hours: 3                          # котировки — в московском
+features:
+  use_orderflow_features: true
+  orderflow_large_quantile: 0.95      # «крупная» секунда — выше квантиля объёма
+  orderflow_large_lookback_days: 5    # квантиль берётся по ПРЕДЫДУЩИМ дням
+  orderflow_windows: [6, 24]          # окна накопленной дельты
+  orderflow_profile_bars: 70          # окно volume profile (~5 сессий)
+  orderflow_profile_bin: 10.0         # шаг ценового бина
+```
+
+Что считается ([forexmodel/features/orderflow.py](forexmodel/features/orderflow.py)),
+всё безразмерное:
+
+* `of_delta_ratio[_w]` — (buy − sell) / объём за бар и за окна;
+* `of_large_delta_ratio[_w]`, `of_large_delta_z_w` — **нетто-дельта только крупных
+  секунд** (`net_large_delta` из ноутбука `S_Volume_Analysis`) и её z-score;
+* `of_ld_price_div_w` — дивергенция «дельта крупных минус ход цены»: крупные
+  покупают, а цена не растёт → аккумуляция (> 0), наоборот → дистрибуция (< 0);
+* `of_big_delta_ratio[_w]`, `of_big_share` — то же по секундам с крупным средним
+  размером сделки;
+* `of_poc_dist_atr`, `of_va_pos`, `of_va_width_atr` — расстояние до POC и положение
+  внутри Value Area скользящего volume profile;
+* `of_vwap_dev_atr`, `of_trades_rel_24`, `of_avg_sz_rel_24` — цена относительно
+  VWAP бара и относительная активность.
+
+Там, где потока сделок нет, признаки остаются NaN (CatBoost это переваривает).
+Поскольку данные начинаются с 2024 года, выборки для такого прогона ограничены
+`data.splits.train_start` / `sim_end`. Предсказательную силу признаков без модели
+считает `python scripts/feature_ic.py -c configs/lkoh_2024_orderflow.yaml --prefix of_`.
 
 ---
 
@@ -86,6 +127,15 @@ python scripts/compare_filters.py -c configs/default.yaml --thresholds 0.55 0.50
 # правила выхода: ширина стопа, момент включения трейлинга, горизонт удержания
 python scripts/compare_exits.py -c configs/silver.yaml --set simulation.signal_source=cb
 python scripts/compare_exits.py -c configs/silver.yaml --sl-sweep 0.75 1 1.5 2 3
+
+# признак как правило входа без модели (signal_source: rule): LONG при feature >= порога,
+# SHORT при <= -порога — проверка гипотезы в чистом виде
+python scripts/compare_rules.py -c configs/lkoh_2024_orderflow.yaml \
+    --feature of_large_delta_z_6 --thresholds 0.5 1 1.5 2
+python scripts/compare_rules.py -c configs/silver.yaml --feature ret_lag_1 --thresholds 0.01 0.015 0.02
+
+# предсказательная сила признаков без модели (IC = ранговая корреляция с доходностью)
+python scripts/feature_ic.py -c configs/lkoh_2024_orderflow.yaml --prefix of_
 ```
 
 Из ноутбука/REPL:
@@ -187,6 +237,8 @@ forexmodel/
     indicators.py           SMA/EMA/ATR/RSI/MACD/BB/ADX (свои, без pandas_ta)
     technical.py            индикаторы + их безразмерные производные
     extension.py            признаки «где мы внутри движения» (растяжение, ER, объём)
+    orderflow.py            поток сделок: дельта агрессора, нетто-дельта крупных
+                            (net_large_delta), volume profile (POC / Value Area)
     trend.py                тренд-фильтр 4H: early (опережающий) и confirm — оба каузальные
     selection.py            отбор признаков, отсев абсолютных ценовых уровней
     builder.py              сборка всех признаков на непрерывном ряде

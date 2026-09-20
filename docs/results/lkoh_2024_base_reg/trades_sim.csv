@@ -1,0 +1,2 @@
+signal_dt,open_dt,close_dt,side,predicted_class,open_price,exit_price,gross_pct,commission_pct,profit_pct,profit_points,exit_reason,atr_at_entry,minutes_in_trade,roll_low,roll_high,atr_prev,extension_atr,ext_bin
+2026-03-06 21:00:00,2026-03-06 22:01:00,2026-03-06 23:49:00,buy,2,5625.5,5636.0,0.1866500755488401,0.04,0.1466500755488401,10.5,timeout,48.67857142857143,108,5393.5,5683.5,48.892857142857146,4.745069393718042,"(3.0, 99.0]"

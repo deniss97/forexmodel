@@ -38,9 +38,9 @@ def build_splits(cfg: Config) -> Dict[str, Split]:
 
     ts = lambda v: pd.Timestamp(v) if v else None  # noqa: E731
     splits = {
-        "train": Split("train", None, ts(sc.train_end)),
+        "train": Split("train", ts(sc.train_start), ts(sc.train_end)),
         "test": Split("test", ts(sc.test_start), ts(sc.test_end)),
-        "sim": Split("sim", ts(sc.sim_start), None),
+        "sim": Split("sim", ts(sc.sim_start), ts(sc.sim_end)),
     }
     _assert_no_overlap(splits)
     return splits

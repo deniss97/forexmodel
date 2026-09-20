@@ -1,4 +1,4 @@
 exit_reason,n,avg_pnl,total_pnl
 trailing_stop,85,0.274,23.323
-timeout,17,0.518,8.805
+timeout,16,0.519,8.309
 stop_loss,78,-0.591,-46.089

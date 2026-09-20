@@ -123,6 +123,14 @@ def simulate_trades(
         horizon_end = (open_time + pd.Timedelta(minutes=horizon_minutes)).to_datetime64()
         last_idx = int(np.searchsorted(p_time, horizon_end, side="right")) - 1
         last_idx = min(max(last_idx, open_idx), len(px) - 1)
+
+        # если внутри горизонта есть только сам бар входа, сделке негде
+        # разыграться: она закрывается той же минутой по той же цене и даёт
+        # ровно минус комиссию. Так было на открытии рынка серебра после
+        # выходных, где за первой минутой в данных идёт разрыв
+        if last_idx <= open_idx:
+            skipped["no_prices"] += 1
+            continue
         win = slice(open_idx, last_idx + 1)
 
         atr = float(sig_atr[i])

@@ -1,4 +1,4 @@
 exit_reason,n,avg_pnl,total_pnl
-trailing_stop,2,1.277,2.554
-timeout,2,-0.077,-0.154
-stop_loss,1,-0.659,-0.659
+trailing_stop,3,1.057,3.17
+timeout,10,0.066,0.659
+stop_loss,2,-0.443,-0.886

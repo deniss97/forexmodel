@@ -20,9 +20,9 @@
     "refit_epochs": 1.0
   },
   "meta": {
-    "roc_auc": 0.5915158880187236,
-    "precision_at_threshold": 0.44495412844036697,
-    "kept_share": 0.07374830852503383,
+    "roc_auc": 0.5360310221750584,
+    "precision_at_threshold": 0.5763546798029556,
+    "kept_share": 0.06867388362652233,
     "refit_on_full_train": 1.0
   },
   "n_train": 26780,

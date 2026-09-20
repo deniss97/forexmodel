@@ -124,7 +124,7 @@ meta:
 
 simulation:
   exit_mode: trailing
-  commission_pct: 0.04        # <- главное отличие: 0.04% за круг вместо 0.15%
+  commission_pct: 0.04        # за круг; такой же, как у LKOH
   open_delay_minutes: 61
   horizon_minutes: null
   stop_loss_pct: 0.75

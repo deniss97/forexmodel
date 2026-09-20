@@ -115,6 +115,8 @@ def build_signal_column(df: pd.DataFrame, cfg: Config, signal_col: str = "final_
         signal = pd.to_numeric(out["final_signal"], errors="coerce")
     elif source == "ensemble":
         signal = _ensemble(cb, nn, conf_cb, conf_nn, sim.ensemble_rule)
+    elif source == "rule":
+        signal = _rule_signal(out, sim.rule_feature, sim.rule_threshold, sim.rule_invert)
     else:
         raise ValueError(f"Неизвестный signal_source: {source}")
 
@@ -137,6 +139,32 @@ def build_signal_column(df: pd.DataFrame, cfg: Config, signal_col: str = "final_
     out[signal_col] = signal
     log.info("Итого сигналов: %d (%s / %s)", int(signal.notna().sum()), source, sim.ensemble_rule)
     return out
+
+
+def _rule_signal(df: pd.DataFrame, feature: str, threshold: float, invert: bool) -> pd.Series:
+    """Сигнал по одному признаку без модели: проверка гипотезы в чистом виде.
+
+    Если гипотеза «крупные покупают -> цена растёт» верна, то сама
+    `of_large_delta_z_6` выше порога должна давать прибыльные лонги — без
+    CatBoost, мета-модели и прочего. Если не даёт, никакая модель поверх
+    этот признак не спасёт; если даёт — модель обязана его использовать.
+    """
+    if feature not in df.columns:
+        raise KeyError(f"signal_source='rule': признака {feature!r} нет среди колонок")
+    x = pd.to_numeric(df[feature], errors="coerce")
+    long_mask, short_mask = x >= threshold, x <= -threshold
+    if invert:
+        long_mask, short_mask = short_mask, long_mask
+
+    signal = pd.Series(np.nan, index=df.index, dtype=float)
+    signal[long_mask] = LONG
+    signal[short_mask] = SHORT
+    log.info(
+        "Правило %s %s %.3g: лонгов %d, шортов %d из %d баров",
+        feature, "<=/>=" if not invert else "инвертировано", threshold,
+        int(long_mask.sum()), int(short_mask.sum()), len(df),
+    )
+    return signal
 
 
 def _ensemble(cb: pd.Series, nn: pd.Series, conf_cb: pd.Series, conf_nn: pd.Series, rule: str) -> pd.Series:

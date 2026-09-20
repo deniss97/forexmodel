@@ -34,6 +34,16 @@ def build_features(df_tf: pd.DataFrame, cfg: Config) -> pd.DataFrame:
     if cfg.features.use_extension_features:
         df = add_extension_features(df, cfg.features, atr_col=cfg.atr_col)
 
+    if cfg.features.use_orderflow_features:
+        if not cfg.data.orderflow_path:
+            raise ValueError("features.use_orderflow_features=true, но data.orderflow_path не задан")
+        from .orderflow import add_orderflow_features, aggregate_orderflow, load_orderflow
+
+        of = load_orderflow(cfg.data.orderflow_path, cfg.data.orderflow_tz_shift_hours)
+        of_bars = aggregate_orderflow(of, cfg.features, cfg.data.base_timeframe)
+        del of  # ~700 МБ секундных строк, дальше не нужны
+        df = add_orderflow_features(df, of_bars, cfg.features, atr_col=cfg.atr_col)
+
     df = add_trend_filter(df, cfg.trend)
 
     log.info("Признаки построены: %d баров, %d колонок", len(df), df.shape[1])

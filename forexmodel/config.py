@@ -66,10 +66,14 @@ class SplitConfig:
     их метки смотрят вперёд на `labeling.horizon` баров, то есть в тестовый период.
     """
 
+    train_start: Optional[str] = None   # None -> с начала данных; нужен, когда часть
+                                        # признаков (orderflow) начинается позже котировок
     train_end: str = "2024-12-30 21:00:00"
     test_start: str = "2024-12-30 21:00:00"
     test_end: str = "2025-12-30 21:00:00"
     sim_start: str = "2025-12-30 21:00:00"
+    sim_end: Optional[str] = None       # None -> до конца данных; нужен, когда часть
+                                        # признаков (orderflow) заканчивается раньше котировок
     embargo_bars: Optional[int] = None  # None -> labeling.horizon + 1
 
 
@@ -81,6 +85,10 @@ class DataConfig:
     base_timeframe: str = "1h"          # рабочий ТФ сигналов
     signal_tf_minutes: int = 60         # длина бара рабочего ТФ в минутах
     splits: Dict[str, Any] = field(default_factory=dict)
+    # поток сделок (секундные агрегаты MOEX ALGOPACK: buy/sell volume, n_trades,
+    # avg_trade_sz). Время в parquet — UTC, в котировках — московское
+    orderflow_path: Optional[str] = None
+    orderflow_tz_shift_hours: int = 3
 
     def split_config(self) -> SplitConfig:
         return _build(SplitConfig, self.splits, "data.splits")
@@ -114,6 +122,13 @@ class FeatureConfig:
     use_volume_features: bool = True
     dimensionless_only: bool = True
     extra_exclude: List[str] = field(default_factory=list)
+    # признаки потока сделок (см. features/orderflow.py); требуют data.orderflow_path
+    use_orderflow_features: bool = False
+    orderflow_large_quantile: float = 0.95      # «крупная» секунда/сделка — выше этого квантиля
+    orderflow_large_lookback_days: int = 5      # квантиль берётся по ПРЕДЫДУЩИМ дням (каузально)
+    orderflow_windows: List[int] = field(default_factory=lambda: [6, 24])
+    orderflow_profile_bars: int = 70            # окно volume profile в барах рабочего ТФ (~5 сессий)
+    orderflow_profile_bin: float = 10.0         # шаг ценового бина профиля (в единицах цены)
 
 
 @dataclass
@@ -243,8 +258,14 @@ class SimulationConfig:
     activate_atr: float = 1.0
     atr_col: str = "atr_14"
     # вход
-    signal_source: str = "ensemble"      # ensemble | cb | nn | meta
+    signal_source: str = "ensemble"      # ensemble | cb | nn | meta | rule
     ensemble_rule: str = "agreement"     # agreement | cb_priority | nn_priority | confidence
+    # signal_source=rule: вход напрямую по признаку, без модели — чтобы проверить
+    # гипотезу («крупные покупают -> вверх», «бар >= 1% -> продолжение») в чистом
+    # виде. LONG при feature >= +threshold, SHORT при feature <= -threshold
+    rule_feature: Optional[str] = None       # напр. of_large_delta_z_6 или ret_lag_1
+    rule_threshold: float = 1.0
+    rule_invert: bool = False                # True: выше порога -> SHORT (контртренд)
     min_conf_cb: Optional[float] = None
     min_conf_nn: Optional[float] = None
     use_expected_value_filter: bool = True
@@ -359,12 +380,16 @@ def _validate(cfg: Config) -> None:
         raise ValueError(
             f"simulation.exit_mode: ожидалось fixed_pct|atr|trailing, получено {cfg.simulation.exit_mode!r}"
         )
-    if cfg.simulation.signal_source not in {"ensemble", "cb", "nn", "meta"}:
+    if cfg.simulation.signal_source not in {"ensemble", "cb", "nn", "meta", "rule"}:
         raise ValueError(
-            f"simulation.signal_source: ожидалось ensemble|cb|nn|meta, получено {cfg.simulation.signal_source!r}"
+            f"simulation.signal_source: ожидалось ensemble|cb|nn|meta|rule, получено {cfg.simulation.signal_source!r}"
         )
     if cfg.simulation.signal_source == "meta" and not cfg.meta.enabled:
         raise ValueError("simulation.signal_source='meta', но meta.enabled=False")
+    if cfg.simulation.signal_source == "rule" and not cfg.simulation.rule_feature:
+        raise ValueError("simulation.signal_source='rule', но simulation.rule_feature не задан")
+    if cfg.simulation.rule_threshold <= 0:
+        raise ValueError("simulation.rule_threshold должен быть > 0: порог симметричный, знак задаёт направление")
     if cfg.labeling.atr_col != f"atr_{cfg.features.atr_period}":
         raise ValueError(
             f"labeling.atr_col={cfg.labeling.atr_col!r} не совпадает с features.atr_period="
