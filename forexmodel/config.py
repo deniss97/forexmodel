@@ -25,6 +25,7 @@ __all__ = [
     "FeatureConfig",
     "LabelingConfig",
     "TrendConfig",
+    "TrendGateConfig",
     "CatBoostConfig",
     "NNConfig",
     "MetaConfig",
@@ -185,6 +186,56 @@ class TrendConfig:
     max_ffill_bars: int = 5
     require_slope_agreement: bool = True
     pullback_atr_threshold: float = 0.4
+    # оба режима
+    # true: бины старшего ТФ строятся со сдвигом на каждый бар рабочего ТФ
+    # (для 4h на 1h — четыре сетки 00/04/.., 01/05/.., ...), и значение
+    # обновляется каждый час из только что закрытого 4-часового окна.
+    # Задержка — до 1 бара вместо до 4
+    update_every_bar: bool = False
+    # нейтраль короче hold_bars баров рабочего ТФ не сбрасывает направление
+    # (противоположный знак срабатывает сразу) — от мигания при update_every_bar
+    hold_bars: int = 0
+
+
+#: Параметры тренд-фильтра, которые можно переопределить в `trend_gate`.
+_GATE_FIELDS = (
+    "mode", "timeframe", "slope_period", "adx_period", "adx_min", "adx_max", "require_adx_rising",
+    "ema_period", "adx_threshold", "max_ffill_bars", "require_slope_agreement",
+    "update_every_bar", "hold_bars",
+)
+
+
+@dataclass
+class TrendGateConfig:
+    """Отдельный тренд-фильтр только для входа в сделку (колонка `trend_gate`).
+
+    Зачем отдельно от `trend`: `trend_4h` — ещё и признак модели. Если поменять
+    фильтр в `trend`, обученная модель получит признак не с тем распределением,
+    на котором училась, и её надо переобучать. Гейт меняет только правило
+    входа в симуляции, модели остаются валидными.
+
+    Незаданные (None) параметры наследуются из секции `trend`. Чтобы гейт
+    работал, нужно ещё `simulation.trend_col: trend_gate`.
+    """
+
+    enabled: bool = False
+    mode: Optional[str] = None
+    timeframe: Optional[str] = None
+    slope_period: Optional[int] = None
+    adx_period: Optional[int] = None
+    adx_min: Optional[float] = None
+    adx_max: Optional[float] = None
+    require_adx_rising: Optional[bool] = None
+    ema_period: Optional[int] = None
+    adx_threshold: Optional[float] = None
+    max_ffill_bars: Optional[int] = None
+    require_slope_agreement: Optional[bool] = None
+    update_every_bar: Optional[bool] = None
+    hold_bars: Optional[int] = None
+
+    def resolve(self, base: TrendConfig) -> TrendConfig:
+        overrides = {k: getattr(self, k) for k in _GATE_FIELDS if getattr(self, k) is not None}
+        return dataclasses.replace(base, enabled=True, **overrides)
 
 
 @dataclass
@@ -302,6 +353,7 @@ class Config:
     features: FeatureConfig = field(default_factory=FeatureConfig)
     labeling: LabelingConfig = field(default_factory=LabelingConfig)
     trend: TrendConfig = field(default_factory=TrendConfig)
+    trend_gate: TrendGateConfig = field(default_factory=TrendGateConfig)
     catboost: CatBoostConfig = field(default_factory=CatBoostConfig)
     nn: NNConfig = field(default_factory=NNConfig)
     meta: MetaConfig = field(default_factory=MetaConfig)
@@ -356,6 +408,7 @@ _SECTIONS = {
     "features": FeatureConfig,
     "labeling": LabelingConfig,
     "trend": TrendConfig,
+    "trend_gate": TrendGateConfig,
     "catboost": CatBoostConfig,
     "nn": NNConfig,
     "meta": MetaConfig,
@@ -377,6 +430,13 @@ def config_from_dict(raw: Optional[Dict[str, Any]]) -> Config:
     cfg.data.split_config()
     _validate(cfg)
     _warn_barrier_mismatch(cfg)
+    if cfg.trend_gate.enabled and cfg.simulation.trend_col != "trend_gate":
+        from .logging_utils import get_logger
+
+        get_logger(__name__).warning(
+            "trend_gate.enabled=true, но simulation.trend_col=%r — гейт считается, но входом не управляет",
+            cfg.simulation.trend_col,
+        )
     return cfg
 
 
@@ -385,6 +445,12 @@ def _validate(cfg: Config) -> None:
         raise ValueError(f"labeling.mode: ожидалось first_touch|atr_asym, получено {cfg.labeling.mode!r}")
     if cfg.trend.mode not in {"early", "confirm"}:
         raise ValueError(f"trend.mode: ожидалось early|confirm, получено {cfg.trend.mode!r}")
+    if cfg.trend_gate.enabled and cfg.trend_gate.resolve(cfg.trend).mode not in {"early", "confirm"}:
+        raise ValueError(f"trend_gate.mode: ожидалось early|confirm, получено {cfg.trend_gate.mode!r}")
+    if cfg.simulation.trend_col == "trend_gate" and not cfg.trend_gate.enabled:
+        raise ValueError("simulation.trend_col='trend_gate', но trend_gate.enabled=false — колонки не будет")
+    if cfg.trend.hold_bars < 0 or (cfg.trend_gate.hold_bars or 0) < 0:
+        raise ValueError("hold_bars не может быть отрицательным")
     if cfg.simulation.exit_mode not in {"fixed_pct", "atr", "trailing"}:
         raise ValueError(
             f"simulation.exit_mode: ожидалось fixed_pct|atr|trailing, получено {cfg.simulation.exit_mode!r}"

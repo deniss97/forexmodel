@@ -69,7 +69,9 @@ def test_trend_value_changes_only_at_bin_boundaries(hourly_df, cfg):
     df = add_technical_indicators(add_candle_features(hourly_df), cfg.features)
     out = add_trend_filter_early(df, cfg.trend)
 
-    changed = out["trend_4h"].ne(out["trend_4h"].shift())
+    # NaN != NaN, поэтому первые часы до закрытия первого бина считались бы «сменой»
+    trend = out["trend_4h"].fillna(-99)
+    changed = trend.ne(trend.shift())
     changed.iloc[0] = False
     offending = out.loc[changed & (out["time"].dt.hour % 4 != 0), "time"]
     assert offending.empty, f"Тренд меняется внутри 4H-бина: {list(offending[:5])}"

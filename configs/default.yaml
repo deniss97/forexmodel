@@ -67,6 +67,17 @@ trend:
   require_slope_agreement: true
   pullback_atr_threshold: 0.4
 
+# Гейт входа (отдельный от признака trend_4h тренд-фильтр, см. configs/silver.yaml и
+# docs/results/silver_1h_cb/trade_review.md). Для LKOH выключен: на этом конфиге
+# (signal_source=meta) результат смешанный — test +3.84% → +5.34%, sim +2.94% → +2.62%.
+# На прогоне lkoh_2024_base_reg_cb (signal_source=cb) гейт лучше: test +3.46% → +12.53%,
+# sim −3.76% → +0.20%. Включить: enabled: true и simulation.trend_col: trend_gate
+trend_gate:
+  enabled: false
+  require_adx_rising: false
+  update_every_bar: true
+  hold_bars: 2
+
 catboost:
   iterations: 2000
   learning_rate: 0.05

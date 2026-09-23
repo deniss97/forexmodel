@@ -15,7 +15,7 @@ from ..config import Config
 from ..logging_utils import get_logger
 from .extension import add_extension_features
 from .technical import add_candle_features, add_technical_indicators
-from .trend import add_trend_filter
+from .trend import add_trend_filter, trend_gate_values
 
 log = get_logger(__name__)
 
@@ -45,6 +45,10 @@ def build_features(df_tf: pd.DataFrame, cfg: Config) -> pd.DataFrame:
         df = add_orderflow_features(df, of_bars, cfg.features, atr_col=cfg.atr_col)
 
     df = add_trend_filter(df, cfg.trend)
+    if cfg.trend_gate.enabled:
+        # гейт входа — отдельно от признака trend_4h, см. TrendGateConfig
+        df["trend_gate"] = trend_gate_values(df, cfg.trend_gate.resolve(cfg.trend))
+        log.info("Гейт входа trend_gate: доля баров с трендом %.1f%%", 100 * (df["trend_gate"] != 0).mean())
 
     log.info("Признаки построены: %d баров, %d колонок", len(df), df.shape[1])
     return df

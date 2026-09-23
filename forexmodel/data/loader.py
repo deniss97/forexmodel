@@ -64,8 +64,11 @@ def load_minute_csv(
     return df
 
 
-def resample_ohlcv(df: pd.DataFrame, timeframe: str = "1h") -> pd.DataFrame:
-    """Ресемплинг OHLC(V). В отличие от исходного `resample_tf`, объём сохраняется."""
+def resample_ohlcv(df: pd.DataFrame, timeframe: str = "1h", offset: Optional[pd.Timedelta] = None) -> pd.DataFrame:
+    """Ресемплинг OHLC(V). В отличие от исходного `resample_tf`, объём сохраняется.
+
+    `offset` сдвигает сетку бинов: при 4h и offset=1h бины 01:00, 05:00, ...
+    """
     df = df.copy()
     df["time"] = pd.to_datetime(df["time"], errors="coerce")
     df = df.dropna(subset=["time"]).sort_values("time").set_index("time")
@@ -74,7 +77,7 @@ def resample_ohlcv(df: pd.DataFrame, timeframe: str = "1h") -> pd.DataFrame:
     if "volume" in df.columns:
         agg["volume"] = "sum"
 
-    out = df.resample(timeframe).agg(agg)
+    out = df.resample(timeframe, offset=offset).agg(agg)
     out = out.dropna(subset=["open", "high", "low", "close"])
     return out.reset_index()
 

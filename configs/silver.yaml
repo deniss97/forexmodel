@@ -74,6 +74,19 @@ trend:
   require_slope_agreement: true
   pullback_atr_threshold: 0.4
 
+# Гейт входа — отдельный тренд-фильтр только для симуляции (колонка trend_gate).
+# trend_4h выше остаётся признаком модели как есть, поэтому модели не переобучаются.
+# Отличия от trend: без условия «ADX растёт» (при развороте ADX сначала падает, и
+# новый тренд блокировался часами), пересчёт каждый час вместо раза в 4 часа,
+# нейтраль короче 2 ч не сбрасывает направление. Разбор и проверка:
+# docs/results/silver_1h_cb/trade_review.md. С signal_source=cb: test −14.46% → −3.87%,
+# sim +63.94% → +74.52%. Вернуть старое поведение: enabled: false и trend_col: trend_4h
+trend_gate:
+  enabled: true
+  require_adx_rising: false
+  update_every_bar: true
+  hold_bars: 2
+
 catboost:
   iterations: 2000
   learning_rate: 0.05
@@ -143,7 +156,7 @@ simulation:
   max_extension_atr: null
   extension_col: ext_from_low_24
   use_trend_filter: true
-  trend_col: trend_4h
+  trend_col: trend_gate
   close_on_trend_flip: false
   trend_flip_mode: opposite
   allow_overlapping_positions: false

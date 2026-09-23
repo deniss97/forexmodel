@@ -53,6 +53,7 @@ SERVICE_COLUMNS: set[str] = {
     "oof_proba_1",
     "oof_proba_2",
     "expected_value",
+    "trend_gate",  # гейт входа в симуляции, не признак (см. TrendGateConfig)
 }
 
 
