@@ -46,17 +46,27 @@ _RAW_COLUMNS = [
 ]
 
 
-def load_orderflow(path: Path | str, tz_shift_hours: int = 3) -> pd.DataFrame:
-    """Читает parquet секундных агрегатов и переводит время в локальное (МСК)."""
+def load_orderflow(path: Path | str, tz_shift_hours: int = 3, tz: str | None = None) -> pd.DataFrame:
+    """Читает parquet секундных агрегатов и переводит время во время котировок.
+
+    `tz` — IANA-зона котировок: конвертация с учётом летнего времени (нью-йоркский
+    форекс-фид живёт по UTC−5 зимой и UTC−4 летом, и фиксированный сдвиг полгода
+    промахивался бы на час). Без `tz` — фиксированный сдвиг, для МСК его достаточно.
+    """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Файл потока сделок не найден: {path} (data.orderflow_path)")
 
     of = pd.read_parquet(path, columns=_RAW_COLUMNS)
     t = pd.to_datetime(of["time"])
-    if getattr(t.dt, "tz", None) is not None:
-        t = t.dt.tz_convert(None)
-    of["time"] = t + pd.Timedelta(hours=tz_shift_hours)
+    if getattr(t.dt, "tz", None) is None:
+        t = t.dt.tz_localize("UTC")
+    if tz:
+        of["time"] = t.dt.tz_convert(tz).dt.tz_localize(None)
+        shift_note = f"зона {tz}"
+    else:
+        of["time"] = t.dt.tz_convert(None) + pd.Timedelta(hours=tz_shift_hours)
+        shift_note = f"сдвиг +{tz_shift_hours}ч"
     of = of.sort_values("time").reset_index(drop=True)
 
     # ~10 млн строк: в int64/float64 это 700 МБ, а машина с 8 ГБ параллельно
@@ -67,10 +77,7 @@ def load_orderflow(path: Path | str, tz_shift_hours: int = 3) -> pd.DataFrame:
         of[col] = of[col].astype("int32")
     for col in ("buy_volume", "sell_volume", "price", "avg_trade_sz"):
         of[col] = of[col].astype("float32")
-    log.info(
-        "Поток сделок: %d секунд, %s .. %s (сдвиг +%dч к локальному времени)",
-        len(of), of["time"].iloc[0], of["time"].iloc[-1], tz_shift_hours,
-    )
+    log.info("Поток сделок: %d секунд, %s .. %s (%s)", len(of), of["time"].iloc[0], of["time"].iloc[-1], shift_note)
     return of
 
 
@@ -122,6 +129,9 @@ def aggregate_orderflow(of: pd.DataFrame, cfg: FeatureConfig, timeframe: str = "
         of_large_delta=("_large_delta", "sum"),
         of_big_vol=("_big_vol", "sum"),
         of_big_delta=("_big_delta", "sum"),
+        of_close=("price", "last"),
+        of_high=("price", "max"),
+        of_low=("price", "min"),
     )
     hourly["of_vwap"] = hourly["of_notional"] / hourly["of_volume"].replace(0, np.nan)
 
@@ -188,66 +198,85 @@ def add_orderflow_features(
     cfg: FeatureConfig,
     atr_col: str = "atr_14",
 ) -> pd.DataFrame:
-    """Приклеивает агрегаты к барам рабочего ТФ и считает безразмерные признаки.
+    """Считает безразмерные признаки потока и приклеивает их к барам рабочего ТФ.
 
-    Там, где потока сделок нет (до начала данных), признаки остаются NaN —
-    CatBoost работает с ними штатно, а нейросеть заполняет нулями.
+    Все скользящие окна считаются на СОБСТВЕННЫХ барах потока сделок, а не на
+    барах котировок. Причина: если котировки живут 24/5 (спот XAGUSD), а лента —
+    только в часы биржи (фьючерсы MOEX, ~15 часов в сутки), то в любое 24-барное
+    окно по барам котировок попадает ночной разрыв без ленты, и `rolling` даёт
+    NaN на каждом баре — так у серебра целиком выпали все 24-барные признаки и
+    z-score. На собственных барах потока «24 бара» — это 24 торговых часа подряд,
+    как и задумано. Для LKOH обе сетки совпадают, и результат тот же.
+
+    Там, где потока сделок нет (ночь, выходные, до начала данных), признаки
+    остаются NaN — CatBoost работает с ними штатно, нейросеть заполняет нулями.
     """
     out = df.copy()
     out["time"] = pd.to_datetime(out["time"])
-    of_bars = of_bars.copy()
-    of_bars["time"] = pd.to_datetime(of_bars["time"])
-    out = out.merge(of_bars, on="time", how="left")
+    f = of_bars.copy()
+    f["time"] = pd.to_datetime(f["time"])
+    f = f.sort_values("time").reset_index(drop=True)
 
-    atr = out[atr_col].replace(0, np.nan)
-    vol = out["of_volume"].replace(0, np.nan)
-    close = out["close"]
+    # котировки подклеиваем К ПОТОКУ (а не наоборот): close/ATR нужны только для
+    # дивергенции и, при одном инструменте, для ценовых признаков
+    quotes = out[["time", "close", atr_col]].rename(columns={atr_col: "_atr"})
+    f = f.merge(quotes, on="time", how="left")
+
+    vol = f["of_volume"].replace(0, np.nan)
+    if cfg.orderflow_same_instrument:
+        ref_price = f["close"]
+        scale = f["_atr"].replace(0, np.nan)
+    else:
+        # фьючерс против спота: в разность цен попал бы базис, а контракты разных
+        # сроков ещё и торгуются одновременно — опора и масштаб только свои
+        ref_price = f["of_close"]
+        scale = (f["of_high"] - f["of_low"]).rolling(14).mean().replace(0, np.nan)
 
     # --- дельта агрессора и крупные игроки за бар ---
-    out["of_delta_ratio"] = out["of_delta"] / vol
-    out["of_large_delta_ratio"] = out["of_large_delta"] / vol      # net_large_delta / объём бара
-    out["of_large_share"] = out["of_large_vol"] / vol
-    out["of_big_delta_ratio"] = out["of_big_delta"] / vol
-    out["of_big_share"] = out["of_big_vol"] / vol
+    f["of_delta_ratio"] = f["of_delta"] / vol
+    f["of_large_delta_ratio"] = f["of_large_delta"] / vol      # net_large_delta / объём бара
+    f["of_large_share"] = f["of_large_vol"] / vol
+    f["of_big_delta_ratio"] = f["of_big_delta"] / vol
+    f["of_big_share"] = f["of_big_vol"] / vol
 
     # --- скользящие окна: накопленная дельта (footprint) и её дивергенция с ценой ---
     for w in cfg.orderflow_windows:
-        vol_w = out["of_volume"].rolling(w).sum().replace(0, np.nan)
-        out[f"of_delta_ratio_{w}"] = out["of_delta"].rolling(w).sum() / vol_w
-        out[f"of_large_delta_ratio_{w}"] = out["of_large_delta"].rolling(w).sum() / vol_w
-        out[f"of_big_delta_ratio_{w}"] = out["of_big_delta"].rolling(w).sum() / vol_w
+        vol_w = f["of_volume"].rolling(w).sum().replace(0, np.nan)
+        f[f"of_delta_ratio_{w}"] = f["of_delta"].rolling(w).sum() / vol_w
+        f[f"of_large_delta_ratio_{w}"] = f["of_large_delta"].rolling(w).sum() / vol_w
+        f[f"of_big_delta_ratio_{w}"] = f["of_big_delta"].rolling(w).sum() / vol_w
 
         # z-score накопленной дельты крупных: насколько текущее окно необычно
-        ld = out["of_large_delta"].rolling(w).sum()
-        out[f"of_large_delta_z_{w}"] = (ld - ld.rolling(w * 4).mean()) / ld.rolling(w * 4).std().replace(0, np.nan)
+        ld = f["of_large_delta"].rolling(w).sum()
+        f[f"of_large_delta_z_{w}"] = (ld - ld.rolling(w * 4).mean()) / ld.rolling(w * 4).std().replace(0, np.nan)
 
         # дивергенция: крупные покупают, а цена не растёт -> аккумуляция (>0);
         # крупные продают, а цена не падает -> дистрибуция (<0)
-        price_move = (close - close.shift(w)) / (atr * np.sqrt(w))
-        out[f"of_ld_price_div_{w}"] = out[f"of_large_delta_ratio_{w}"] - np.tanh(price_move)
+        price_move = (ref_price - ref_price.shift(w)) / (scale * np.sqrt(w))
+        f[f"of_ld_price_div_{w}"] = f[f"of_large_delta_ratio_{w}"] - np.tanh(price_move)
 
     # --- активность ---
-    out["of_trades_rel_24"] = out["of_trades"] / out["of_trades"].rolling(24).mean().replace(0, np.nan)
-    avg_sz = out["of_volume"] / out["of_trades"].replace(0, np.nan)
-    out["of_avg_sz_rel_24"] = avg_sz / avg_sz.rolling(24).mean().replace(0, np.nan)
+    f["of_trades_rel_24"] = f["of_trades"] / f["of_trades"].rolling(24).mean().replace(0, np.nan)
+    avg_sz = f["of_volume"] / f["of_trades"].replace(0, np.nan)
+    f["of_avg_sz_rel_24"] = avg_sz / avg_sz.rolling(24).mean().replace(0, np.nan)
 
     # --- цена относительно потока ---
-    out["of_vwap_dev_atr"] = (close - out["of_vwap"]) / atr
-    out["of_poc_dist_atr"] = (close - out["of_poc"]) / atr
-    va_width = (out["of_va_high"] - out["of_va_low"])
-    out["of_va_pos"] = (close - out["of_va_low"]) / va_width.replace(0, np.nan)   # 0..1 внутри VA
-    out["of_va_width_atr"] = va_width / atr
+    f["of_vwap_dev_atr"] = (ref_price - f["of_vwap"]) / scale
+    f["of_poc_dist_atr"] = (ref_price - f["of_poc"]) / scale
+    va_width = f["of_va_high"] - f["of_va_low"]
+    f["of_va_pos"] = (ref_price - f["of_va_low"]) / va_width.replace(0, np.nan)   # 0..1 внутри VA
+    f["of_va_width_atr"] = va_width / scale
 
-    # сырые суммы в лотах и абсолютные уровни цены в модель не идут
-    raw = [
-        "of_volume", "of_buy", "of_sell", "of_delta", "of_trades", "of_notional",
-        "of_large_vol", "of_large_delta", "of_big_vol", "of_big_delta",
-        "of_vwap", "of_poc", "of_va_low", "of_va_high",
-    ]
-    out = out.drop(columns=[c for c in raw if c in out.columns])
+    # в модель идут только безразмерные признаки; сырые суммы в лотах и
+    # абсолютные уровни цены остаются здесь
+    cols = orderflow_columns(cfg)
+    out = out.merge(f[["time"] + cols], on="time", how="left")
 
     covered = out["of_delta_ratio"].notna().mean()
-    log.info("Признаков потока сделок: %d; покрытие баров: %.1f%%", len(orderflow_columns(cfg)), 100 * covered)
+    all_nan = [c for c in cols if out[c].isna().all()]
+    log.info("Признаков потока сделок: %d; покрытие баров: %.1f%%", len(cols), 100 * covered)
+    if all_nan:
+        log.warning("Признаки потока целиком NaN (проверьте окна и выравнивание времени): %s", all_nan)
     return out
 
 

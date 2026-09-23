@@ -1,0 +1,357 @@
+15:32:11 | +00:00    | INFO    | forexmodel.__main__            | Лог прогона пишется в reports/silver_2024_base_reg/logs/run_20260923_153211.log
+15:32:11 | +00:00    | INFO    | forexmodel.pipelines.dataset   | 
+15:32:11 | +00:00    | INFO    | forexmodel.pipelines.dataset   | --- Шаг 1/4 · чтение минутного CSV -------------------------------------------
+15:32:26 | +00:15    | INFO    | forexmodel.data.loader         | Объём берётся из колонки 'volume'
+15:32:27 | +00:17    | INFO    | forexmodel.data.loader         | Загружено 3883931 минутных баров: 2015-01-01 18:01:00 .. 2026-05-29 16:58:00
+15:32:28 | +00:18    | INFO    | forexmodel.pipelines.dataset   | Рабочий ТФ 1h: 66875 баров
+15:32:28 | +00:18    | INFO    | forexmodel.pipelines.dataset   | 
+15:32:28 | +00:18    | INFO    | forexmodel.pipelines.dataset   | --- Шаг 2/4 · признаки на непрерывном ряде -----------------------------------
+15:32:29 | +00:18    | INFO    | forexmodel.features.trend      | Тренд-фильтр (early, 4h): доля баров с трендом 29.2%
+15:32:29 | +00:18    | INFO    | forexmodel.features.builder    | Признаки построены: 66875 баров, 102 колонок
+15:32:29 | +00:18    | INFO    | forexmodel.pipelines.dataset   | Отброшен warm-up признаков: первые 200 баров
+15:32:29 | +00:18    | INFO    | forexmodel.pipelines.dataset   | 
+15:32:29 | +00:18    | INFO    | forexmodel.pipelines.dataset   | --- Шаг 3/4 · triple-barrier разметка по минутным барам ----------------------
+15:32:38 | +00:27    | INFO    | forexmodel.labeling.atr_barriers | Разметка atr_asym (tp=1.50 ATR, sl=0.75 ATR, horizon=10): {0: 0.283, 1: 0.443, 2: 0.274}
+15:32:39 | +00:28    | INFO    | forexmodel.labeling.uniqueness | Веса уникальности: mean=1.000 min=0.000 max=3.019
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.dataset   | 
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.dataset   | --- Шаг 4/4 · нарезка train/test/sim и отбор признаков -----------------------
+15:32:39 | +00:28    | INFO    | forexmodel.data.splits         | Embargo: отброшено 11 последних баров (до 2025-06-30 11:00:00)
+15:32:39 | +00:28    | INFO    | forexmodel.data.splits         | Embargo: отброшено 11 последних баров (до 2025-12-31 05:00:00)
+15:32:39 | +00:28    | INFO    | forexmodel.evaluation.diagnostics | train : 2024-01-03 00:00:00 .. 2025-06-30 11:00:00 (8797 баров)
+15:32:39 | +00:28    | INFO    | forexmodel.evaluation.diagnostics | test  : 2025-07-01 00:00:00 .. 2025-12-31 05:00:00 (2983 баров)
+15:32:39 | +00:28    | INFO    | forexmodel.evaluation.diagnostics | sim   : 2026-01-01 18:00:00 .. 2026-04-06 23:00:00 (1519 баров)
+15:32:39 | +00:28    | INFO    | forexmodel.features.selection  | Отобрано признаков: 81
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.dataset   | Датасет готов: 81 признаков, выборки {'train': 8797, 'test': 2983, 'sim': 1519}
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | 
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | ##############################################################################
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | # ОБУЧЕНИЕ · run_name=silver_2024_base_reg
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | # этапов: 5 — Primary (CatBoost) -> OOF-предсказания -> Мета-метки (симуляция) -> Мета-модель -> Сохранение артефактов
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | # оценки общего времени нет (первый прогон) — ETA появится внутри длинных этапов
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | ##############################################################################
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | 
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline |   ЭТАП 1/5 · Primary (CatBoost)
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline |   прошло всего 1мс
+15:32:39 | +00:28    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | 
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | --- CatBoost primary: подготовка ---------------------------------------------
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | Блоки (хронологически): train=5697 | val=1319 (early stopping) | holdout=1759 (только отчёт) | embargo=11 баров
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | Признаков: 81 | классы в train: {0: 0.286, 1: 0.438, 2: 0.276}
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | 
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | --- CatBoost primary: обучение, до 3000 деревьев -----------------------------
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | depth=4 lr=0.02 l2=10 | early stopping: 300 раундов без улучшения val
+15:32:39 | +00:28    | INFO    | forexmodel.models.catboost_primary | CatBoost primary:   0.0% [..............] 1/3000 дер | прошло 122мс | learn:MultiClass=1.0981 val:MultiClass=1.0984
+15:32:42 | +00:31    | INFO    | forexmodel.models.catboost_primary | CatBoost primary:   6.7% [#.............] 200/3000 дер | прошло 2.8с | осталось ≤39с | 72.4 дер/с | learn:MultiClass=1.0510 val:MultiClass=1.0774
+15:32:45 | +00:34    | INFO    | forexmodel.models.catboost_primary | CatBoost primary:  13.3% [##............] 400/3000 дер | прошло 5.6с | осталось ≤36с | 71.5 дер/с | learn:MultiClass=1.0217 val:MultiClass=1.0732
+15:32:47 | +00:37    | INFO    | forexmodel.models.catboost_primary | CatBoost primary:  20.0% [###...........] 600/3000 дер | прошло 8.5с | осталось ≤34с | 71.0 дер/с | learn:MultiClass=0.9888 val:MultiClass=1.0718
+15:32:50 | +00:39    | INFO    | forexmodel.models.catboost_primary | CatBoost primary:  26.7% [####..........] 800/3000 дер | прошло 11с | осталось ≤31с | 71.9 дер/с | learn:MultiClass=0.9578 val:MultiClass=1.0725
+15:32:51 | +00:40    | INFO    | forexmodel.models.catboost_primary | CatBoost primary: готово | 843 дер | за 12с | 71.7 дер/с | в модели осталось 543 деревьев (лучшая итерация по val — 542)
+15:32:51 | +00:40    | INFO    | forexmodel.models.catboost_primary | Среднее время на дерево: 22мс
+15:32:53 | +00:42    | INFO    | forexmodel.evaluation.metrics  | === CatBoost holdout ===
+              precision    recall  f1-score   support
+
+           0     0.3392    0.3579    0.3483       542
+           1     0.5386    0.4100    0.4656       783
+           2     0.2843    0.3871    0.3278       434
+
+    accuracy                         0.3883      1759
+   macro avg     0.3873    0.3850    0.3806      1759
+weighted avg     0.4144    0.3883    0.3954      1759
+
+Confusion matrix:
+[[194 151 197]
+ [236 321 226]
+ [142 124 168]]
+15:32:53 | +00:42    | INFO    | forexmodel.evaluation.metrics  | Полярная точность (classes [0, 2]): 0.3113 | база «угадай по частоте»: 0.3014 | edge: +0.0099
+15:32:53 | +00:42    | INFO    | forexmodel.models.catboost_primary | 
+15:32:53 | +00:42    | INFO    | forexmodel.models.catboost_primary | --- CatBoost primary: рефит на всей выборке (8797 баров, 543 деревьев) -------
+15:32:53 | +00:42    | INFO    | forexmodel.models.catboost_primary | CatBoost primary (рефит):   0.2% [..............] 1/543 дер | прошло 64мс | learn:MultiClass=1.0981
+15:32:59 | +00:48    | INFO    | forexmodel.models.catboost_primary | CatBoost primary (рефит): 100.0% [##############] 543/543 дер | прошло 6.3с | 86.1 дер/с | learn:MultiClass=1.0259
+15:32:59 | +00:48    | INFO    | forexmodel.models.catboost_primary | CatBoost primary (рефит): готово | 543 дер | за 6.4с | 85.3 дер/с | модель видит историю целиком: 2024-01-03 00:00:00 .. 2025-06-30 11:00:00
+15:32:59 | +00:48    | INFO    | forexmodel.pipelines.train_pipeline | --> этап «Primary (CatBoost)» завершён за 20с
+15:32:59 | +00:48    | INFO    | forexmodel.pipelines.train_pipeline | 
+15:32:59 | +00:48    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:32:59 | +00:48    | INFO    | forexmodel.pipelines.train_pipeline |   ЭТАП 2/5 · OOF-предсказания
+15:32:59 | +00:48    | INFO    | forexmodel.pipelines.train_pipeline |   прошло всего 20с
+15:32:59 | +00:48    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:32:59 | +00:48    | INFO    | forexmodel.models.meta         | 
+15:32:59 | +00:48    | INFO    | forexmodel.models.meta         | --- OOF-предсказания primary: 5 фолдов purged walk-forward -------------------
+15:32:59 | +00:48    | INFO    | forexmodel.models.meta         | На каждом фолде обучается отдельный CatBoost (3000 деревьев, depth=4) — это самый долгий шаг обучения
+15:32:59 | +00:48    | INFO    | forexmodel.models.meta         | Фолд 1/5: обучение на 1446 барах, предсказание на 1466
+15:32:59 | +00:48    | INFO    | forexmodel.models.meta         |   фолд 1/5:   0.0% [..............] 1/3000 дер | прошло 46мс | learn:MultiClass=1.0976
+15:33:19 | +01:08    | INFO    | forexmodel.models.meta         |   фолд 1/5:  59.2% [########......] 1775/3000 дер | прошло 20с | осталось ≤14с | 88.5 дер/с | learn:MultiClass=0.5740
+15:33:36 | +01:25    | INFO    | forexmodel.models.meta         |   фолд 1/5: 100.0% [##############] 3000/3000 дер | прошло 37с | 81.5 дер/с | learn:MultiClass=0.4280
+15:33:36 | +01:25    | INFO    | forexmodel.models.meta         | OOF walk-forward:  20.0% [###...........] 1/5 фолд | прошло 37с | обучено 3000 деревьев всего
+15:33:36 | +01:25    | INFO    | forexmodel.models.meta         | Фолд 2/5: обучение на 2912 барах, предсказание на 1466
+15:33:36 | +01:25    | INFO    | forexmodel.models.meta         |   фолд 2/5:   0.0% [..............] 1/3000 дер | прошло 72мс | learn:MultiClass=1.0979
+15:33:56 | +01:45    | INFO    | forexmodel.models.meta         |   фолд 2/5:  60.4% [########......] 1811/3000 дер | прошло 20с | осталось ≤13с | 90.2 дер/с | learn:MultiClass=0.7332
+15:34:13 | +02:03    | INFO    | forexmodel.models.meta         |   фолд 2/5: 100.0% [##############] 3000/3000 дер | прошло 37с | 80.1 дер/с | learn:MultiClass=0.6061
+15:34:14 | +02:03    | INFO    | forexmodel.models.meta         | OOF walk-forward:  40.0% [######........] 2/5 фолд | прошло 1м 15с | осталось ~1м 52с | в среднем 37с на шаг | обучено 6000 деревьев всего
+15:34:14 | +02:03    | INFO    | forexmodel.models.meta         | Фолд 3/5: обучение на 4378 барах, предсказание на 1466
+15:34:14 | +02:03    | INFO    | forexmodel.models.meta         |   фолд 3/5:   0.0% [..............] 1/3000 дер | прошло 66мс | learn:MultiClass=1.0981
+15:34:34 | +02:23    | INFO    | forexmodel.models.meta         |   фолд 3/5:  58.2% [########......] 1745/3000 дер | прошло 20с | осталось ≤14с | 86.9 дер/с | learn:MultiClass=0.8128
+15:34:51 | +02:41    | INFO    | forexmodel.models.meta         |   фолд 3/5: 100.0% [##############] 3000/3000 дер | прошло 38с | 79.5 дер/с | learn:MultiClass=0.6970
+15:34:51 | +02:41    | INFO    | forexmodel.models.meta         | OOF walk-forward:  60.0% [########......] 3/5 фолд | прошло 1м 52с | осталось ~1м 15с | в среднем 37с на шаг | обучено 9000 деревьев всего
+15:34:51 | +02:41    | INFO    | forexmodel.models.meta         | Фолд 4/5: обучение на 5844 барах, предсказание на 1466
+15:34:51 | +02:41    | INFO    | forexmodel.models.meta         |   фолд 4/5:   0.0% [..............] 1/3000 дер | прошло 79мс | learn:MultiClass=1.0980
+15:35:11 | +03:01    | INFO    | forexmodel.models.meta         |   фолд 4/5:  49.3% [#######.......] 1480/3000 дер | прошло 20с | осталось ≤21с | 73.7 дер/с | learn:MultiClass=0.8815
+15:35:32 | +03:21    | INFO    | forexmodel.models.meta         |   фолд 4/5:  93.2% [#############.] 2797/3000 дер | прошло 40с | осталось ≤2.9с | 69.7 дер/с | learn:MultiClass=0.7700
+15:35:34 | +03:24    | INFO    | forexmodel.models.meta         |   фолд 4/5: 100.0% [##############] 3000/3000 дер | прошло 43с | 69.7 дер/с | learn:MultiClass=0.7553
+15:35:35 | +03:24    | INFO    | forexmodel.models.meta         | OOF walk-forward:  80.0% [###########...] 4/5 фолд | прошло 2м 36с | осталось ~39с | в среднем 39с на шаг | обучено 12000 деревьев всего
+15:35:35 | +03:24    | INFO    | forexmodel.models.meta         | Фолд 5/5: обучение на 7310 барах, предсказание на 1447
+15:35:35 | +03:24    | INFO    | forexmodel.models.meta         |   фолд 5/5:   0.0% [..............] 1/3000 дер | прошло 54мс | learn:MultiClass=1.0980
+15:35:55 | +03:44    | INFO    | forexmodel.models.meta         |   фолд 5/5:  54.7% [########......] 1640/3000 дер | прошло 20с | осталось ≤17с | 81.8 дер/с | learn:MultiClass=0.8942
+15:36:15 | +04:04    | INFO    | forexmodel.models.meta         |   фолд 5/5:  97.8% [##############] 2934/3000 дер | прошло 40с | осталось ≤901мс | 73.2 дер/с | learn:MultiClass=0.8013
+15:36:16 | +04:05    | INFO    | forexmodel.models.meta         |   фолд 5/5: 100.0% [##############] 3000/3000 дер | прошло 41с | 72.7 дер/с | learn:MultiClass=0.7969
+15:36:16 | +04:05    | INFO    | forexmodel.models.meta         | OOF walk-forward: 100.0% [##############] 5/5 фолд | прошло 3м 17с | в среднем 39с на шаг | обучено 15000 деревьев всего
+15:36:16 | +04:05    | INFO    | forexmodel.models.meta         | OOF walk-forward: готово | 5 фолд | за 3м 17с | в среднем 39с на шаг | OOF-предсказаний: 7311 из 8797 баров
+15:36:16 | +04:06    | INFO    | forexmodel.pipelines.train_pipeline | --> этап «OOF-предсказания» завершён за 3м 17с
+15:36:16 | +04:06    | INFO    | forexmodel.pipelines.train_pipeline | 
+15:36:16 | +04:06    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:36:16 | +04:06    | INFO    | forexmodel.pipelines.train_pipeline |   ЭТАП 3/5 · Мета-метки (симуляция)
+15:36:16 | +04:06    | INFO    | forexmodel.pipelines.train_pipeline |   прошло всего 3м 38с
+15:36:16 | +04:06    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:36:16 | +04:06    | INFO    | forexmodel.models.meta         | 
+15:36:16 | +04:06    | INFO    | forexmodel.models.meta         | --- Мета-метки: прогон OOF-сигналов через минутную симуляцию -----------------
+15:36:16 | +04:06    | INFO    | forexmodel.models.meta         | Полярных OOF-сигналов: 4470 из 7311 баров (61.1%) — у каждого нужно узнать исход сделки
+15:36:16 | +04:06    | INFO    | forexmodel.simulation.simulator | Симуляция: 4470 сигналов, exit_mode=trailing, horizon=600 мин, комиссия 0.040% за круг
+15:36:16 | +04:06    | INFO    | forexmodel.simulation.simulator | Симуляция сигналов:   0.0% [..............] 1/4470 сиг | прошло 0мс
+15:36:20 | +04:09    | INFO    | forexmodel.simulation.simulator | Симуляция сигналов: 100.0% [##############] 4470/4470 сиг | прошло 3.7с | 1194.6 сиг/с
+15:36:20 | +04:10    | INFO    | forexmodel.simulation.simulator | Сделок: 4450 | пропущено: перекрытие=0, тренд=0, нет цен=20, нет ATR=0
+15:36:20 | +04:10    | INFO    | forexmodel.models.meta         | Симуляция OOF-сигналов заняла 3.9с: сделок 4450 | winrate 35.87% | сумма PnL -246.55%
+15:36:20 | +04:10    | INFO    | forexmodel.models.meta         | Мета-выборка: 4450 строк, доля прибыльных 0.359
+15:36:20 | +04:10    | INFO    | forexmodel.pipelines.train_pipeline | --> этап «Мета-метки (симуляция)» завершён за 4.0с
+15:36:20 | +04:10    | INFO    | forexmodel.pipelines.train_pipeline | 
+15:36:20 | +04:10    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:36:20 | +04:10    | INFO    | forexmodel.pipelines.train_pipeline |   ЭТАП 4/5 · Мета-модель
+15:36:20 | +04:10    | INFO    | forexmodel.pipelines.train_pipeline |   прошло всего 3м 42с
+15:36:20 | +04:10    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:36:20 | +04:10    | INFO    | forexmodel.models.meta         | 
+15:36:20 | +04:10    | INFO    | forexmodel.models.meta         | --- Мета-модель: обучение, до 500 деревьев -----------------------------------
+15:36:20 | +04:10    | INFO    | forexmodel.models.meta         | Блоки: train=2853 | val=667 (early stopping) | holdout=890 (только отчёт) | мета-признаков 86
+15:36:20 | +04:10    | INFO    | forexmodel.models.meta         | Мета-модель:   0.2% [..............] 1/500 дер | прошло 90мс | learn:Logloss=0.6919 val:Logloss=0.6935
+15:36:23 | +04:12    | INFO    | forexmodel.models.meta         | Мета-модель: готово | 314 дер | за 2.6с | 121.5 дер/с | в модели осталось 264 деревьев (после early stopping по val)
+15:36:23 | +04:12    | INFO    | forexmodel.models.meta         | === Meta-model holdout (в подборе итераций НЕ участвовал) ===
+              precision    recall  f1-score   support
+
+           0     0.6457    0.7359    0.6879       587
+           1     0.2986    0.2178    0.2519       303
+
+    accuracy                         0.5596       890
+   macro avg     0.4722    0.4769    0.4699       890
+weighted avg     0.5276    0.5596    0.5395       890
+
+[[432 155]
+ [237  66]]
+15:36:23 | +04:12    | INFO    | forexmodel.models.meta         | ROC-AUC (holdout): 0.4713
+15:36:23 | +04:12    | INFO    | forexmodel.models.meta         | 
+15:36:23 | +04:12    | INFO    | forexmodel.models.meta         | --- Мета-модель: рефит на всей мета-выборке (4450 строк, 264 деревьев) -------
+15:36:23 | +04:12    | INFO    | forexmodel.models.meta         | Мета-модель (рефит):   0.4% [..............] 1/264 дер | прошло 61мс | learn:Logloss=0.6927
+15:36:25 | +04:14    | INFO    | forexmodel.models.meta         | Мета-модель (рефит): 100.0% [##############] 264/264 дер | прошло 1.9с | 136.5 дер/с | learn:Logloss=0.5862
+15:36:25 | +04:14    | INFO    | forexmodel.models.meta         | Мета-модель (рефит): готово | 264 дер | за 2.0с | 131.6 дер/с | мета-модель видит мета-выборку целиком
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | --> этап «Мета-модель» завершён за 4.7с
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | 
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline |   ЭТАП 5/5 · Сохранение артефактов
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline |   прошло всего 3м 46с
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.models.persistence  | Сохранено: artifacts/silver_2024_base_reg/primary_catboost.pkl
+15:36:25 | +04:14    | INFO    | forexmodel.models.persistence  | Сохранено: artifacts/silver_2024_base_reg/meta_catboost.pkl
+15:36:25 | +04:14    | INFO    | forexmodel.models.persistence  | Сохранено: artifacts/silver_2024_base_reg/features.json
+15:36:25 | +04:14    | INFO    | forexmodel.models.persistence  | Сохранено: artifacts/silver_2024_base_reg/metrics.json
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | Модели и метрики записаны в artifacts/silver_2024_base_reg
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | --> этап «Сохранение артефактов» завершён за 21мс
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | 
+==============================================================================
+  ИТОГ ОБУЧЕНИЯ · silver_2024_base_reg
+==============================================================================
+  Обучающая выборка : 8797 баров, признаков 81
+  Период обучения   : 2024-01-03 00:00:00 .. 2025-06-30 11:00:00
+  Финальные модели  : переобучены на ВСЕЙ обучающей выборке (refit_on_full_train)
+  Разметка          : atr_asym, horizon=10, TP=1.5 ATR / SL=0.75 ATR
+
+  Primary (CatBoost), holdout — в подборе итераций НЕ участвовал:
+    полярная точность   : 0.3113   (доля верных там, где модель предлагает сделку)
+    база «по частоте»   : 0.3014
+    EDGE                : 0.0099   <- главная цифра: >0 значит преимущество есть
+    accuracy / f1       : 0.3883 / 0.3954
+    полярных предсказаний: 1163
+
+  CNN-BiLSTM: выключена (nn.enabled=false)
+
+  Мета-модель (порог 0.55), holdout:
+    ROC-AUC             : 0.4713   (0.5 = бесполезна)
+    точность на порогe  : 0.2986   (доля прибыльных среди пропущенных сделок)
+    пропущено сигналов  : 0.2483   (какую долю сигналов мета-модель оставляет)
+==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | 
+ВРЕМЯ ПО ЭТАПАМ — ОБУЧЕНИЕ · run_name=silver_2024_base_reg
+----------------------------------------------------
+  1. Primary (CatBoost)            20с     9%
+  2. OOF-предсказания           3м 17с    87%
+  3. Мета-метки (симуляция)       4.0с     2%
+  4. Мета-модель                  4.7с     2%
+  5. Сохранение артефактов        21мс     0%
+----------------------------------------------------
+  ИТОГО                         3м 46с
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | Тайминги этапов сохранены: artifacts/silver_2024_base_reg/timings_train.json (из них берётся ETA следующего прогона)
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.train_pipeline | Сводка обучения: artifacts/silver_2024_base_reg/train_summary.txt
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ##############################################################################
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | # БЭКТЕСТ · выборка sim · run_name=silver_2024_base_reg
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | # этапов: 5 — Предсказания моделей -> Сигналы -> Минутная симуляция -> Диагностика -> Сохранение и графики
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | # оценки общего времени нет (первый прогон) — ETA появится внутри длинных этапов
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ##############################################################################
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline |   ЭТАП 1/5 · Предсказания моделей
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline |   прошло всего 1мс
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | Выборка sim: 2026-01-01 18:00:00 .. 2026-04-06 23:00:00 (1519 баров)
+15:36:25 | +04:14    | INFO    | forexmodel.evaluation.metrics  | === CatBoost (1519 баров) ===
+              precision    recall  f1-score   support
+
+           0     0.3541    0.2823    0.3142       503
+           1     0.3873    0.5948    0.4691       575
+           2     0.2681    0.1429    0.1864       441
+
+    accuracy                         0.3601      1519
+   macro avg     0.3365    0.3400    0.3232      1519
+weighted avg     0.3417    0.3601    0.3357      1519
+
+Confusion matrix:
+[[142 285  76]
+ [137 342  96]
+ [122 256  63]]
+15:36:25 | +04:14    | INFO    | forexmodel.evaluation.metrics  | Полярная точность (classes [0, 2]): 0.3223 | база «угадай по частоте»: 0.3168 | edge: +0.0055
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | Точность по корзинам уверенности (CatBoost):
+            samples  accuracy
+conf_bin                     
+(0.0, 0.5]      636  0.322327
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | --> этап «Предсказания моделей» завершён за 110мс
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline |   ЭТАП 2/5 · Сигналы
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline |   прошло всего 112мс
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.simulation.signals  | Покрытие предсказаниями CatBoost: 100.0%
+15:36:25 | +04:14    | INFO    | forexmodel.models.meta         | Мета-фильтр (порог 0.55): оставлено 86 из 636 сигналов
+15:36:25 | +04:14    | INFO    | forexmodel.simulation.signals  | Фильтр ожидаемой ценности: 86 -> 83 сигналов
+15:36:25 | +04:14    | INFO    | forexmodel.simulation.signals  | Итого сигналов: 83 (meta / agreement)
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | --> этап «Сигналы» завершён за 62мс
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline |   ЭТАП 3/5 · Минутная симуляция
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline |   прошло всего 174мс
+15:36:25 | +04:14    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:14    | INFO    | forexmodel.simulation.simulator | Симуляция: 83 сигналов, exit_mode=trailing, horizon=600 мин, комиссия 0.040% за круг
+15:36:25 | +04:14    | INFO    | forexmodel.simulation.simulator | Сделок: 1 | пропущено: перекрытие=1, тренд=81, нет цен=0, нет ATR=0
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+==============================================================================
+  ВОРОНКА СИГНАЛОВ · meta
+==============================================================================
+  баров в выборке                 : 1519   (100.00% баров)
+  полярных предсказаний CatBoost  : 636    (41.87% баров)  <- модель предлагает сделку (класс 0 или 2)
+  полярных предсказаний NN        : —      (выключено)
+  прошло мета-фильтр (порог 0.55) : 86     ( 5.66% баров)  <- meta.threshold
+  итоговых сигналов               : 83     ( 5.46% баров)  <- после фильтра ожидаемой ценности
+  сделок открыто                  : 1      ( 0.07% баров)
+
+  Сигналы, не ставшие сделками:
+    уже открыта позиция          1
+    против тренд-фильтра         81
+==============================================================================
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+============================================================
+  РЕЗУЛЬТАТ СИМУЛЯЦИИ · sim
+============================================================
+  Сделки:
+    всего сделок                 1
+    winrate                      100.0%
+    из них в лонг                100.0%
+    средняя длительность         302.0 мин
+
+  Доходность:
+    сумма PnL                    +0.66%
+    капитал (сложный процент)    x1.0066
+    макс. просадка               0.0%
+    profit factor                inf
+
+  На одну сделку:
+    средний результат            +0.664%
+    медиана                      +0.664%
+    средняя прибыльная           +0.664%
+    средняя убыточная            +0.0%
+
+  Чем закрывались сделки:
+    по трейлинг-стопу            1 (100%)
+
+  Вывод: прибыльно; profit factor inf (>1 — выигрыши перекрывают потери)
+============================================================
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | --> этап «Минутная симуляция» завершён за 103мс
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline |   ЭТАП 4/5 · Диагностика
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline |   прошло всего 278мс
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | --- Диагностика: не входим ли мы на излёте движения --------------------------
+15:36:25 | +04:15    | INFO    | forexmodel.evaluation.diagnostics | Диагностика поздних входов (PnL по растяжению в ATR):
+             n  winrate  avg_pnl  total_pnl   tp   sl
+ext_bin                                              
+(3.0, 99.0]  1    100.0     0.66       0.66  0.0  0.0
+15:36:25 | +04:15    | INFO    | forexmodel.evaluation.diagnostics | Разбивка по причинам выхода:
+               n  avg_pnl  total_pnl
+exit_reason                         
+trailing_stop  1    0.664      0.664
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | --> этап «Диагностика» завершён за 113мс
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline |   ЭТАП 5/5 · Сохранение и графики
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline |   прошло всего 391мс
+15:36:25 | +04:15    | INFO    | forexmodel.pipelines.backtest_pipeline | ==============================================================================
+15:36:27 | +04:16    | INFO    | forexmodel.viz.charts          | График сохранён: reports/silver_2024_base_reg/chart_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.viz.charts          | График капитала сохранён: reports/silver_2024_base_reg/equity_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.viz.charts          | Разбор сделок сохранён: reports/silver_2024_base_reg/trades_worst_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.viz.charts          | Разбор сделок сохранён: reports/silver_2024_base_reg/trades_best_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline | Записано 10 файлов в reports/silver_2024_base_reg:
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/trades_sim.csv
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/report_sim.csv
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/signals_sim.csv
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/diag_late_entry_sim.csv
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/diag_exit_reasons_sim.csv
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/summary_sim.txt
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/chart_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/equity_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/trades_worst_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline |     reports/silver_2024_base_reg/trades_best_sim.html
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline | --> этап «Сохранение и графики» завершён за 1.6с
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline | 
+ВРЕМЯ ПО ЭТАПАМ — БЭКТЕСТ · выборка sim · run_name=silver_2024_base_reg
+--------------------------------------------------
+  1. Предсказания моделей      110мс     5%
+  2. Сигналы                    62мс     3%
+  3. Минутная симуляция        103мс     5%
+  4. Диагностика               113мс     6%
+  5. Сохранение и графики       1.6с    81%
+--------------------------------------------------
+  ИТОГО                         2.0с
+15:36:27 | +04:16    | INFO    | forexmodel.pipelines.backtest_pipeline | Тайминги этапов сохранены: artifacts/silver_2024_base_reg/timings_backtest_sim.json (из них берётся ETA следующего прогона)
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            | 
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            | ==============================================================================
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |   ГОТОВО · команда «run» · заняло 4м 16с
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            | ==============================================================================
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |   Модели и метрики : artifacts/silver_2024_base_reg
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       primary.pkl / nn.pkl / meta.pkl, metrics.json, train_summary.txt, config.yaml
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |   Графики (HTML, открыть в браузере):
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       reports/silver_2024_base_reg/chart_sim.html  <- свечи, фон тренда и все сделки
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       reports/silver_2024_base_reg/equity_sim.html  <- кривая капитала, просадка, распределение PnL
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       reports/silver_2024_base_reg/trades_worst_sim.html  <- 12 худших сделок: минутный путь цены и уровни
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       reports/silver_2024_base_reg/trades_best_sim.html  <- 12 лучших сделок
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |   Отчёты и таблицы : reports/silver_2024_base_reg
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       summary_sim.txt — вся сводка текстом
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       trades_sim.csv — все сделки, report_sim.csv — метрики одной строкой
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       signals_sim.csv — бары с предсказаниями и сигналами
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |       diag_late_entry_sim.csv — PnL в разрезе растяжения на входе
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            |   Лог этого прогона: reports/silver_2024_base_reg/logs/run_20260923_153211.log
+15:36:27 | +04:16    | INFO    | forexmodel.__main__            | ==============================================================================

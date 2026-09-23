@@ -1,0 +1,21 @@
+{
+  "primary": {
+    "accuracy": 0.38828880045480385,
+    "f1_weighted": 0.39543619651174783,
+    "polar_precision": 0.3112639724849527,
+    "polar_baseline": 0.30137575236457437,
+    "polar_edge": 0.009888220120378322,
+    "n_polar_predictions": 1163,
+    "refit_on_full_train": 1.0,
+    "refit_iterations": 543.0
+  },
+  "nn": null,
+  "meta": {
+    "roc_auc": 0.47132873423628563,
+    "precision_at_threshold": 0.2986425339366516,
+    "kept_share": 0.24831460674157305,
+    "refit_on_full_train": 1.0
+  },
+  "n_train": 8797,
+  "n_features": 81
+}

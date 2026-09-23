@@ -1,0 +1,2 @@
+total_trades,winrate,total_pnl_pct,avg_profit_pct,median_profit_pct,profit_factor,expectancy_pct,avg_win_pct,avg_loss_pct,max_drawdown_pct,equity_multiple,avg_minutes,long_share,exit_trailing_stop,skipped_overlap,skipped_trend,skipped_no_prices,skipped_no_atr,n_signals_in
+2,100.0,4.81,2.405,2.405,inf,2.405,2.405,0.0,0.0,1.0485,311.5,0.0,2,0,104,0,0,106

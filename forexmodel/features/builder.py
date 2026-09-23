@@ -39,7 +39,7 @@ def build_features(df_tf: pd.DataFrame, cfg: Config) -> pd.DataFrame:
             raise ValueError("features.use_orderflow_features=true, но data.orderflow_path не задан")
         from .orderflow import add_orderflow_features, aggregate_orderflow, load_orderflow
 
-        of = load_orderflow(cfg.data.orderflow_path, cfg.data.orderflow_tz_shift_hours)
+        of = load_orderflow(cfg.data.orderflow_path, cfg.data.orderflow_tz_shift_hours, cfg.data.orderflow_tz)
         of_bars = aggregate_orderflow(of, cfg.features, cfg.data.base_timeframe)
         del of  # ~700 МБ секундных строк, дальше не нужны
         df = add_orderflow_features(df, of_bars, cfg.features, atr_col=cfg.atr_col)

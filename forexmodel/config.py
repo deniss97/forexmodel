@@ -89,6 +89,10 @@ class DataConfig:
     # avg_trade_sz). Время в parquet — UTC, в котировках — московское
     orderflow_path: Optional[str] = None
     orderflow_tz_shift_hours: int = 3
+    # IANA-зона котировок (напр. America/New_York для форекс-фида XAGUSD): если задана,
+    # UTC потока сделок конвертируется в неё с учётом летнего времени, а фиксированный
+    # сдвиг выше игнорируется. Для МСК (без DST) достаточно сдвига +3
+    orderflow_tz: Optional[str] = None
 
     def split_config(self) -> SplitConfig:
         return _build(SplitConfig, self.splits, "data.splits")
@@ -128,7 +132,12 @@ class FeatureConfig:
     orderflow_large_lookback_days: int = 5      # квантиль берётся по ПРЕДЫДУЩИМ дням (каузально)
     orderflow_windows: List[int] = field(default_factory=lambda: [6, 24])
     orderflow_profile_bars: int = 70            # окно volume profile в барах рабочего ТФ (~5 сессий)
-    orderflow_profile_bin: float = 10.0         # шаг ценового бина профиля (в единицах цены)
+    orderflow_profile_bin: float = 10.0         # шаг ценового бина профиля (в единицах цены потока сделок)
+    # False, если лента сделок — по другому инструменту, чем котировки (напр. фьючерсы
+    # на серебро против спота XAGUSD): тогда ценовые признаки (VWAP, POC, Value Area)
+    # считаются относительно собственной цены потока и его собственного размаха,
+    # а не относительно close/ATR котировок — иначе в них попадает базис
+    orderflow_same_instrument: bool = True
 
 
 @dataclass
