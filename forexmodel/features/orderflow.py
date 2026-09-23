@@ -44,6 +44,7 @@ _RAW_COLUMNS = [
     "time", "price", "volume", "n_trades", "signed_vol", "buy_volume", "sell_volume",
     "notional_sum", "avg_trade_sz",
 ]
+_TICKER_COLUMN = "TICKER_CC"   # есть в parquet ALGOPACK; у фьючерсов — разные контракты
 
 
 def load_orderflow(path: Path | str, tz_shift_hours: int = 3, tz: str | None = None) -> pd.DataFrame:
@@ -57,7 +58,12 @@ def load_orderflow(path: Path | str, tz_shift_hours: int = 3, tz: str | None = N
     if not path.exists():
         raise FileNotFoundError(f"Файл потока сделок не найден: {path} (data.orderflow_path)")
 
-    of = pd.read_parquet(path, columns=_RAW_COLUMNS)
+    import pyarrow.parquet as pq
+
+    have_ticker = _TICKER_COLUMN in pq.ParquetFile(path).schema_arrow.names
+    of = pd.read_parquet(path, columns=_RAW_COLUMNS + ([_TICKER_COLUMN] if have_ticker else []))
+    if have_ticker:
+        of[_TICKER_COLUMN] = of[_TICKER_COLUMN].astype("category")
     t = pd.to_datetime(of["time"])
     if getattr(t.dt, "tz", None) is None:
         t = t.dt.tz_localize("UTC")
@@ -124,23 +130,55 @@ def aggregate_orderflow(of: pd.DataFrame, cfg: FeatureConfig, timeframe: str = "
         of_sell=("sell_volume", "sum"),
         of_delta=("signed_vol", "sum"),
         of_trades=("n_trades", "sum"),
-        of_notional=("notional_sum", "sum"),
         of_large_vol=("_large_vol", "sum"),
         of_large_delta=("_large_delta", "sum"),
         of_big_vol=("_big_vol", "sum"),
         of_big_delta=("_big_delta", "sum"),
-        of_close=("price", "last"),
-        of_high=("price", "max"),
-        of_low=("price", "min"),
     )
-    hourly["of_vwap"] = hourly["of_notional"] / hourly["of_volume"].replace(0, np.nan)
 
-    profile = _rolling_volume_profile(of, hourly.index, cfg.orderflow_profile_bin, cfg.orderflow_profile_bars)
+    # Ценовые величины — только по ФРОНТ-контракту бара (максимум объёма в баре).
+    # У фьючерсов одновременно торгуются несколько сроков, и базис между ними —
+    # проценты (у серебра на MOEX медиана 5.6%): смешав их, получаем размах цены
+    # за бар 6% вместо 0.4%, прыгающий между контрактами close и профиль объёма,
+    # размазанный по уровням, отстоящим на проценты. Объёмы же суммируются по всем:
+    # фронт держит ~97% оборота, и дельта агрессора от этого не страдает.
+    front = _front_contract_rows(of)
+    price_src = of[front] if front is not None else of
+    hourly = hourly.join(
+        price_src.groupby("bar").agg(
+            of_notional=("notional_sum", "sum"),
+            _front_volume=("volume", "sum"),
+            of_close=("price", "last"),
+            of_high=("price", "max"),
+            of_low=("price", "min"),
+        )
+    )
+    hourly["of_vwap"] = hourly["of_notional"] / hourly["_front_volume"].replace(0, np.nan)
+    hourly = hourly.drop(columns=["_front_volume"])
+
+    profile = _rolling_volume_profile(price_src, hourly.index, cfg.orderflow_profile_bin, cfg.orderflow_profile_bars)
     hourly = hourly.join(profile)
 
     hourly.index.name = "time"
     log.info("Поток сделок агрегирован: %d баров %s", len(hourly), timeframe)
     return hourly.reset_index()
+
+
+def _front_contract_rows(of: pd.DataFrame):
+    """Маска строк фронт-контракта каждого бара (контракт с наибольшим объёмом в баре).
+
+    None, если колонки тикера нет или тикер один — тогда фильтровать нечего.
+    """
+    if _TICKER_COLUMN not in of.columns or of[_TICKER_COLUMN].nunique() <= 1:
+        return None
+    per_contract = of.groupby(["bar", _TICKER_COLUMN], observed=True)["volume"].sum()
+    front = per_contract.groupby(level=0).idxmax().map(lambda ix: ix[1])   # bar -> тикер
+    mask = of[_TICKER_COLUMN].astype(str).to_numpy() == of["bar"].map(front).astype(str).to_numpy()
+    log.info(
+        "Контрактов в ленте: %d; ценовые величины — по фронт-контракту бара (%.1f%% строк, %.1f%% объёма)",
+        of[_TICKER_COLUMN].nunique(), 100 * mask.mean(), 100 * of.loc[mask, "volume"].sum() / of["volume"].sum(),
+    )
+    return mask
 
 
 def _rolling_volume_profile(of: pd.DataFrame, bars: pd.Index, bin_size: float, window: int) -> pd.DataFrame:
