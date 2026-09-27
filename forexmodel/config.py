@@ -30,6 +30,7 @@ __all__ = [
     "NNConfig",
     "MetaConfig",
     "SimulationConfig",
+    "VolatilityConfig",
     "PathsConfig",
     "load_config",
 ]
@@ -324,6 +325,29 @@ class MetaConfig:
 
 
 @dataclass
+class VolatilityConfig:
+    """Прогноз волатильности на горизонт сделки и размер позиции по нему (models/volatility.py)."""
+
+    enabled: bool = False
+    source: str = "model"            # model — CatBoost-регрессия; atr — наивный прогноз «текущий ATR»
+    horizon: Optional[int] = None    # None -> labeling.horizon
+    ref_bars: int = 2000             # опорный уровень — медиана цели по последним ref_bars барам train
+    # размер: 0 при прогноз/опора < min_ratio, иначе min((прогноз/опора)^power, cap)
+    min_ratio: float = 0.0
+    power: float = 1.0
+    cap: float = 2.0
+    iterations: int = 2000
+    learning_rate: float = 0.05
+    depth: int = 6
+    l2_leaf_reg: float = 6.0
+    early_stopping_rounds: int = 100
+    test_size: float = 0.2
+    val_size: float = 0.15
+    random_seed: int = 42
+    refit_on_full_train: bool = True
+
+
+@dataclass
 class SimulationConfig:
     """Симуляция.
 
@@ -393,6 +417,7 @@ class Config:
     nn: NNConfig = field(default_factory=NNConfig)
     meta: MetaConfig = field(default_factory=MetaConfig)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
+    volatility: VolatilityConfig = field(default_factory=VolatilityConfig)
     paths: PathsConfig = field(default_factory=PathsConfig)
 
     # ---------------- производные значения ----------------
@@ -448,6 +473,7 @@ _SECTIONS = {
     "nn": NNConfig,
     "meta": MetaConfig,
     "simulation": SimulationConfig,
+    "volatility": VolatilityConfig,
     "paths": PathsConfig,
 }
 
@@ -484,6 +510,10 @@ def _validate(cfg: Config) -> None:
         raise ValueError(f"labeling.mode: ожидалось first_touch|atr_asym|direction, получено {cfg.labeling.mode!r}")
     if cfg.labeling.dir_atr <= 0:
         raise ValueError("labeling.dir_atr должен быть > 0")
+    if cfg.volatility.source not in {"model", "atr"}:
+        raise ValueError(f"volatility.source: ожидалось model|atr, получено {cfg.volatility.source!r}")
+    if cfg.volatility.cap <= 0 or cfg.volatility.min_ratio < 0:
+        raise ValueError("volatility.cap должен быть > 0, volatility.min_ratio >= 0")
     if cfg.catboost.n_models < 1:
         raise ValueError("catboost.n_models должен быть >= 1")
     if cfg.catboost.n_models > 1 and cfg.catboost.objective != "multiclass":

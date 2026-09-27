@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
+
 from ..config import Config
 from ..features.extension import extension_columns
 from ..logging_utils import get_logger
@@ -28,6 +30,7 @@ class TrainResult:
     meta: Optional[MetaModel]
     features: List[str]
     metrics: Dict[str, Any]
+    vol: Optional[Any] = None          # models.volatility.VolModel при volatility.enabled
 
 
 def _stage_names(cfg: Config, dataset: Optional[Dataset]) -> List[str]:
@@ -37,6 +40,8 @@ def _stage_names(cfg: Config, dataset: Optional[Dataset]) -> List[str]:
         names.append("CNN-BiLSTM")
     if cfg.meta.enabled:
         names += ["OOF-предсказания", "Мета-метки (симуляция)", "Мета-модель"]
+    if cfg.volatility.enabled:
+        names.append("Прогноз волатильности")
     names.append("Сохранение артефактов")
     return names
 
@@ -95,8 +100,25 @@ def run_training(cfg: Config, dataset: Optional[Dataset] = None, save: bool = Tr
             meta_features = build_meta_features(meta_df, market_features)
             meta_model = train_meta_model(meta_df, meta_features, cfg)
 
+    vol_model = None
+    if cfg.volatility.enabled:
+        with stages.stage("Прогноз волатильности"):
+            from ..models.volatility import train_volatility_model, volatility_target
+
+            horizon = cfg.volatility.horizon or cfg.labeling.horizon
+            # цель — на непрерывном ряде, обрезанном по началу test: у последних `horizon`
+            # баров до test цель NaN, поэтому она не смотрит в test при любом embargo;
+            # на train переносится по времени (train после train_query — с разрывами)
+            full = ds.full
+            if not ds.test.empty:
+                full = full[full["time"] < ds.test["time"].min()]
+            tgt = pd.DataFrame({"time": full["time"], "_vol_target": volatility_target(full, horizon)})
+            train_v = ds.train.merge(tgt, on="time", how="left")
+            vol_model = train_volatility_model(train_v, features, cfg.volatility, horizon, cfg.atr_col, embargo=embargo)
+
     metrics = {
         "primary": primary.metrics,
+        "volatility": vol_model.metrics if vol_model else None,
         "nn": nn_model.metrics if nn_model else None,
         "meta": meta_model.metrics if meta_model else None,
         "n_train": len(ds.train),
@@ -111,6 +133,8 @@ def run_training(cfg: Config, dataset: Optional[Dataset] = None, save: bool = Tr
                 save_bundle(nn_model, artifacts.nn, cfg)
             if meta_model is not None:
                 save_bundle(meta_model, artifacts.meta, cfg)
+            if vol_model is not None:
+                save_bundle(vol_model, artifacts.path("vol_model.pkl"), cfg)
             save_json({"features": features}, artifacts.features)
             save_json(metrics, artifacts.metrics)
             cfg.dump(artifacts.config)
@@ -127,7 +151,8 @@ def run_training(cfg: Config, dataset: Optional[Dataset] = None, save: bool = Tr
         path.write_text(summary + "\n" + timings + "\n", encoding="utf-8")
         log.info("Сводка обучения: %s", path)
 
-    return TrainResult(dataset=ds, primary=primary, nn=nn_model, meta=meta_model, features=features, metrics=metrics)
+    return TrainResult(dataset=ds, primary=primary, nn=nn_model, meta=meta_model, features=features, metrics=metrics,
+                       vol=vol_model)
 
 
 def _fmt(value: Any, digits: int = 4) -> str:

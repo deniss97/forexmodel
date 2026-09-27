@@ -80,7 +80,7 @@ def simulate_trades(
 
     trades: List[dict] = []
     last_exit_time: Optional[pd.Timestamp] = None
-    skipped = {"overlap": 0, "trend": 0, "no_prices": 0, "no_atr": 0}
+    skipped = {"overlap": 0, "trend": 0, "no_prices": 0, "no_atr": 0, "size_zero": 0}
 
     # колонки вытаскиваем в массивы заранее: itertuples ломается на «неудобных»
     # именах колонок, а .loc[i, col] в цикле — это основной тормоз старой версии
@@ -88,6 +88,9 @@ def simulate_trades(
     sig_times = active[time_col]
     sig_trend = _column_or_nan(active, sim.trend_col)
     sig_atr = _column_or_nan(active, sim.atr_col)
+    # размер позиции (volatility.enabled -> колонка position_size); без неё — 1
+    sized = bool(getattr(cfg, "volatility", None) and cfg.volatility.enabled and "position_size" in active.columns)
+    sig_size = _column_or_nan(active, "position_size") if sized else np.ones(len(active))
 
     # на бэктесте сигналов сотни и цикл мгновенный, а при сборе мета-меток их
     # десятки тысяч — min_interval гарантирует, что в первом случае в лог не
@@ -103,6 +106,12 @@ def simulate_trades(
 
         if not sim.allow_overlapping_positions and last_exit_time is not None and signal_dt <= last_exit_time:
             skipped["overlap"] += 1
+            continue
+
+        size = float(sig_size[i]) if np.isfinite(sig_size[i]) else 0.0
+        if size <= 0:
+            # позиция нулевого размера не открывается и не занимает время
+            skipped["size_zero"] += 1
             continue
 
         if sim.use_trend_filter:
@@ -152,8 +161,10 @@ def simulate_trades(
         last_exit_time = exit_dt
 
         direction = 1.0 if side == "buy" else -1.0
-        gross_pct = direction * (exit_price - entry_price) / entry_price * 100.0
-        profit_pct = gross_pct - sim.commission_pct  # комиссия за круг, отдельно от барьеров
+        gross_unit = direction * (exit_price - entry_price) / entry_price * 100.0
+        # результат и комиссия масштабируются размером позиции (1 без volatility.enabled)
+        gross_pct = size * gross_unit
+        profit_pct = size * (gross_unit - sim.commission_pct)  # комиссия за круг, отдельно от барьеров
 
         trades.append(
             {
@@ -165,7 +176,9 @@ def simulate_trades(
                 "open_price": entry_price,
                 "exit_price": exit_price,
                 "gross_pct": gross_pct,
-                "commission_pct": sim.commission_pct,
+                "commission_pct": size * sim.commission_pct,
+                "size": size,
+                "gross_unit_pct": gross_unit,
                 "profit_pct": profit_pct,
                 "profit_points": direction * (exit_price - entry_price),
                 "exit_reason": exit_reason,
@@ -176,12 +189,13 @@ def simulate_trades(
 
     trades_df = pd.DataFrame(trades)
     log.info(
-        "Сделок: %d | пропущено: перекрытие=%d, тренд=%d, нет цен=%d, нет ATR=%d",
+        "Сделок: %d | пропущено: перекрытие=%d, тренд=%d, нет цен=%d, нет ATR=%d, размер 0=%d",
         len(trades_df),
         skipped["overlap"],
         skipped["trend"],
         skipped["no_prices"],
         skipped["no_atr"],
+        skipped["size_zero"],
     )
 
     report = build_report(trades_df)

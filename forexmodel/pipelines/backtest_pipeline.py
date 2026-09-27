@@ -51,6 +51,7 @@ def run_backtest(
     nn_model: Optional[NNModel] = None,
     meta_model: Optional[MetaModel] = None,
     save: bool = True,
+    vol_model=None,
 ) -> BacktestResult:
     stage_names = ["Данные"] if dataset is None else []
     stage_names += ["Предсказания моделей", "Сигналы", "Минутная симуляция", "Диагностика"]
@@ -119,6 +120,20 @@ def run_backtest(
             )
 
         signals = build_signal_column(signals, cfg)
+
+        if cfg.volatility.enabled:
+            # прогноз волатильности на горизонт и размер позиции (models/volatility.py)
+            from ..models.volatility import position_sizes, predict_volatility
+
+            if vol_model is None:
+                vpath = TrainingArtifacts(cfg.artifacts_path()).path("vol_model.pkl")
+                if not vpath.exists():
+                    raise ValueError("volatility.enabled, но модель волатильности не обучена/не найдена")
+                vol_model = load_bundle(vpath)
+            v = cfg.volatility
+            signals["pred_vol_pct"] = predict_volatility(vol_model, signals, cfg.atr_col)
+            signals["position_size"] = position_sizes(signals["pred_vol_pct"].to_numpy(), vol_model.reference,
+                                                      v.min_ratio, v.power, v.cap)
 
     with stages.stage("Минутная симуляция"):
         trades, report = simulate_trades(signals, ds.minute_slice(split), cfg)

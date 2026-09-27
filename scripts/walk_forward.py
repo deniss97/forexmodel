@@ -29,6 +29,10 @@ reports/walk_forward/<name>_trades.csv.
         --set meta.enabled=true --set meta.context_features=true \\
         --variants cb meta:0.50 meta:0.52 meta:0.55
 
+Размер позиции по прогнозу волатильности (models/volatility.py; требует
+--set volatility.enabled=true): `vol:<min_ratio>:<power>` — прогноз моделью,
+`volatr:<min_ratio>:<power>` — наивный прогноз «текущий ATR». Сигнал — primary (cb).
+
 Варианты: `cb` — сигнал primary без меты; `meta:<порог>` — мета-фильтр с порогом;
 `rule:<признак>:<порог>` — правило входа по признаку без модели (EV- и
 тренд-фильтр выключены; `rule:<признак>:<порог>:trend` — с тренд-фильтром).
@@ -83,6 +87,7 @@ def _stats_row(key: str, label: str, t: pd.DataFrame, metrics: dict) -> dict:
     ex2 = pnl.drop(pnl.nlargest(2).index) if len(pnl) > 2 else pnl
     meta_m = metrics.get("meta") or {}
     prim = metrics.get("primary") or {}
+    vol_m = metrics.get("volatility") or {}
     return {
         key: label,
         "деревьев": prim.get("refit_iterations"),
@@ -96,6 +101,9 @@ def _stats_row(key: str, label: str, t: pd.DataFrame, metrics: dict) -> dict:
         "PF": round(float(pnl[pnl > 0].sum() / loss), 2) if loss > 0 else float("inf"),
         "до_комиссии": round(float(t["gross_pct"].mean()), 3) if len(t) else float("nan"),
         "winrate": round(float((pnl > 0).mean() * 100), 1) if len(pnl) else float("nan"),
+        "средний_размер": round(float(t["size"].mean()), 3) if len(t) and "size" in t else float("nan"),
+        "vol_corr_model": round(vol_m.get("corr_model", float("nan")), 3),
+        "vol_corr_atr": round(vol_m.get("corr_naive_atr", float("nan")), 3),
     }
 
 
@@ -171,13 +179,30 @@ def main(argv=None) -> int:
                 t = _rule_trades(ds, cfg, v)
             else:
                 vcfg = copy.deepcopy(cfg)
+                vol_model = trained.vol
+                vcfg.volatility.enabled = False
                 if v == "cb":
                     vcfg.simulation.signal_source = "cb"
                 elif v and v.startswith("meta:"):
                     vcfg.simulation.signal_source = "meta"
                     vcfg.meta.threshold = float(v.split(":", 1)[1])
+                elif v and v.split(":")[0] in ("vol", "volatr"):
+                    kind, mn, pw = v.split(":")[:3]
+                    vcfg.simulation.signal_source = "cb"
+                    vcfg.volatility.enabled = True
+                    vcfg.volatility.min_ratio, vcfg.volatility.power = float(mn), float(pw)
+                    if kind == "volatr":
+                        from forexmodel.models.volatility import train_volatility_model
+
+                        a = copy.deepcopy(vcfg.volatility)
+                        a.source = "atr"
+                        vol_model = train_volatility_model(ds.train, [], a, 1, vcfg.atr_col)
+                    elif vol_model is None:
+                        raise ValueError("вариант vol:* требует --set volatility.enabled=true (модель волатильности)")
+                elif v is None:
+                    vcfg.volatility.enabled = base.volatility.enabled
                 t = run_backtest(vcfg, split="test", dataset=ds, primary=trained.primary, nn_model=trained.nn,
-                                 meta_model=trained.meta, save=False).trades
+                                 meta_model=trained.meta, save=False, vol_model=vol_model).trades
             row = _stats_row(key, label, t, metrics)
             rows[v].append(row)
             if len(t):
