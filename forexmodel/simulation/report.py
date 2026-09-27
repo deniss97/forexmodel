@@ -43,6 +43,13 @@ def build_report(trades_df: pd.DataFrame) -> Dict[str, float]:
     equity = (1 + pnl / 100).cumprod()
     drawdown = equity / equity.cummax() - 1
 
+    # результат без двух лучших сделок: на серебре две сделки на обвале 30 января
+    # дали +30.85% из +63.94%, и без такой строки сводка выглядит лучше, чем
+    # стратегия. Если итог держится на одной-двух сделках, это видно сразу
+    ex_top2 = pnl.drop(pnl.nlargest(2).index) if len(pnl) > 2 else pnl.iloc[:0]
+    ex_loss = float(-ex_top2[ex_top2 < 0].sum())
+    ex_pf = float(ex_top2[ex_top2 > 0].sum()) / ex_loss if ex_loss > 0 else np.inf
+
     report = {
         "total_trades": int(len(trades_df)),
         "winrate": round(float((pnl > 0).mean() * 100), 2),
@@ -55,6 +62,8 @@ def build_report(trades_df: pd.DataFrame) -> Dict[str, float]:
         "avg_loss_pct": round(float(losses.mean()), 3) if len(losses) else 0.0,
         "max_drawdown_pct": round(float(drawdown.min() * 100), 2),
         "equity_multiple": round(float(equity.iloc[-1]), 4),
+        "total_pnl_ex_top2_pct": round(float(ex_top2.sum()), 2) if len(ex_top2) else 0.0,
+        "profit_factor_ex_top2": round(ex_pf, 3) if len(ex_top2) else 0.0,
         "avg_minutes": round(float(trades_df["minutes_in_trade"].mean()), 1),
         "long_share": round(float((trades_df["side"] == "buy").mean() * 100), 1),
     }
@@ -78,6 +87,8 @@ _LABELS = [
         ("equity_multiple", "капитал (сложный процент)", "x{}"),
         ("max_drawdown_pct", "макс. просадка", "{}%"),
         ("profit_factor", "profit factor", "{}"),
+        ("total_pnl_ex_top2_pct", "без 2 лучших сделок: PnL", "{:+}%"),
+        ("profit_factor_ex_top2", "без 2 лучших сделок: PF", "{}"),
     ]),
     ("На одну сделку", [
         ("avg_profit_pct", "средний результат", "{:+}%"),

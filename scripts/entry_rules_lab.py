@@ -37,7 +37,7 @@ import numpy as np
 import pandas as pd
 
 from forexmodel.config import load_config
-from forexmodel.data.loader import load_minute_csv, resample_ohlcv
+from forexmodel.data.loader import load_minute_compact, resample_ohlcv
 from forexmodel.features import indicators as ind
 from forexmodel.simulation.simulator import simulate_trades
 
@@ -243,7 +243,7 @@ def main(argv=None) -> int:
     splits = cfg.data.splits if isinstance(cfg.data.splits, dict) else vars(cfg.data.splits)
     test_start, sim_start = pd.Timestamp(splits["test_start"]), pd.Timestamp(splits["sim_start"])
 
-    minute = load_minute_csv(ROOT / cfg.data.csv_path, time_col=cfg.data.time_col, volume_candidates=cfg.data.volume_candidates)
+    minute = load_minute_compact(ROOT / cfg.data.csv_path, cfg.data.time_col, ROOT / "reports" / "_cache")
     if cache.exists():
         h = pd.read_pickle(cache)
     else:

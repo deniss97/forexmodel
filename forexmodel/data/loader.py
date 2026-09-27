@@ -64,6 +64,39 @@ def load_minute_csv(
     return df
 
 
+def load_minute_compact(
+    path: Path | str,
+    time_col: str = "begin",
+    cache_dir: Optional[Path | str] = None,
+) -> pd.DataFrame:
+    """Минутные бары как time + OHLC в float32, читаются кусками.
+
+    `load_minute_csv` читает CSV целиком: на 8 ГБ машине 300-мегабайтный файл
+    вместе с редактором и моделями упирается в память. Здесь чтение по
+    400 тыс. строк, объём не нужен, цены — float32 (для симуляции и признаков
+    точности хватает: тик серебра 0.001 при цене ~80). При `cache_dir` результат
+    кладётся в <cache_dir>/<имя файла>_1m.pkl и дальше читается оттуда.
+    """
+    path = Path(path)
+    cache = Path(cache_dir) / f"{path.stem}_1m.pkl" if cache_dir else None
+    if cache is not None and cache.exists():
+        return pd.read_pickle(cache)
+    if not path.exists():
+        raise FileNotFoundError(f"Файл котировок не найден: {path}")
+
+    parts = []
+    for chunk in pd.read_csv(path, usecols=lambda c: c in {time_col, *OHLC}, chunksize=400_000,
+                             dtype={c: "float32" for c in OHLC}):
+        chunk["time"] = pd.to_datetime(chunk[time_col], errors="coerce")
+        parts.append(chunk.dropna(subset=["time"])[["time", *OHLC]])
+    df = pd.concat(parts, ignore_index=True).sort_values("time").drop_duplicates("time").reset_index(drop=True)
+    log.info("Загружено %d минутных баров (компактно): %s .. %s", len(df), df["time"].iloc[0], df["time"].iloc[-1])
+    if cache is not None:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        df.to_pickle(cache)
+    return df
+
+
 def resample_ohlcv(df: pd.DataFrame, timeframe: str = "1h", offset: Optional[pd.Timedelta] = None) -> pd.DataFrame:
     """Ресемплинг OHLC(V). В отличие от исходного `resample_tf`, объём сохраняется.
 
