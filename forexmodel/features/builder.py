@@ -13,7 +13,7 @@ import pandas as pd
 
 from ..config import Config
 from ..logging_utils import get_logger
-from .extension import add_extension_features
+from .extension import add_extension_features, add_regime_features
 from .technical import add_candle_features, add_technical_indicators
 from .trend import add_trend_filter, trend_gate_values
 
@@ -33,6 +33,9 @@ def build_features(df_tf: pd.DataFrame, cfg: Config) -> pd.DataFrame:
 
     if cfg.features.use_extension_features:
         df = add_extension_features(df, cfg.features, atr_col=cfg.atr_col)
+    if cfg.features.use_regime_features or (cfg.meta.enabled and cfg.meta.context_features):
+        # нужны непрерывному ряду; в primary попадают только при use_regime_features
+        df = add_regime_features(df, cfg.features)
 
     if cfg.features.use_orderflow_features:
         if not cfg.data.orderflow_path:

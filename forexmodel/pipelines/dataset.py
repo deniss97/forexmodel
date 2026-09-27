@@ -97,7 +97,11 @@ def build_dataset(cfg: Config, with_labels: bool = True) -> Dataset:
 
     check_split_sanity(splits)
 
-    features = select_feature_columns(splits["train"] if not splits["train"].empty else full, cfg.features)
+    from ..features.extension import regime_columns
+
+    # режимные признаки, посчитанные только для мета-модели, в primary не идут
+    meta_only = [] if cfg.features.use_regime_features else regime_columns(cfg.features, force=True)
+    features = select_feature_columns(splits["train"] if not splits["train"].empty else full, cfg.features, extra_exclude=meta_only)
     log.info("Датасет готов: %d признаков, выборки %s", len(features),
              {name: len(df) for name, df in splits.items()})
     return Dataset(minute=minute, full=full, splits=splits, features=features, cfg=cfg)

@@ -313,6 +313,10 @@ class MetaConfig:
     size_by_proba: bool = False
     random_seed: int = 42
     refit_on_full_train: bool = True    # см. CatBoostConfig.refit_on_full_train
+    # признаки, которых нет у primary (models/meta_context.py): знаковые относительно
+    # направления сделки, класс входа, исход последних сделок, режимные vr4/acf1
+    context_features: bool = False
+    recent_windows: List[int] = field(default_factory=lambda: [10, 30])
 
 
 @dataclass

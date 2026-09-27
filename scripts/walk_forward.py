@@ -15,6 +15,16 @@
 
 Итог — таблица в консоли и reports/walk_forward/<name>.csv; сделки каждого года —
 reports/walk_forward/<name>_trades.csv.
+
+`--variants` прогоняет несколько правил входа на ОДНОЙ обученной модели года —
+так эффект мета-модели отделяется от разброса обучения:
+
+    python scripts/walk_forward.py -c configs/silver.yaml --years 2019 2026 \
+        --set meta.enabled=true --set meta.context_features=true \
+        --variants cb meta:0.50 meta:0.52 meta:0.55
+
+Вариант `cb` — сигнал primary без меты, `meta:<порог>` — мета-фильтр с порогом.
+Файлы: <name>__<вариант>.csv на каждый вариант.
 """
 
 from __future__ import annotations
@@ -45,6 +55,8 @@ def main(argv=None) -> int:
     ap.add_argument("--years", nargs=2, type=int, required=True, metavar=("FROM", "TO"))
     ap.add_argument("--set", dest="overrides", action="append", default=[], help="path=value, как в CLI")
     ap.add_argument("--name", default=None, help="имя для файлов результата (по умолчанию run_name конфига)")
+    ap.add_argument("--variants", nargs="+", default=None,
+                    help="правила входа на одной модели: cb, meta:<порог>; по умолчанию — как в конфиге")
     args = ap.parse_args(argv)
     setup_logging(logging.WARNING)
     pd.set_option("display.width", 250)
@@ -57,7 +69,9 @@ def main(argv=None) -> int:
     out_dir = ROOT / "reports" / "walk_forward"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    rows, all_trades = [], []
+    variants = args.variants or [None]
+    rows = {v: [] for v in variants}
+    trades_by = {v: [] for v in variants}
     for year in range(args.years[0], args.years[1] + 1):
         cfg = copy.deepcopy(base)
         cfg.paths.run_name = f"wf_{name}_{year}"
@@ -73,38 +87,52 @@ def main(argv=None) -> int:
             print(f"  нет данных за {year}, пропуск")
             continue
         trained = run_training(cfg, dataset=ds, save=False)
-        res = run_backtest(cfg, split="test", dataset=ds, primary=trained.primary, nn_model=trained.nn,
-                           meta_model=trained.meta, save=False)
-        t = res.trades
-        pnl = t["profit_pct"] if len(t) else pd.Series(dtype=float)
-        loss = float(-pnl[pnl < 0].sum()) if len(pnl) else 0.0
-        ex2 = pnl.drop(pnl.nlargest(2).index) if len(pnl) > 2 else pnl
-        rows.append({
-            "год": year,
-            "деревьев": trained.metrics.get("primary", {}).get("refit_iterations"),
-            "edge_holdout": round(trained.metrics.get("primary", {}).get("polar_edge", float("nan")), 4),
-            "сделок": len(t),
-            "итог_%": round(float(pnl.sum()), 2) if len(pnl) else 0.0,
-            "без_2_лучших_%": round(float(ex2.sum()), 2) if len(pnl) else 0.0,
-            "PF": round(float(pnl[pnl > 0].sum() / loss), 2) if loss > 0 else float("inf"),
-            "до_комиссии": round(float(t["gross_pct"].mean()), 3) if len(t) else float("nan"),
-            "winrate": round(float((pnl > 0).mean() * 100), 1) if len(pnl) else float("nan"),
-        })
-        if len(t):
-            all_trades.append(t.assign(год=year))
-        print(f"  {rows[-1]}", flush=True)
+        meta_m = trained.metrics.get("meta") or {}
+        for v in variants:
+            vcfg = copy.deepcopy(cfg)
+            if v == "cb":
+                vcfg.simulation.signal_source = "cb"
+            elif v and v.startswith("meta:"):
+                vcfg.simulation.signal_source = "meta"
+                vcfg.meta.threshold = float(v.split(":", 1)[1])
+            res = run_backtest(vcfg, split="test", dataset=ds, primary=trained.primary, nn_model=trained.nn,
+                               meta_model=trained.meta, save=False)
+            t = res.trades
+            pnl = t["profit_pct"] if len(t) else pd.Series(dtype=float)
+            loss = float(-pnl[pnl < 0].sum()) if len(pnl) else 0.0
+            ex2 = pnl.drop(pnl.nlargest(2).index) if len(pnl) > 2 else pnl
+            row = {
+                "год": year,
+                "деревьев": trained.metrics.get("primary", {}).get("refit_iterations"),
+                "edge_holdout": round(trained.metrics.get("primary", {}).get("polar_edge", float("nan")), 4),
+                "meta_auc": round(meta_m.get("roc_auc", float("nan")), 3),
+                "meta_деревьев": meta_m.get("trees"),
+                "meta_std": round(meta_m.get("proba_std", float("nan")), 4),
+                "сделок": len(t),
+                "итог_%": round(float(pnl.sum()), 2) if len(pnl) else 0.0,
+                "без_2_лучших_%": round(float(ex2.sum()), 2) if len(pnl) else 0.0,
+                "PF": round(float(pnl[pnl > 0].sum() / loss), 2) if loss > 0 else float("inf"),
+                "до_комиссии": round(float(t["gross_pct"].mean()), 3) if len(t) else float("nan"),
+                "winrate": round(float((pnl > 0).mean() * 100), 1) if len(pnl) else float("nan"),
+            }
+            rows[v].append(row)
+            if len(t):
+                trades_by[v].append(t.assign(год=year))
+            print(f"  {v or 'конфиг'}: {row}", flush=True)
 
-    table = pd.DataFrame(rows)
-    print(f"\nWALK-FORWARD · {name}")
-    print(table.to_string(index=False))
-    if len(table):
-        pos = int((table["итог_%"] > 0).sum())
-        print(f"прибыльных лет: {pos} из {len(table)} | сумма {table['итог_%'].sum():+.2f}% | "
-              f"медиана года {table['итог_%'].median():+.2f}% | сделка до комиссии в среднем по годам "
-              f"{table['до_комиссии'].mean():+.3f}%")
-    table.to_csv(out_dir / f"{name}.csv", index=False)
-    if all_trades:
-        pd.concat(all_trades).to_csv(out_dir / f"{name}_trades.csv", index=False)
+    for v in variants:
+        table = pd.DataFrame(rows[v])
+        suffix = "" if v is None else "__" + v.replace(":", "_")
+        print(f"\nWALK-FORWARD · {name}{suffix}")
+        print(table.to_string(index=False))
+        if len(table):
+            pos = int((table["итог_%"] > 0).sum())
+            print(f"прибыльных лет: {pos} из {len(table)} | сумма {table['итог_%'].sum():+.2f}% | "
+                  f"медиана года {table['итог_%'].median():+.2f}% | сделка до комиссии в среднем по годам "
+                  f"{table['до_комиссии'].mean():+.3f}%")
+        table.to_csv(out_dir / f"{name}{suffix}.csv", index=False)
+        if trades_by[v]:
+            pd.concat(trades_by[v]).to_csv(out_dir / f"{name}{suffix}_trades.csv", index=False)
     return 0
 
 

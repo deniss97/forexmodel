@@ -101,11 +101,21 @@ def run_backtest(
                     cfg.meta.threshold,
                     meta_model.threshold,
                 )
+            outcomes = None
+            if getattr(meta_model, "context", False):
+                # исходы всех полярных сигналов выборки — для признаков «последние сделки»;
+                # каждый учитывается только после своего закрытия (meta_context.py)
+                from ..models.meta import simulate_all_signals
+
+                polar = signals[signals["y_pred_cb"].isin([0, 2])].copy()
+                polar["final_class"] = polar["y_pred_cb"].astype(int)
+                outcomes, _ = simulate_all_signals(polar, ds.minute_slice(split), cfg)
             signals = apply_meta_filter(
                 signals,
                 meta_model,
                 threshold=cfg.meta.threshold,
                 size_by_proba=cfg.meta.size_by_proba,
+                outcomes=outcomes,
             )
 
         signals = build_signal_column(signals, cfg)

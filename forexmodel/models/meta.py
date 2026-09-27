@@ -50,6 +50,7 @@ __all__ = [
     "build_meta_features",
     "train_meta_model",
     "apply_meta_filter",
+    "simulate_all_signals",
 ]
 
 LONG, SHORT = 2, 0
@@ -61,6 +62,8 @@ class MetaModel:
     features: List[str]
     threshold: float
     metrics: Dict[str, float] = field(default_factory=dict)
+    context: bool = False                    # признаки meta_context (нужны и на инференсе)
+    recent_windows: List[int] = field(default_factory=lambda: [10, 30])
 
 
 # ----------------------------------------------------------------------
@@ -169,19 +172,7 @@ def build_meta_labels(df_oof: pd.DataFrame, df_prices_1m: pd.DataFrame, cfg: Con
         100 * len(sig) / max(len(df_oof), 1),
     )
     sig["final_class"] = sig["oof_pred"].astype(int)
-
-    sim_cfg = dataclasses.replace(
-        cfg.simulation,
-        signal_source="cb",
-        min_conf_cb=None,
-        min_conf_nn=None,
-        use_expected_value_filter=False,   # нужен исход КАЖДОГО сигнала
-        max_extension_atr=None,
-        use_trend_filter=False,            # тренд — это признак мета-модели, а не фильтр на этом шаге
-        close_on_trend_flip=False,
-        allow_overlapping_positions=True,  # иначе часть сигналов выпадет из обучения
-    )
-    trades_df, report = simulate_trades(sig, df_prices_1m, dataclasses.replace(cfg, simulation=sim_cfg))
+    trades_df, report = simulate_all_signals(sig, df_prices_1m, cfg)
 
     if trades_df.empty:
         raise ValueError("Симуляция OOF-сигналов не дала ни одной сделки — проверьте данные/пороги")
@@ -198,13 +189,34 @@ def build_meta_labels(df_oof: pd.DataFrame, df_prices_1m: pd.DataFrame, cfg: Con
     trades_df["meta_label"] = (trades_df["profit_pct"] > 0).astype(int)
 
     meta_df = sig.merge(
-        trades_df[["signal_dt", "meta_label", "profit_pct", "exit_reason"]],
+        trades_df[["signal_dt", "meta_label", "profit_pct", "exit_reason", "close_dt", "side"]],
         left_on="time",
         right_on="signal_dt",
         how="inner",
     )
     log.info("Мета-выборка: %d строк, доля прибыльных %.3f", len(meta_df), meta_df["meta_label"].mean())
     return meta_df
+
+
+def simulate_all_signals(sig: pd.DataFrame, df_prices_1m: pd.DataFrame, cfg: Config):
+    """Исход КАЖДОГО полярного сигнала (final_class) независимо от остальных.
+
+    Без EV-, тренд-фильтра и запрета перекрытия: для мета-меток и для признаков
+    «исход последних сделок» нужен результат каждого сигнала, а не только тех,
+    что прошли фильтры боевой торговли.
+    """
+    sim_cfg = dataclasses.replace(
+        cfg.simulation,
+        signal_source="cb",
+        min_conf_cb=None,
+        min_conf_nn=None,
+        use_expected_value_filter=False,   # нужен исход КАЖДОГО сигнала
+        max_extension_atr=None,
+        use_trend_filter=False,            # тренд — это признак мета-модели, а не фильтр на этом шаге
+        close_on_trend_flip=False,
+        allow_overlapping_positions=True,  # иначе часть сигналов выпадет из обучения
+    )
+    return simulate_trades(sig, df_prices_1m, dataclasses.replace(cfg, simulation=sim_cfg))
 
 
 # ----------------------------------------------------------------------
@@ -269,9 +281,10 @@ def train_meta_model(meta_df: pd.DataFrame, meta_features: Sequence[str], cfg: C
     )
     tracker.progress.finish(f"в модели осталось {model.tree_count_} деревьев (после early stopping по val)")
 
-    metrics: Dict[str, float] = {}
+    metrics: Dict[str, float] = {"trees": float(model.tree_count_)}
     if len(hold_idx):
         proba = model.predict_proba(X.iloc[hold_idx])[:, 1]
+        metrics["proba_std"] = float(np.std(proba))
         pred = (proba >= mc.threshold).astype(int)
         y_hold = y.iloc[hold_idx]
         log.info(
@@ -308,7 +321,8 @@ def train_meta_model(meta_df: pd.DataFrame, meta_features: Sequence[str], cfg: C
         tracker.progress.finish("мета-модель видит мета-выборку целиком")
         metrics["refit_on_full_train"] = 1.0
 
-    return MetaModel(model=model, features=list(meta_features), threshold=mc.threshold, metrics=metrics)
+    return MetaModel(model=model, features=list(meta_features), threshold=mc.threshold, metrics=metrics,
+                     context=mc.context_features, recent_windows=list(mc.recent_windows))
 
 
 # ----------------------------------------------------------------------
@@ -321,8 +335,12 @@ def apply_meta_filter(
     primary_conf_col: str = "confidence_cb",
     threshold: Optional[float] = None,
     size_by_proba: bool = False,
+    outcomes: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """Добавляет meta_proba / final_signal / position_size.
+
+    `outcomes` — сделки по всем полярным сигналам выборки (simulate_all_signals),
+    нужны мета-модели с context=True для признаков «исход последних сделок».
 
     Чтобы этот фильтр действительно влиял на сделки, симуляция должна
     запускаться с simulation.signal_source='meta' — в ноутбуке она читала
@@ -337,6 +355,12 @@ def apply_meta_filter(
         src = f"proba_{c}_cb"
         if src in df.columns:
             df[f"oof_proba_{c}"] = df[src]
+
+    if getattr(meta_model, "context", False):
+        from .meta_context import add_direction_context, add_recent_outcomes
+
+        df = add_direction_context(df, "oof_pred")
+        df = add_recent_outcomes(df, outcomes, "oof_pred", windows=meta_model.recent_windows)
 
     missing = [c for c in meta_model.features if c not in df.columns]
     if missing:

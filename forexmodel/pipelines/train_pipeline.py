@@ -81,6 +81,16 @@ def run_training(cfg: Config, dataset: Optional[Dataset] = None, save: bool = Tr
                 from ..features.orderflow import orderflow_columns
 
                 extra = extra + orderflow_columns(cfg.features)
+            if cfg.meta.context_features:
+                # то, чего у primary нет: знак сделки, класс входа, исход последних сделок, режим
+                from ..features.extension import regime_columns
+                from ..models.meta_context import add_direction_context, add_recent_outcomes, context_columns
+
+                meta_df = add_direction_context(meta_df, "oof_pred")
+                meta_df = add_recent_outcomes(
+                    meta_df, meta_df[["close_dt", "profit_pct", "side"]], "oof_pred", windows=cfg.meta.recent_windows
+                )
+                extra = extra + context_columns(cfg.meta.recent_windows, regime_columns(cfg.features, force=True))
             market_features = list(dict.fromkeys(features + [c for c in extra if c in meta_df.columns]))
             meta_features = build_meta_features(meta_df, market_features)
             meta_model = train_meta_model(meta_df, meta_features, cfg)

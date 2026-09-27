@@ -58,9 +58,6 @@ def add_extension_features(df: pd.DataFrame, cfg: FeatureConfig, atr_col: str | 
     if "bb_width" in df.columns:
         df["bb_width_pct"] = df["bb_width"].rolling(100).rank(pct=True)
 
-    if cfg.use_regime_features:
-        df = add_regime_features(df, cfg)
-
     if cfg.use_volume_features and "volume" in df.columns:
         vol = df["volume"]
         df["rel_vol_20"] = vol / vol.rolling(20).mean().replace(0, np.nan)
@@ -92,8 +89,10 @@ def add_regime_features(df: pd.DataFrame, cfg: FeatureConfig) -> pd.DataFrame:
     return df
 
 
-def regime_columns(cfg: FeatureConfig) -> list[str]:
-    if not cfg.use_regime_features:
+def regime_columns(cfg: FeatureConfig, force: bool = False) -> list[str]:
+    """Имена режимных признаков; force=True — независимо от use_regime_features
+    (мета-модель берёт их и тогда, когда primary их не видит)."""
+    if not (cfg.use_regime_features or force):
         return []
     return [f"{p}_{w}" for w in cfg.regime_windows for p in ("vr4", "acf1")]
 
