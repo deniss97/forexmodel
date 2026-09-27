@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 import _bootstrap  # noqa: F401
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -132,7 +133,15 @@ def main(argv=None) -> int:
                   f"{table['до_комиссии'].mean():+.3f}%")
         table.to_csv(out_dir / f"{name}{suffix}.csv", index=False)
         if trades_by[v]:
-            pd.concat(trades_by[v]).to_csv(out_dir / f"{name}{suffix}_trades.csv", index=False)
+            all_t = pd.concat(trades_by[v])
+            all_t.to_csv(out_dir / f"{name}{suffix}_trades.csv", index=False)
+            # главная мера: средний результат сделки и его t-статистика по ВСЕМ сделкам.
+            # Годовые итоги шумят на ±5 п.п. между прогонами из-за последовательности
+            # сделок (запрет перекрытия), а по сделкам различия видны честно
+            for label, col in (("до комиссии", "gross_pct"), ("после комиссии", "profit_pct")):
+                x = all_t[col]
+                t_stat = x.mean() / (x.std() / np.sqrt(len(x))) if len(x) > 1 and x.std() > 0 else float("nan")
+                print(f"сделка {label}: {x.mean():+.3f}% ± {x.std() / np.sqrt(len(x)):.3f} (t = {t_stat:+.2f}, n = {len(x)})")
     return 0
 
 
