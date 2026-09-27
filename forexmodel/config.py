@@ -468,6 +468,8 @@ def config_from_dict(raw: Optional[Dict[str, Any]]) -> Config:
 
 
 def _validate(cfg: Config) -> None:
+    if cfg.data.train_query and "trend_gate" in cfg.data.train_query and not cfg.trend_gate.enabled:
+        raise ValueError("data.train_query ссылается на trend_gate, но trend_gate.enabled=false — колонки не будет")
     if cfg.data.minute_loader not in {"compact", "full"}:
         raise ValueError(f"data.minute_loader: ожидалось compact|full, получено {cfg.data.minute_loader!r}")
     if cfg.labeling.mode not in {"first_touch", "atr_asym", "direction"}:

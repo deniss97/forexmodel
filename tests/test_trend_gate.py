@@ -109,3 +109,10 @@ def test_gate_leaves_model_features_untouched(hourly_df, cfg):
     for col in ("trend_4h", "adx_4h", "trend_age_4h"):
         assert np.allclose(without[col], with_gate[col], equal_nan=True), col
     assert "trend_gate" not in select_feature_columns(with_gate, gate_cfg.features)
+
+
+def test_train_query_on_gate_requires_enabled_gate():
+    with pytest.raises(ValueError, match="train_query"):
+        config_from_dict({"data": {"train_query": "trend_gate != 0"}, "meta": {"enabled": False}})
+    cfg = _gate_cfg()
+    cfg.data.train_query = "trend_gate != 0"  # с включённым гейтом — допустимо
