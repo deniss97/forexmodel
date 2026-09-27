@@ -86,6 +86,10 @@ class DataConfig:
     base_timeframe: str = "1h"          # рабочий ТФ сигналов
     signal_tf_minutes: int = 60         # длина бара рабочего ТФ в минутах
     splits: Dict[str, Any] = field(default_factory=dict)
+    # compact: минутный CSV читается кусками в float32 с кэшем в reports/_cache
+    # (на 8 ГБ памяти полный read_csv 300-мегабайтного файла рядом с моделями и
+    # редактором не проходит); full — прежний путь, float64 без кэша
+    minute_loader: str = "compact"
     # поток сделок (секундные агрегаты MOEX ALGOPACK: buy/sell volume, n_trades,
     # avg_trade_sz). Время в parquet — UTC, в котировках — московское
     orderflow_path: Optional[str] = None
@@ -124,6 +128,11 @@ class FeatureConfig:
     rsi_z_window: int = 200             # rolling-окно для z-score RSI (было: по всей выборке)
     extension_windows: List[int] = field(default_factory=lambda: [6, 12, 24])
     use_extension_features: bool = True
+    # режимные признаки по прошлым regime_windows часам (каузально): variance ratio
+    # на 4 барах и автокорреляция часовых доходностей — единственные метрики с
+    # согласованным знаком на серебре и LKOH за 10 лет (docs/results/instrument_profile.md)
+    use_regime_features: bool = False
+    regime_windows: List[int] = field(default_factory=lambda: [240, 720])
     use_volume_features: bool = True
     dimensionless_only: bool = True
     extra_exclude: List[str] = field(default_factory=list)
@@ -154,8 +163,9 @@ class LabelingConfig:
                     отличить старт движения от его конца.
     """
 
-    mode: str = "atr_asym"
+    mode: str = "atr_asym"              # first_touch | atr_asym | direction
     horizon: int = 10                   # баров основного ТФ
+    dir_atr: float = 0.5                # direction: |ход за горизонт| >= dir_atr ATR -> полярный класс
     threshold: float = 0.0075           # для first_touch
     tp_atr: float = 1.5                 # для atr_asym
     sl_atr: float = 0.75                # для atr_asym
@@ -330,6 +340,12 @@ class SimulationConfig:
     min_conf_nn: Optional[float] = None
     use_expected_value_filter: bool = True
     min_expected_value_pct: float = 0.0  # p*TP - (1-p)*SL - cost > порог
+    # барьеры, к которым относится p в формуле ожидаемой ценности. None -> барьеры
+    # РАЗМЕТКИ (labeling.tp_atr / sl_atr): вероятность модели считалась именно для
+    # них. Раньше формула брала simulation.tp_atr / sl_atr, и расширение стопа
+    # поднимало требуемую p и обнуляло сделки (RESULTS.md, часть III)
+    ev_tp_atr: Optional[float] = None
+    ev_sl_atr: Optional[float] = None
     max_extension_atr: Optional[float] = None  # грубый отсев поздних входов до переобучения
     extension_col: str = "ext_from_low_24"     # пара к ext_from_high_24 берётся автоматически
     # тренд-фильтр в симуляции
@@ -441,8 +457,12 @@ def config_from_dict(raw: Optional[Dict[str, Any]]) -> Config:
 
 
 def _validate(cfg: Config) -> None:
-    if cfg.labeling.mode not in {"first_touch", "atr_asym"}:
-        raise ValueError(f"labeling.mode: ожидалось first_touch|atr_asym, получено {cfg.labeling.mode!r}")
+    if cfg.data.minute_loader not in {"compact", "full"}:
+        raise ValueError(f"data.minute_loader: ожидалось compact|full, получено {cfg.data.minute_loader!r}")
+    if cfg.labeling.mode not in {"first_touch", "atr_asym", "direction"}:
+        raise ValueError(f"labeling.mode: ожидалось first_touch|atr_asym|direction, получено {cfg.labeling.mode!r}")
+    if cfg.labeling.dir_atr <= 0:
+        raise ValueError("labeling.dir_atr должен быть > 0")
     if cfg.trend.mode not in {"early", "confirm"}:
         raise ValueError(f"trend.mode: ожидалось early|confirm, получено {cfg.trend.mode!r}")
     if cfg.trend_gate.enabled and cfg.trend_gate.resolve(cfg.trend).mode not in {"early", "confirm"}:

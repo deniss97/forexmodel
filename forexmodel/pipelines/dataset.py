@@ -13,12 +13,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
 
 from ..config import Config
-from ..data.loader import load_minute_csv, minute_window_for, resample_ohlcv
+from ..data.loader import load_minute_compact, load_minute_csv, minute_window_for, resample_ohlcv
 from ..data.splits import apply_embargo, build_splits
 from ..evaluation.diagnostics import check_split_sanity
 from ..features.builder import build_features
@@ -58,7 +59,11 @@ class Dataset:
 
 def build_dataset(cfg: Config, with_labels: bool = True) -> Dataset:
     section(log, "Шаг 1/4 · чтение минутного CSV")
-    minute = load_minute_csv(cfg.data.csv_path, cfg.data.time_col, cfg.data.volume_candidates)
+    if cfg.data.minute_loader == "compact":
+        cache_dir = Path(cfg.paths.reports_dir) / "_cache"
+        minute = load_minute_compact(cfg.data.csv_path, cfg.data.time_col, cache_dir, cfg.data.volume_candidates)
+    else:
+        minute = load_minute_csv(cfg.data.csv_path, cfg.data.time_col, cfg.data.volume_candidates)
     hourly = resample_ohlcv(minute, cfg.data.base_timeframe)
     log.info("Рабочий ТФ %s: %d баров", cfg.data.base_timeframe, len(hourly))
 

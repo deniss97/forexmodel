@@ -71,12 +71,24 @@ def get_oof_primary_predictions(
     features: Sequence[str],
     cfg: Config,
     target_col: str = "label",
+    iterations: Optional[int] = None,
 ) -> pd.DataFrame:
+    """OOF-предсказания primary-модели по фолдам purged walk-forward.
+
+    `iterations` — число деревьев на фолд. Его надо брать равным числу деревьев
+    боевой primary-модели (после early stopping), а не `catboost.iterations`:
+    иначе фолды учатся на все 2000 деревьев без остановки (learn-loss уходит к
+    0.3–0.5 против ~1.0 у боевой модели с 66 деревьями), OOF-вероятности выходят
+    экстремальными и не похожими на те, что мета-модель увидит на инференсе.
+    На серебре и на LKOH 2024+ мета-модель из-за этого вырождалась в константу
+    (σ выхода 0.004–0.008, ROC-AUC ≈ 0.5).
+    """
     from catboost import CatBoostClassifier
 
     df = df_train.reset_index(drop=True).copy()
     n = len(df)
     embargo = cfg.meta_embargo_bars
+    n_iter = int(iterations) if iterations else cfg.catboost.iterations
 
     splits = purged_walk_forward_splits(n, n_splits=cfg.meta.n_splits, embargo=embargo)
     if not splits:
@@ -88,8 +100,9 @@ def get_oof_primary_predictions(
     cb = cfg.catboost
     section(log, f"OOF-предсказания primary: {len(splits)} фолдов purged walk-forward")
     log.info(
-        "На каждом фолде обучается отдельный CatBoost (%d деревьев, depth=%d) — это самый долгий шаг обучения",
-        cb.iterations,
+        "На каждом фолде обучается отдельный CatBoost (%d деревьев%s, depth=%d)",
+        n_iter,
+        " — как у боевой primary-модели после early stopping" if iterations else "",
         cb.depth,
     )
     folds_bar = Progress(len(splits), label="OOF walk-forward", unit="фолд", logger=log, min_interval=0.0)
@@ -102,7 +115,7 @@ def get_oof_primary_predictions(
         total = sum(counts.values())
 
         model = CatBoostClassifier(
-            iterations=cb.iterations,
+            iterations=n_iter,
             learning_rate=cb.learning_rate,
             depth=cb.depth,
             l2_leaf_reg=cb.l2_leaf_reg,
@@ -113,7 +126,7 @@ def get_oof_primary_predictions(
         )
         weights = df.loc[train_idx, "sample_weight"] if "sample_weight" in df.columns else None
         log.info("Фолд %d/%d: обучение на %d барах, предсказание на %d", fold, len(splits), len(train_idx), len(val_idx))
-        tracker = CatBoostProgress(cb.iterations, label=f"  фолд {fold}/{len(splits)}", logger=log, min_interval=20.0)
+        tracker = CatBoostProgress(n_iter, label=f"  фолд {fold}/{len(splits)}", logger=log, min_interval=20.0)
         model.fit(
             df.loc[train_idx, list(features)],
             y_tr.map(class_map),
@@ -127,7 +140,7 @@ def get_oof_primary_predictions(
         for c, i in class_map.items():
             proba_cols[c][val_idx] = proba[:, i]
 
-        folds_bar.set(fold, f"обучено {fold * cb.iterations} деревьев всего")
+        folds_bar.set(fold, f"обучено {fold * n_iter} деревьев всего")
 
     folds_bar.finish(f"OOF-предсказаний: {int(np.isfinite(oof_pred).sum())} из {n} баров")
 

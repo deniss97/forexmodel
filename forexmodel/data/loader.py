@@ -68,27 +68,37 @@ def load_minute_compact(
     path: Path | str,
     time_col: str = "begin",
     cache_dir: Optional[Path | str] = None,
+    volume_candidates: Sequence[str] = (),
 ) -> pd.DataFrame:
-    """Минутные бары как time + OHLC в float32, читаются кусками.
+    """Минутные бары как time + OHLC(+volume) в float32, читаются кусками.
 
     `load_minute_csv` читает CSV целиком: на 8 ГБ машине 300-мегабайтный файл
     вместе с редактором и моделями упирается в память. Здесь чтение по
     400 тыс. строк, объём не нужен, цены — float32 (для симуляции и признаков
-    точности хватает: тик серебра 0.001 при цене ~80). При `cache_dir` результат
-    кладётся в <cache_dir>/<имя файла>_1m.pkl и дальше читается оттуда.
+    точности хватает: тик серебра 0.001 при цене ~80). Объём берётся из первой
+    найденной колонки `volume_candidates` (если заданы). При `cache_dir` результат
+    кладётся в <cache_dir>/<имя файла>_1m[_vol].pkl и дальше читается оттуда.
     """
     path = Path(path)
-    cache = Path(cache_dir) / f"{path.stem}_1m.pkl" if cache_dir else None
+    suffix = "_1m_vol.pkl" if volume_candidates else "_1m.pkl"
+    cache = Path(cache_dir) / f"{path.stem}{suffix}" if cache_dir else None
     if cache is not None and cache.exists():
         return pd.read_pickle(cache)
     if not path.exists():
         raise FileNotFoundError(f"Файл котировок не найден: {path}")
 
-    parts = []
-    for chunk in pd.read_csv(path, usecols=lambda c: c in {time_col, *OHLC}, chunksize=400_000,
-                             dtype={c: "float32" for c in OHLC}):
+    wanted = {time_col, *OHLC, *volume_candidates}
+    parts, vol_col = [], None
+    for chunk in pd.read_csv(path, usecols=lambda c: c in wanted, chunksize=400_000,
+                             dtype={c: "float32" for c in (*OHLC, *volume_candidates)}):
+        if vol_col is None:
+            vol_col = next((c for c in volume_candidates if c in chunk.columns), None)
+            if volume_candidates and vol_col is None:
+                log.warning("Колонка объёма не найдена (искал %s) — объёмные признаки будут пропущены", list(volume_candidates))
         chunk["time"] = pd.to_datetime(chunk[time_col], errors="coerce")
-        parts.append(chunk.dropna(subset=["time"])[["time", *OHLC]])
+        cols = ["time", *OHLC] + ([vol_col] if vol_col else [])
+        part = chunk.dropna(subset=["time"])[cols]
+        parts.append(part.rename(columns={vol_col: "volume"}) if vol_col else part)
     df = pd.concat(parts, ignore_index=True).sort_values("time").drop_duplicates("time").reset_index(drop=True)
     log.info("Загружено %d минутных баров (компактно): %s .. %s", len(df), df["time"].iloc[0], df["time"].iloc[-1])
     if cache is not None:

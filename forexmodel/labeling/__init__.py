@@ -7,6 +7,7 @@ import pandas as pd
 from ..config import Config
 from ..logging_utils import get_logger
 from .atr_barriers import generate_labels_atr_asym
+from .direction import generate_labels_direction
 from .first_touch import generate_labels_first_touch
 from .uniqueness import average_uniqueness
 
@@ -16,6 +17,7 @@ __all__ = [
     "attach_labels",
     "generate_labels_first_touch",
     "generate_labels_atr_asym",
+    "generate_labels_direction",
     "average_uniqueness",
 ]
 
@@ -24,6 +26,8 @@ def attach_labels(df_main: pd.DataFrame, df_fine: pd.DataFrame, cfg: Config, dro
     """Считает метки выбранным способом и добавляет label / label_t1 / sample_weight."""
     if cfg.labeling.mode == "atr_asym":
         labels = generate_labels_atr_asym(df_main, df_fine, cfg.labeling)
+    elif cfg.labeling.mode == "direction":
+        labels = generate_labels_direction(df_main, cfg.labeling)   # минутные бары не нужны
     else:
         labels = generate_labels_first_touch(df_main, df_fine, cfg.labeling)
 

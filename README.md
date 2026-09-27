@@ -54,6 +54,17 @@ simulation:
 `update_every_bar` и `hold_bars` есть и в самой секции `trend` (тогда они меняют признаки модели).
 Почему именно так — [docs/results/silver_1h_cb/trade_review.md](docs/results/silver_1h_cb/trade_review.md).
 
+### Разметка `direction` и режимные признаки
+
+Кроме `first_touch` и `atr_asym` есть `labeling.mode: direction` — метка по знаку хода за горизонт
+в ATR (`dir_atr`, по умолчанию 0.5), без барьеров и без минутных данных: для модели направления,
+а не волатильности. `features.use_regime_features: true` добавляет `vr4_<w>` / `acf1_<w>` — variance
+ratio и автокорреляцию часовых доходностей за прошлые `regime_windows` часов. Формула ожидаемой
+ценности берёт барьеры из `simulation.ev_tp_atr / ev_sl_atr` (по умолчанию — барьеры разметки), так
+что стоп выхода `simulation.sl_atr` можно менять, не обнуляя входы. Пример —
+[configs/silver_direction.yaml](configs/silver_direction.yaml); почему так —
+[docs/results/model_improvements.md](docs/results/model_improvements.md).
+
 ### Признаки потока сделок (order flow)
 
 Если есть секундные агрегаты ленты сделок (MOEX ALGOPACK: объём по стороне
@@ -193,8 +204,9 @@ python scripts/trade_classes.py --run silver_1h_cb
 python scripts/instrument_profile.py --by-year
 ```
 
-Минутные CSV в этих скриптах читаются кусками в float32 (`load_minute_compact`) и кэшируются в
-`reports/_cache/` — на 8 ГБ памяти полный `read_csv` 300-мегабайтного файла рядом с моделями и
+Минутные CSV читаются кусками в float32 (`load_minute_compact`) и кэшируются в `reports/_cache/` —
+и в этих скриптах, и в сборке датасета (`data.minute_loader: compact`, `full` возвращает прежний
+`read_csv` целиком): на 8 ГБ памяти полный разбор 300-мегабайтного файла рядом с моделями и
 редактором не проходит. Сводка каждого бэктеста (`summary_*.txt`) показывает и результат без
 двух лучших сделок: если итог держится на одной-двух сделках, это видно сразу.
 

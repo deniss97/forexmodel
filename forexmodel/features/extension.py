@@ -16,7 +16,7 @@ import pandas as pd
 
 from ..config import FeatureConfig
 
-__all__ = ["add_extension_features", "extension_columns"]
+__all__ = ["add_extension_features", "add_regime_features", "extension_columns", "regime_columns"]
 
 
 def add_extension_features(df: pd.DataFrame, cfg: FeatureConfig, atr_col: str | None = None) -> pd.DataFrame:
@@ -58,6 +58,9 @@ def add_extension_features(df: pd.DataFrame, cfg: FeatureConfig, atr_col: str | 
     if "bb_width" in df.columns:
         df["bb_width_pct"] = df["bb_width"].rolling(100).rank(pct=True)
 
+    if cfg.use_regime_features:
+        df = add_regime_features(df, cfg)
+
     if cfg.use_volume_features and "volume" in df.columns:
         vol = df["volume"]
         df["rel_vol_20"] = vol / vol.rolling(20).mean().replace(0, np.nan)
@@ -66,6 +69,33 @@ def add_extension_features(df: pd.DataFrame, cfg: FeatureConfig, atr_col: str | 
         df["vol_trend"] = vol.rolling(5).mean() / vol.rolling(50).mean().replace(0, np.nan)
 
     return df
+
+
+def add_regime_features(df: pd.DataFrame, cfg: FeatureConfig) -> pd.DataFrame:
+    """Режим рынка по прошлым окнам: `vr4_<w>` и `acf1_<w>`.
+
+    vr4 — дисперсия 4-барной доходности / (4 × дисперсия 1-барной): 1 — блуждание,
+    < 1 — гашение (возврат к среднему), > 1 — накопление. acf1 — автокорреляция
+    1-барной доходности с лагом 1. Разрывы длиннее 12 часов (выходные) из
+    доходностей исключены, ночной перерыв — нет. На истории серебра и LKOH входы
+    по тренду лучше при НИЗКОМ vr4 за прошлый месяц (после спокойного периода),
+    хуже — после трендового: знак согласован на двух инструментах.
+    """
+    lr = np.log(df["close"])
+    contiguous = pd.to_datetime(df["time"]).diff() <= pd.Timedelta("12h")
+    r1 = lr.diff().where(contiguous)
+    r4 = lr.diff(4).where(contiguous.rolling(4).sum() == 4)
+    for w in cfg.regime_windows:
+        mp = w // 2
+        df[f"vr4_{w}"] = r4.rolling(w, min_periods=mp).var() / (4 * r1.rolling(w, min_periods=mp).var().replace(0, np.nan))
+        df[f"acf1_{w}"] = r1.rolling(w, min_periods=mp).corr(r1.shift(1))
+    return df
+
+
+def regime_columns(cfg: FeatureConfig) -> list[str]:
+    if not cfg.use_regime_features:
+        return []
+    return [f"{p}_{w}" for w in cfg.regime_windows for p in ("vr4", "acf1")]
 
 
 def extension_columns(cfg: FeatureConfig) -> list[str]:

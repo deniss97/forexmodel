@@ -68,7 +68,8 @@ def run_training(cfg: Config, dataset: Optional[Dataset] = None, save: bool = Tr
     meta_model: Optional[MetaModel] = None
     if cfg.meta.enabled:
         with stages.stage("OOF-предсказания"):
-            df_oof = get_oof_primary_predictions(ds.train, features, cfg)
+            # фолды — с тем же числом деревьев, что у боевой primary-модели (см. докстринг)
+            df_oof = get_oof_primary_predictions(ds.train, features, cfg, iterations=primary.model.tree_count_)
         with stages.stage("Мета-метки (симуляция)"):
             meta_df = build_meta_labels(df_oof, ds.minute_slice("train"), cfg)
         with stages.stage("Мета-модель"):

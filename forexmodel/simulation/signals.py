@@ -82,9 +82,13 @@ def expected_value(df: pd.DataFrame, direction: int, cfg: Config) -> pd.Series:
         tp_pct = pd.Series(sim.take_profit_pct, index=df.index, dtype=float)
         sl_pct = pd.Series(sim.stop_loss_pct, index=df.index, dtype=float)
     else:
+        # p относится к барьерам разметки, а не к барьерам выхода: модель училась
+        # отвечать «дойдёт ли до tp_atr раньше sl_atr разметки»
+        tp_atr = sim.ev_tp_atr if sim.ev_tp_atr is not None else cfg.labeling.tp_atr
+        sl_atr = sim.ev_sl_atr if sim.ev_sl_atr is not None else cfg.labeling.sl_atr
         atr_share = df[sim.atr_col] / df["close"] * 100.0
-        tp_pct = sim.tp_atr * atr_share
-        sl_pct = sim.sl_atr * atr_share
+        tp_pct = tp_atr * atr_share
+        sl_pct = sl_atr * atr_share
 
     return p * tp_pct - (1 - p) * sl_pct - sim.commission_pct
 

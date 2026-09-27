@@ -142,7 +142,10 @@ simulation:
   horizon_minutes: null
   stop_loss_pct: 0.75
   take_profit_pct: 0.75
-  sl_atr: 1.0
+  # стоп 2 ATR: при формуле EV по барьерам разметки (ev_tp_atr / ev_sl_atr = null)
+  # расширение стопа больше не обнуляет входы. На сохранённых сигналах cb: test
+  # −14.46% → −11.93%, sim +63.94% → +69.14% (trade_review.md, часть III)
+  sl_atr: 2.0
   tp_atr: 2.0
   trail_atr: 1.5
   activate_atr: 1.0

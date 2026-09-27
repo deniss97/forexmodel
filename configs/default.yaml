@@ -144,6 +144,12 @@ simulation:
   min_conf_nn: null
   use_expected_value_filter: true
   min_expected_value_pct: 0.0
+  # барьеры для формулы EV; null -> барьеры разметки (labeling.tp_atr / sl_atr), к
+  # которым и относится вероятность модели. Раньше брались simulation.tp_atr /
+  # sl_atr, и любой стоп шире 1 ATR обнулял сделки. На lkoh_1h: test +3.84% → +4.44%
+  # (38 → 25 сделок), sim +2.94% → +3.36%
+  ev_tp_atr: null
+  ev_sl_atr: null
   max_extension_atr: null     # напр. 1.5 — грубый отсев поздних входов
   extension_col: ext_from_low_24
   use_trend_filter: true
