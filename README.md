@@ -202,6 +202,10 @@ python scripts/trade_classes.py --run silver_1h_cb
 
 # профиль инструмента: variance ratio, Хёрст, вероятность продолжения хода, частота разворотов
 python scripts/instrument_profile.py --by-year
+
+# walk-forward: обучение до начала года, торговля год — по каждому году; единственная проверка,
+# которая отличает преимущество модели от режима рынка (серебро: 3 прибыльных года из 8)
+python scripts/walk_forward.py -c configs/silver_direction.yaml --years 2019 2026
 ```
 
 Минутные CSV читаются кусками в float32 (`load_minute_compact`) и кэшируются в `reports/_cache/` —

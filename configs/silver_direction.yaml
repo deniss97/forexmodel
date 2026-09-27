@@ -1,8 +1,13 @@
 # ======================================================================
 # Серебро: направленная разметка + режимные признаки.
 #
-# Эксперимент из docs/results/model_improvements.md. Отличия от configs/silver.yaml:
-#   1. labeling.mode: direction — метка по знаку хода за 10 часов в ATR (порог 0.5),
+# Эксперимент из docs/results/model_improvements.md (разделы 4–5). Итог: на паре test/sim
+# вариант horizon 4 / dir_atr 0.3 выглядел первым устойчивым результатом по серебру
+# (test +20.9%, sim +17.4%), но walk-forward 2019–2026 дал 3 прибыльных года из 8 —
+# как и у базовой разметки. Конфиг оставлен как отправная точка; любое изменение
+# проверять через scripts/walk_forward.py, а не по test/sim.
+# Отличия от configs/silver.yaml:
+#   1. labeling.mode: direction — метка по знаку хода за horizon часов в ATR (порог dir_atr),
 #      а не по касанию барьеров: модель должна учиться направлению, а не волатильности;
 #   2. features.use_regime_features: true — vr4_240/720, acf1_240/720;
 #   3. nn.enabled: false — на серебре сеть бесполезна (edge −0.0007), а память
@@ -48,8 +53,8 @@ features:
 
 labeling:
   mode: direction
-  horizon: 10
-  dir_atr: 0.5
+  horizon: 4           # 4 часа: единственный горизонт, где test-2025 не убыточен (см. документ)
+  dir_atr: 0.3
   tp_atr: 1.5          # для формулы EV (ev_tp_atr / ev_sl_atr = null берут их отсюда)
   sl_atr: 0.75
   atr_col: atr_14
