@@ -59,3 +59,41 @@ def test_minute_slice_covers_split_with_horizon_margin(tmp_path, minute_df, cfg)
     assert minutes["time"].min() <= ds.sim["time"].min()
     assert minutes["time"].max() >= ds.sim["time"].max()
     assert isinstance(minutes["time"].iloc[0], pd.Timestamp)
+
+
+def test_resplit_matches_full_rebuild(tmp_path, minute_df, cfg):
+    """Walk-forward перерезает один датасет вместо сборки заново — выборки обязаны совпасть."""
+    import copy
+
+    from forexmodel.pipelines.dataset import resplit_dataset
+
+    path = tmp_path / "m.csv"
+    minute_df.rename(columns={"time": "begin", "volume": "value"}).to_csv(path, index=False)
+    cfg.data.csv_path = str(path)
+    cfg.data.minute_loader = "full"
+    ds = build_dataset(cfg)
+
+    other = copy.deepcopy(cfg)
+    other.data.splits.update({"train_end": "2024-01-25 00:00:00", "test_start": "2024-01-25 00:00:00",
+                              "test_end": "2024-02-05 00:00:00", "sim_start": "2024-02-05 00:00:00"})
+    fresh = build_dataset(other)
+    resplit = resplit_dataset(ds, other)
+    assert resplit.features == fresh.features
+    for name in ("train", "test", "sim"):
+        pd.testing.assert_frame_equal(resplit.splits[name], fresh.splits[name])
+
+
+def test_walk_forward_quarter_windows():
+    import importlib.util
+    import pathlib
+    import sys
+
+    scripts = pathlib.Path(__file__).parents[1] / "scripts"
+    sys.path.insert(0, str(scripts))  # walk_forward импортирует _bootstrap из scripts/
+    spec = importlib.util.spec_from_file_location("wf", scripts / "walk_forward.py")
+    wf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(wf)
+    w = wf.windows(quarters=["2024Q4", "2025Q2"])
+    assert [x[0] for x in w] == ["2024Q4", "2025Q1", "2025Q2"]
+    assert w[0][1] == pd.Timestamp("2024-10-01") and w[0][2] == pd.Timestamp("2025-01-01")
+    assert wf.windows(years=[2020, 2021])[1] == ("2021", pd.Timestamp("2021-01-01"), pd.Timestamp("2022-01-01"))

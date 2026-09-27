@@ -29,7 +29,7 @@ from ..logging_utils import get_logger, section
 
 log = get_logger(__name__)
 
-__all__ = ["Dataset", "build_dataset"]
+__all__ = ["Dataset", "build_dataset", "resplit_dataset"]
 
 
 @dataclass
@@ -80,6 +80,23 @@ def build_dataset(cfg: Config, with_labels: bool = True) -> Dataset:
         full = attach_labels(full, minute, cfg, dropna=False)
 
     section(log, "Шаг 4/4 · нарезка train/test/sim и отбор признаков")
+    splits, features = _split_full(full, cfg, with_labels)
+    return Dataset(minute=minute, full=full, splits=splits, features=features, cfg=cfg)
+
+
+def resplit_dataset(ds: Dataset, cfg: Config) -> Dataset:
+    """Та же сборка признаков и разметки, но с другими границами выборок.
+
+    Признаки и метки от границ не зависят (считаются на непрерывном ряде), поэтому
+    walk-forward может собрать датасет один раз и только перерезать его на каждом
+    окне — вместо того чтобы на каждом окне заново читать минутки и секундную ленту.
+    Конфиг `cfg` должен отличаться от `ds.cfg` только секцией data.splits / train_query.
+    """
+    splits, features = _split_full(ds.full, cfg, with_labels="label" in ds.full.columns)
+    return Dataset(minute=ds.minute, full=ds.full, splits=splits, features=features, cfg=cfg)
+
+
+def _split_full(full: pd.DataFrame, cfg: Config, with_labels: bool):
     split_defs = build_splits(cfg)
     splits: Dict[str, pd.DataFrame] = {}
     for name, split in split_defs.items():
@@ -104,4 +121,4 @@ def build_dataset(cfg: Config, with_labels: bool = True) -> Dataset:
     features = select_feature_columns(splits["train"] if not splits["train"].empty else full, cfg.features, extra_exclude=meta_only)
     log.info("Датасет готов: %d признаков, выборки %s", len(features),
              {name: len(df) for name, df in splits.items()})
-    return Dataset(minute=minute, full=full, splits=splits, features=features, cfg=cfg)
+    return splits, features
