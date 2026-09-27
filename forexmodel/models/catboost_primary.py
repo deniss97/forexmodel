@@ -31,7 +31,7 @@ from .cv import chronological_split
 
 log = get_logger(__name__)
 
-__all__ = ["PrimaryModel", "train_primary", "train_primary_regression", "predict_primary"]
+__all__ = ["PrimaryModel", "SeedEnsemble", "train_primary", "train_primary_regression", "predict_primary"]
 
 
 @dataclass
@@ -49,6 +49,28 @@ class PrimaryModel:
     @property
     def inv_class_map(self) -> Dict[int, int]:
         return {v: k for k, v in self.class_map.items()}
+
+
+class SeedEnsemble:
+    """Несколько CatBoost с разными seed; вероятности усредняются.
+
+    Отдаёт тот же интерфейс, что CatBoostClassifier, в той части, которой
+    пользуется пайплайн: predict_proba, tree_count_ (среднее — его берут фолды
+    OOF меты), get_feature_importance (среднее).
+    """
+
+    def __init__(self, models: List[Any]):
+        self.models = list(models)
+
+    def predict_proba(self, X) -> np.ndarray:
+        return np.mean([m.predict_proba(X) for m in self.models], axis=0)
+
+    @property
+    def tree_count_(self) -> int:
+        return int(round(float(np.mean([m.tree_count_ for m in self.models]))))
+
+    def get_feature_importance(self, *args, **kwargs) -> np.ndarray:
+        return np.mean([m.get_feature_importance(*args, **kwargs) for m in self.models], axis=0)
 
 
 def _class_weights(y: pd.Series, classes: List[int]) -> List[float]:
@@ -69,6 +91,27 @@ def train_primary(
 
     if cfg.objective == "regression":
         return train_primary_regression(df, features, cfg, embargo=embargo, weight_col=weight_col)
+
+    if cfg.n_models > 1:
+        import dataclasses
+
+        members = []
+        for i in range(cfg.n_models):
+            seed = cfg.random_seed + 1000 * i
+            section(log, f"Ансамбль primary: модель {i + 1}/{cfg.n_models}, seed {seed}")
+            members.append(train_primary(df, features, dataclasses.replace(cfg, n_models=1, random_seed=seed),
+                                         embargo=embargo, target_col=target_col, weight_col=weight_col))
+        class_maps = {tuple(sorted(m.class_map.items())) for m in members}
+        if len(class_maps) != 1:
+            raise ValueError("Модели ансамбля получили разные классы — так быть не должно на одних данных")
+        keys = set.intersection(*(set(m.metrics) for m in members))
+        metrics = {k: float(np.mean([m.metrics[k] for m in members])) for k in keys}
+        metrics["ensemble_members"] = float(cfg.n_models)
+        metrics["member_trees"] = [float(m.model.tree_count_) for m in members]
+        log.info("Ансамбль: %d моделей, деревьев %s, средний holdout edge %+.4f",
+                 cfg.n_models, metrics["member_trees"], metrics.get("polar_edge", float("nan")))
+        return PrimaryModel(model=SeedEnsemble([m.model for m in members]), features=list(features),
+                            class_map=members[0].class_map, metrics=metrics)
 
     assert_features_present(df, features)
     df = df.reset_index(drop=True)

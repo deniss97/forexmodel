@@ -261,6 +261,10 @@ class CatBoostConfig:
     # формула EV берёт предсказанный ход напрямую вместо p·TP − (1−p)·SL
     objective: str = "multiclass"
     reg_signal_atr: float = 0.3
+    # ансамбль из n_models моделей с seed random_seed, +1000, +2000, ...: вероятности
+    # усредняются. Разброс одной модели по seed на серебре — 2–5 прибыльных лет из 8
+    # при одних и тех же настройках (docs/results/model_changelog.md)
+    n_models: int = 1
     iterations: int = 2000
     learning_rate: float = 0.05
     depth: int = 6
@@ -480,6 +484,10 @@ def _validate(cfg: Config) -> None:
         raise ValueError(f"labeling.mode: ожидалось first_touch|atr_asym|direction, получено {cfg.labeling.mode!r}")
     if cfg.labeling.dir_atr <= 0:
         raise ValueError("labeling.dir_atr должен быть > 0")
+    if cfg.catboost.n_models < 1:
+        raise ValueError("catboost.n_models должен быть >= 1")
+    if cfg.catboost.n_models > 1 and cfg.catboost.objective != "multiclass":
+        raise ValueError("catboost.n_models > 1 поддержан только для objective=multiclass")
     if cfg.catboost.objective not in {"multiclass", "regression"}:
         raise ValueError(f"catboost.objective: ожидалось multiclass|regression, получено {cfg.catboost.objective!r}")
     if cfg.catboost.objective == "regression":
