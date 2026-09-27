@@ -89,6 +89,10 @@ def build_dataset(cfg: Config, with_labels: bool = True) -> Dataset:
             part = part.dropna(subset=["label"]).reset_index(drop=True)
             part["label"] = part["label"].astype(int)
             part = apply_embargo(part, cfg.embargo_bars)
+            if name == "train" and cfg.data.train_query:
+                before = len(part)
+                part = part.query(cfg.data.train_query).reset_index(drop=True)
+                log.info("train_query %r: осталось %d баров из %d", cfg.data.train_query, len(part), before)
         splits[name] = part
 
     check_split_sanity(splits)

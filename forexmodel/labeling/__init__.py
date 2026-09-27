@@ -34,6 +34,8 @@ def attach_labels(df_main: pd.DataFrame, df_fine: pd.DataFrame, cfg: Config, dro
     out = df_main.copy()
     out["label"] = labels["label"].values
     out["label_t1"] = labels["label_t1"].values
+    if "move" in labels.columns:
+        out["target_move"] = labels["move"].values
 
     if cfg.labeling.use_uniqueness_weights:
         out["sample_weight"] = average_uniqueness(out["label_t1"], n_bars=len(out))

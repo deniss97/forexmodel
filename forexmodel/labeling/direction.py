@@ -44,6 +44,7 @@ def generate_labels_direction(df_main: pd.DataFrame, cfg: LabelingConfig) -> pd.
     atr = main[cfg.atr_col].to_numpy(dtype=float)
 
     labels = np.full(n, np.nan)
+    moves = np.full(n, np.nan)
     t1_idx = np.full(n, -1, dtype=int)
     last = n - 1 - h  # последний бар, у которого горизонт целиком в данных
     if last > 0:
@@ -52,9 +53,11 @@ def generate_labels_direction(df_main: pd.DataFrame, cfg: LabelingConfig) -> pd.
         ok = np.isfinite(move) & (atr[i] > 0)
         lab = np.where(move >= cfg.dir_atr, 2.0, np.where(move <= -cfg.dir_atr, 0.0, 1.0))
         labels[i[ok]] = lab[ok]
+        moves[i[ok]] = move[ok]
         t1_idx[i[ok]] = i[ok] + 1 + h
 
-    out = pd.DataFrame({"label": labels, "label_t1": t1_idx}, index=main.index)
+    # move — сам ход в ATR: цель для регрессии (catboost.objective: regression)
+    out = pd.DataFrame({"label": labels, "label_t1": t1_idx, "move": moves}, index=main.index)
     valid = out["label"].dropna()
     if len(valid):
         dist = valid.value_counts(normalize=True).sort_index().round(3).to_dict()

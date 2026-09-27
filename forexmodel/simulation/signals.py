@@ -72,6 +72,12 @@ def expected_value(df: pd.DataFrame, direction: int, cfg: Config) -> pd.Series:
     при TP=SL сделка с p=0.5 — это минус комиссия, то есть заведомый убыток.
     """
     sim = cfg.simulation
+    if "pred_move_cb" in df.columns and sim.exit_mode != "fixed_pct":
+        # регрессия: предсказанный ход в ATR, знак приводим к направлению сделки
+        sgn = 1.0 if direction == LONG else -1.0
+        atr_share = df[sim.atr_col] / df["close"] * 100.0
+        return sgn * df["pred_move_cb"].astype(float) * atr_share - sim.commission_pct
+
     proba_col = f"proba_{direction}_cb"
     if proba_col not in df.columns:
         raise KeyError(f"Нет колонки {proba_col} — фильтр по ожидаемой ценности требует вероятностей по классам")

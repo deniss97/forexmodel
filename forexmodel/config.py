@@ -90,6 +90,11 @@ class DataConfig:
     # (на 8 ГБ памяти полный read_csv 300-мегабайтного файла рядом с моделями и
     # редактором не проходит); full — прежний путь, float64 без кэша
     minute_loader: str = "compact"
+    # pandas-запрос, которым режется ОБУЧАЮЩАЯ выборка после разметки (test/sim не
+    # трогает: бэктесту нужны предсказания на всех барах). Напр. "trend_gate != 0" —
+    # учить модель только там, где гейт вообще разрешает вход: без этого 2/3 примеров
+    # приходятся на нейтраль, где сделок не бывает
+    train_query: Optional[str] = None
     # поток сделок (секундные агрегаты MOEX ALGOPACK: buy/sell volume, n_trades,
     # avg_trade_sz). Время в parquet — UTC, в котировках — московское
     orderflow_path: Optional[str] = None
@@ -250,6 +255,12 @@ class TrendGateConfig:
 
 @dataclass
 class CatBoostConfig:
+    # multiclass — три класса разметки (как было); regression — CatBoostRegressor на
+    # ход за горизонт в ATR (`target_move`, только с labeling.mode: direction):
+    # модель предсказывает ожидаемый ход, сигнал — по порогу reg_signal_atr, а
+    # формула EV берёт предсказанный ход напрямую вместо p·TP − (1−p)·SL
+    objective: str = "multiclass"
+    reg_signal_atr: float = 0.3
     iterations: int = 2000
     learning_rate: float = 0.05
     depth: int = 6
@@ -463,6 +474,15 @@ def _validate(cfg: Config) -> None:
         raise ValueError(f"labeling.mode: ожидалось first_touch|atr_asym|direction, получено {cfg.labeling.mode!r}")
     if cfg.labeling.dir_atr <= 0:
         raise ValueError("labeling.dir_atr должен быть > 0")
+    if cfg.catboost.objective not in {"multiclass", "regression"}:
+        raise ValueError(f"catboost.objective: ожидалось multiclass|regression, получено {cfg.catboost.objective!r}")
+    if cfg.catboost.objective == "regression":
+        if cfg.labeling.mode != "direction":
+            raise ValueError("catboost.objective=regression требует labeling.mode=direction (цель — ход в ATR)")
+        if cfg.meta.enabled:
+            raise ValueError("catboost.objective=regression: мета-модель строится на OOF классификатора, выключите meta.enabled")
+        if cfg.catboost.reg_signal_atr <= 0:
+            raise ValueError("catboost.reg_signal_atr должен быть > 0")
     if cfg.trend.mode not in {"early", "confirm"}:
         raise ValueError(f"trend.mode: ожидалось early|confirm, получено {cfg.trend.mode!r}")
     if cfg.trend_gate.enabled and cfg.trend_gate.resolve(cfg.trend).mode not in {"early", "confirm"}:

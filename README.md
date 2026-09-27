@@ -61,7 +61,11 @@ simulation:
 а не волатильности. `features.use_regime_features: true` добавляет `vr4_<w>` / `acf1_<w>` — variance
 ratio и автокорреляцию часовых доходностей за прошлые `regime_windows` часов. Формула ожидаемой
 ценности берёт барьеры из `simulation.ev_tp_atr / ev_sl_atr` (по умолчанию — барьеры разметки), так
-что стоп выхода `simulation.sl_atr` можно менять, не обнуляя входы. Пример —
+что стоп выхода `simulation.sl_atr` можно менять, не обнуляя входы. `catboost.objective: regression`
+(только с разметкой `direction`, без мета-модели) учит CatBoostRegressor на сам ход в ATR:
+сигнал — по порогу `reg_signal_atr`, EV — из предсказанного хода ([configs/silver_reg.yaml](configs/silver_reg.yaml)).
+`data.train_query` (например `"trend_gate != 0"`) режет обучающую выборку pandas-запросом.
+Журнал того, что пробовали и что помогло, — [docs/results/model_changelog.md](docs/results/model_changelog.md). Пример —
 [configs/silver_direction.yaml](configs/silver_direction.yaml); почему так —
 [docs/results/model_improvements.md](docs/results/model_improvements.md).
 

@@ -54,6 +54,9 @@ SERVICE_COLUMNS: set[str] = {
     "oof_proba_2",
     "expected_value",
     "trend_gate",  # гейт входа в симуляции, не признак (см. TrendGateConfig)
+    "target_move",  # цель регрессии (ход за горизонт), см. labeling/direction.py
+    "pred_move",
+    "pred_move_cb",
 }
 
 
