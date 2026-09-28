@@ -180,7 +180,7 @@ def predict_tokdit(model, paths: np.ndarray, L: int, H: int, args) -> tuple[np.n
             mask = torch.zeros(b, T, 2, dtype=torch.bool)
             mask[:, L:, 1] = True
             s = model.sample(x, mask, n_samples=args.samples, n_sampler_steps=args.sampler_steps,
-                             chunk_size=8192)[..., -1, 1]          # (S, B) — конец горизонта
+                             chunk_size=args.chunk_size)[..., -1, 1]          # (S, B) — конец горизонта
             p_up.append((s > 0).float().mean(0).numpy())
             mean.append(s.mean(0).numpy())
     return np.concatenate(p_up), np.concatenate(mean)
@@ -294,6 +294,7 @@ def main(argv=None) -> int:
     ap.add_argument("--samples", type=int, default=32)
     ap.add_argument("--sampler-steps", type=int, default=25)
     ap.add_argument("--pred-batch", type=int, default=256)
+    ap.add_argument("--chunk-size", type=int, default=2048, help="внутренний батч сэмплирования (память)")
     ap.add_argument("--test-stride", type=int, default=1, help="прогноз на каждом k-м баре теста")
     ap.add_argument("--train-years", type=int, default=None, help="обучение только на последних N годах")
     ap.add_argument("--tops", nargs="+", type=float, default=[1.0, 0.3, 0.1],
