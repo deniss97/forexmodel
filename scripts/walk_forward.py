@@ -35,7 +35,10 @@ reports/walk_forward/<name>_trades.csv.
 
 Варианты: `cb` — сигнал primary без меты; `meta:<порог>` — мета-фильтр с порогом;
 `rule:<признак>:<порог>` — правило входа по признаку без модели (EV- и
-тренд-фильтр выключены; `rule:<признак>:<порог>:trend` — с тренд-фильтром).
+тренд-фильтр выключены; `rule:<признак>:<порог>:trend` — с тренд-фильтром);
+`impulse:<баров>:<ATR>[:notrend][:vol]` — импульс (docs/results/patterns.md): ход за
+N баров >= x ATR в сторону хода, по тренд-гейту; `vol` — только при ATR >= медианы
+хвоста train. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr.
 Если все варианты — правила, модель не обучается вовсе.
 Файлы: <name>__<вариант>.csv на каждый вариант.
 
@@ -81,6 +84,14 @@ def windows(years=None, quarters=None) -> list[tuple[str, pd.Timestamp, pd.Times
     return out
 
 
+def _max_dd(pnl: pd.Series) -> float:
+    """Максимальная просадка суммы % сделок (без реинвестирования), п.п."""
+    if not len(pnl):
+        return 0.0
+    eq = pnl.cumsum()
+    return round(float((eq - eq.cummax().clip(lower=0)).min()), 2)
+
+
 def _stats_row(key: str, label: str, t: pd.DataFrame, metrics: dict) -> dict:
     pnl = t["profit_pct"] if len(t) else pd.Series(dtype=float)
     loss = float(-pnl[pnl < 0].sum()) if len(pnl) else 0.0
@@ -101,6 +112,7 @@ def _stats_row(key: str, label: str, t: pd.DataFrame, metrics: dict) -> dict:
         "PF": round(float(pnl[pnl > 0].sum() / loss), 2) if loss > 0 else float("inf"),
         "до_комиссии": round(float(t["gross_pct"].mean()), 3) if len(t) else float("nan"),
         "winrate": round(float((pnl > 0).mean() * 100), 1) if len(pnl) else float("nan"),
+        "просадка_%": _max_dd(pnl),
         "средний_размер": round(float(t["size"].mean()), 3) if len(t) and "size" in t else float("nan"),
         "vol_corr_model": round(vol_m.get("corr_model", float("nan")), 3),
         "vol_corr_atr": round(vol_m.get("corr_naive_atr", float("nan")), 3),
@@ -109,14 +121,30 @@ def _stats_row(key: str, label: str, t: pd.DataFrame, metrics: dict) -> dict:
 
 def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
     parts = variant.split(":")
-    feature, threshold = parts[1], float(parts[2])
     c = copy.deepcopy(cfg)
-    c.simulation.signal_source = "rule"
-    c.simulation.rule_feature = feature
-    c.simulation.rule_threshold = threshold
     c.simulation.use_expected_value_filter = False
-    c.simulation.use_trend_filter = len(parts) > 3 and parts[3] == "trend"
+    if parts[0] == "impulse":
+        # impulse:<баров>:<ATR>[:notrend][:vol] — по тренд-гейту по умолчанию; vol — только при ATR >= медианы
+        c.simulation.signal_source = "impulse"
+        c.simulation.impulse_bars, c.simulation.impulse_atr = int(parts[1]), float(parts[2])
+        c.simulation.use_trend_filter = "notrend" not in parts[3:]
+        use_vol = "vol" in parts[3:]
+    else:
+        c.simulation.signal_source = "rule"
+        c.simulation.rule_feature = parts[1]
+        c.simulation.rule_threshold = float(parts[2])
+        c.simulation.use_trend_filter = len(parts) > 3 and parts[3] == "trend"
+        use_vol = False
     signals = build_signal_column(ds.test.copy(), c)
+    c.volatility.enabled = use_vol
+    if use_vol:
+        from forexmodel.models.volatility import position_sizes, predict_volatility, train_volatility_model
+
+        a = copy.deepcopy(c.volatility)
+        a.source = "atr"
+        vm = train_volatility_model(ds.train, [], a, 1, c.atr_col)
+        signals["position_size"] = position_sizes(predict_volatility(vm, signals, c.atr_col), vm.reference,
+                                                  1.0, 0.0, c.volatility.cap)
     trades, _ = simulate_trades(signals, ds.minute_slice("test"), c)
     return trades
 
@@ -146,7 +174,7 @@ def main(argv=None) -> int:
     wins = windows(args.years, args.quarters)
     key = "год" if args.years else "квартал"
     variants = args.variants or [None]
-    only_rules = all(v and v.startswith("rule:") for v in variants)
+    only_rules = all(v and v.startswith(("rule:", "impulse:")) for v in variants)
 
     def fold_cfg(label, start, end):
         cfg = copy.deepcopy(base)
@@ -175,7 +203,7 @@ def main(argv=None) -> int:
         trained = None if only_rules else run_training(cfg, dataset=ds, save=False)
         metrics = trained.metrics if trained else {}
         for v in variants:
-            if v and v.startswith("rule:"):
+            if v and v.startswith(("rule:", "impulse:")):
                 t = _rule_trades(ds, cfg, v)
             else:
                 vcfg = copy.deepcopy(cfg)
@@ -223,6 +251,12 @@ def main(argv=None) -> int:
         if trades_by[v]:
             all_t = pd.concat(trades_by[v])
             all_t.to_csv(out_dir / f"{name}{suffix}_trades.csv", index=False)
+            p_all = all_t["profit_pct"]
+            loss = float(-p_all[p_all < 0].sum())
+            print(f"всего: сделок {len(p_all)} | итог {p_all.sum():+.2f}% | без 2 лучших "
+                  f"{p_all.drop(p_all.nlargest(2).index).sum():+.2f}% | winrate {(p_all > 0).mean() * 100:.1f}% | "
+                  f"PF {p_all[p_all > 0].sum() / loss if loss else float('inf'):.2f} | "
+                  f"макс. просадка {_max_dd(p_all.reset_index(drop=True)):+.2f} п.п.")
             # главная мера: средний результат сделки и его t-статистика по ВСЕМ сделкам
             for lab, col in (("до комиссии", "gross_pct"), ("после комиссии", "profit_pct")):
                 x = all_t[col]

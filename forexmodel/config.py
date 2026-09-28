@@ -371,7 +371,7 @@ class SimulationConfig:
     activate_atr: float = 1.0
     atr_col: str = "atr_14"
     # вход
-    signal_source: str = "ensemble"      # ensemble | cb | nn | meta | rule
+    signal_source: str = "ensemble"      # ensemble | cb | nn | meta | rule | impulse
     ensemble_rule: str = "agreement"     # agreement | cb_priority | nn_priority | confidence
     # signal_source=rule: вход напрямую по признаку, без модели — чтобы проверить
     # гипотезу («крупные покупают -> вверх», «бар >= 1% -> продолжение») в чистом
@@ -379,6 +379,11 @@ class SimulationConfig:
     rule_feature: Optional[str] = None       # напр. of_large_delta_z_6 или ret_lag_1
     rule_threshold: float = 1.0
     rule_invert: bool = False                # True: выше порога -> SHORT (контртренд)
+    # signal_source=impulse: вход по импульсу (docs/results/patterns.md) — ход за
+    # impulse_bars баров >= impulse_atr ATR, в сторону хода; сторону подтверждает
+    # тренд-гейт симулятора (use_trend_filter)
+    impulse_bars: int = 6
+    impulse_atr: float = 3.0
     min_conf_cb: Optional[float] = None
     min_conf_nn: Optional[float] = None
     use_expected_value_filter: bool = True
@@ -539,9 +544,9 @@ def _validate(cfg: Config) -> None:
         raise ValueError(
             f"simulation.exit_mode: ожидалось fixed_pct|atr|trailing, получено {cfg.simulation.exit_mode!r}"
         )
-    if cfg.simulation.signal_source not in {"ensemble", "cb", "nn", "meta", "rule"}:
+    if cfg.simulation.signal_source not in {"ensemble", "cb", "nn", "meta", "rule", "impulse"}:
         raise ValueError(
-            f"simulation.signal_source: ожидалось ensemble|cb|nn|meta|rule, получено {cfg.simulation.signal_source!r}"
+            f"simulation.signal_source: ожидалось ensemble|cb|nn|meta|rule|impulse, получено {cfg.simulation.signal_source!r}"
         )
     if cfg.simulation.signal_source == "meta" and not cfg.meta.enabled:
         raise ValueError("simulation.signal_source='meta', но meta.enabled=False")

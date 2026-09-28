@@ -127,6 +127,8 @@ def build_signal_column(df: pd.DataFrame, cfg: Config, signal_col: str = "final_
         signal = _ensemble(cb, nn, conf_cb, conf_nn, sim.ensemble_rule)
     elif source == "rule":
         signal = _rule_signal(out, sim.rule_feature, sim.rule_threshold, sim.rule_invert)
+    elif source == "impulse":
+        signal = _impulse_signal(out, sim.impulse_bars, sim.impulse_atr, sim.atr_col)
     else:
         raise ValueError(f"Неизвестный signal_source: {source}")
 
@@ -149,6 +151,21 @@ def build_signal_column(df: pd.DataFrame, cfg: Config, signal_col: str = "final_
     out[signal_col] = signal
     log.info("Итого сигналов: %d (%s / %s)", int(signal.notna().sum()), source, sim.ensemble_rule)
     return out
+
+
+def _impulse_signal(df: pd.DataFrame, bars: int, atr_mult: float, atr_col: str) -> pd.Series:
+    """Импульс: ход close за `bars` баров >= `atr_mult` ATR текущего бара -> в сторону хода.
+
+    Только прошлое: close[i] - close[i - bars] и ATR бара i. Первые `bars` строк
+    выборки без истории сигнала не дают.
+    """
+    move = (df["close"] - df["close"].shift(bars)) / df[atr_col].replace(0, np.nan)
+    signal = pd.Series(np.nan, index=df.index, dtype=float)
+    signal[move >= atr_mult] = LONG
+    signal[move <= -atr_mult] = SHORT
+    log.info("Импульс %d баров / %.2g ATR: лонгов %d, шортов %d из %d баров",
+             bars, atr_mult, int((signal == LONG).sum()), int((signal == SHORT).sum()), len(df))
+    return signal
 
 
 def _rule_signal(df: pd.DataFrame, feature: str, threshold: float, invert: bool) -> pd.Series:
