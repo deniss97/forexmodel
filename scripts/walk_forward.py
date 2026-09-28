@@ -36,9 +36,10 @@ reports/walk_forward/<name>_trades.csv.
 Варианты: `cb` — сигнал primary без меты; `meta:<порог>` — мета-фильтр с порогом;
 `rule:<признак>:<порог>` — правило входа по признаку без модели (EV- и
 тренд-фильтр выключены; `rule:<признак>:<порог>:trend` — с тренд-фильтром);
-`impulse:<баров>:<ATR>[:notrend][:vol]` — импульс (docs/results/patterns.md): ход за
-N баров >= x ATR в сторону хода, по тренд-гейту; `vol` — только при ATR >= медианы
-хвоста train. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr.
+`impulse:<баров>:<ATR>[:notrend][:vol][:slip<%>][:slipatr<доля>]` — импульс
+(docs/results/patterns.md): ход за N баров >= x ATR в сторону хода, по тренд-гейту;
+`vol` — только при ATR >= медианы хвоста train; `slip0.05` / `slipatr0.25` —
+проскальзывание на входе. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr.
 Если все варианты — правила, модель не обучается вовсе.
 Файлы: <name>__<вариант>.csv на каждый вариант.
 
@@ -129,6 +130,12 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
         c.simulation.impulse_bars, c.simulation.impulse_atr = int(parts[1]), float(parts[2])
         c.simulation.use_trend_filter = "notrend" not in parts[3:]
         use_vol = "vol" in parts[3:]
+        for x in parts[3:]:
+            # slip<%> / slipatr<доля ATR> — проскальзывание на входе против сделки
+            if x.startswith("slipatr"):
+                c.simulation.entry_slippage_atr = float(x[7:])
+            elif x.startswith("slip"):
+                c.simulation.entry_slippage_pct = float(x[4:])
     else:
         c.simulation.signal_source = "rule"
         c.simulation.rule_feature = parts[1]

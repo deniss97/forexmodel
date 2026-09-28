@@ -384,6 +384,9 @@ class SimulationConfig:
     # тренд-гейт симулятора (use_trend_filter)
     impulse_bars: int = 6
     impulse_atr: float = 3.0
+    # проскальзывание на входе против сделки: доля цены (%) и доля ATR сигнального бара
+    entry_slippage_pct: float = 0.0
+    entry_slippage_atr: float = 0.0
     min_conf_cb: Optional[float] = None
     min_conf_nn: Optional[float] = None
     use_expected_value_filter: bool = True

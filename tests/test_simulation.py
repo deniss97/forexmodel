@@ -145,3 +145,19 @@ def test_atr_exit_mode_uses_atr_distances():
     trade = trades.iloc[0]
     assert trade["exit_reason"] == "take_profit"
     assert trade["exit_price"] == pytest.approx(102.0)
+
+
+def test_entry_slippage_moves_fill_against_the_trade():
+    """Проскальзывание: лонг исполняется выше open, шорт ниже; результат считается от исполнения."""
+    path = [100.0] * 60
+    px = _minutes(path)
+    sig_long = pd.DataFrame({"time": [px["time"].iloc[0]], "final_class": [2], "atr_14": [1.0]})
+    sig_short = pd.DataFrame({"time": [px["time"].iloc[0]], "final_class": [0], "atr_14": [1.0]})
+    cfg = _cfg(horizon_minutes=10, entry_slippage_pct=0.1, entry_slippage_atr=0.5)
+
+    long_t, _ = simulate_trades(sig_long, px, cfg)
+    short_t, _ = simulate_trades(sig_short, px, cfg)
+    assert long_t.iloc[0]["open_price"] == pytest.approx(100.0 * 1.001 + 0.5)
+    assert short_t.iloc[0]["open_price"] == pytest.approx(100.0 * 0.999 - 0.5)
+    # цена стоит: выход по 100, результат — минус проскальзывание и комиссия
+    assert long_t.iloc[0]["gross_pct"] < 0 and short_t.iloc[0]["gross_pct"] < 0

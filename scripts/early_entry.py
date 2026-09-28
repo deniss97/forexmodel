@@ -48,23 +48,27 @@ def signals(minute: pd.DataFrame, cfg, step: str, window_h: int, x: float) -> pd
     return b[b["side"] != 0][["t_close", "side", "atr"]].reset_index(drop=True)
 
 
-def simulate(minute: pd.DataFrame, sig: pd.DataFrame, cfg, commission: float) -> pd.DataFrame:
+def simulate(minute: pd.DataFrame, sig: pd.DataFrame, cfg, commission: float, delay_min: int = 1,
+             slip_pct: float = 0.0, slip_atr: float = 0.0) -> pd.DataFrame:
+    """Сделки без перекрытия. Вход — open минуты через `delay_min` после закрытия бара сигнала,
+    хуже на `slip_pct` % цены и `slip_atr` ATR (против сделки); стоп и трейлинг — от цены исполнения."""
     sim = cfg.simulation
     t = minute["time"].to_numpy()
     hi, lo, cl, op = (minute[c].to_numpy(dtype=float) for c in ("high", "low", "close", "open"))
     rows, busy_until = [], np.datetime64("1970-01-01")
     for tc, s, atr in sig.itertuples(index=False):
-        entry_t = np.datetime64(tc) + np.timedelta64(1, "m")
+        entry_t = np.datetime64(tc) + np.timedelta64(delay_min, "m")
         if entry_t <= busy_until or not np.isfinite(atr):
             continue
         a = np.searchsorted(t, entry_t, "left")
         b = np.searchsorted(t, entry_t + np.timedelta64(cfg.horizon_minutes, "m"), "right") - 1
         if a >= len(t) or b <= a:
             continue
-        g, j, _ = _trailing(hi[a:b + 1], lo[a:b + 1], cl[a:b + 1], op[a], atr, s, sim.sl_atr, sim.trail_atr,
+        fill = op[a] * (1 + s * slip_pct / 100) + s * slip_atr * atr
+        g, j, _ = _trailing(hi[a:b + 1], lo[a:b + 1], cl[a:b + 1], fill, atr, s, sim.sl_atr, sim.trail_atr,
                             sim.activate_atr)
         busy_until = t[a + j]
-        rows.append((tc, s, op[a], g))
+        rows.append((tc, s, fill, g))
     r = pd.DataFrame(rows, columns=["time", "side", "entry", "gross"])
     r["net"] = r["gross"] - commission
     return r

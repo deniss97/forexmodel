@@ -147,6 +147,14 @@ def simulate_trades(
             skipped["no_atr"] += 1
             continue
 
+        # проскальзывание на входе: исполнение хуже open на долю цены и/или ATR против
+        # сделки; стоп, трейлинг и результат считаются от цены исполнения
+        if sim.entry_slippage_pct or sim.entry_slippage_atr:
+            d = 1.0 if side == "buy" else -1.0
+            entry_price = entry_price * (1 + d * sim.entry_slippage_pct / 100.0)
+            if np.isfinite(atr):
+                entry_price += d * sim.entry_slippage_atr * atr
+
         exit_rel, exit_price, exit_reason = _resolve_exit(
             sim, side, entry_price, atr, p_high[win], p_low[win], p_close[win]
         )
