@@ -8,7 +8,10 @@
   * старший тренд на момент сигнала по дневкам, только по ЗАКРЫТЫМ дням (до даты сигнала):
     цена к SMA50, наклон SMA50 за 10 дней, цена к SMA200, ход за 20 дней — по каждому
     +1 / −1 / 0 (нет данных);
-  * флаг «внутри сделки был ночной гэп ≥ 4%» (у акций это в основном дивидендные отсечки).
+  * флаг «внутри сделки был ночной гэп ≥ 4%» (у акций это в основном дивидендные отсечки);
+  * число ролловеров форекса (21:00 UTC по будням, в среду тройной), ATR на входе в % цены,
+    ATR к медиане за 20 дней, размер импульса в ATR, причина выхода (0 стоп, 1 трейлинг, 2 время),
+    час входа.
 
     python scripts/build_sandbox_data.py      # -> docs/results/strategy_viz/data/sandbox.json
 """
@@ -50,11 +53,28 @@ def daily_trend(h: pd.DataFrame) -> pd.DataFrame:
     return st
 
 
+def rnd(x, d):
+    return round(float(x), d) if np.isfinite(x) else None
+
+
+def rollovers(o: pd.Timestamp, e: pd.Timestamp) -> int:
+    """Ролловеры форекса между входом и выходом: 21:00 UTC по будням, в среду — тройной, в выходные нет."""
+    n, d = 0, o.normalize()
+    while d <= e:
+        r = d + pd.Timedelta("21h")
+        if o < r <= e and d.dayofweek < 5:
+            n += 3 if d.dayofweek == 2 else 1
+        d += pd.Timedelta("1D")
+    return n
+
+
 def main() -> int:
     logging.disable(logging.WARNING)
     out = {"variants": {k: v[2] for k, v in VARIANTS.items()}, "exits": {k: v[1] for k, v in EXITS.items()},
            "trend_cols": ["sma50", "slope50", "sma200", "ret20"],
-           "cols": ["вход", "выход", "сторона", "до_комиссии_%", "ночей", "sma50", "slope50", "sma200", "ret20", "гэп"],
+           "cols": ["вход", "выход", "сторона", "до_комиссии_%", "ночей", "sma50", "slope50", "sma200", "ret20", "гэп",
+                    "ролловеров", "atr_%", "волат_к_медиане", "импульс", "причина", "час_входа"],
+           "sl_atr": {k: float(v[0].split(":")[1]) for k, v in EXITS.items()},
            "instruments": {}}
     for inst in ALL_INSTRUMENTS:
         base = instrument_cfg(inst)
@@ -64,6 +84,8 @@ def main() -> int:
         gap_ok = h["time"].diff() > pd.Timedelta("8h")
         gap = (h["open"] / h["close"].shift() - 1).abs() >= 0.04
         gap_t = h.loc[gap_ok & gap, "time"].to_numpy()
+        h["vol_ratio"] = h["atr"] / h["atr"].rolling(24 * 20, min_periods=24 * 5).median()
+        hidx = h.set_index("t_close")
         runs = {}
         for vk, (kind, thr, _) in VARIANTS.items():
             sig = signal(h, kind, thr, "gate")
@@ -75,9 +97,17 @@ def main() -> int:
                 op, ex = pd.to_datetime(t["open_time"]), pd.to_datetime(t["exit_time"])
                 nights = (ex.dt.normalize() - op.dt.normalize()).dt.days.to_numpy()
                 g = [bool(((gap_t > o) & (gap_t <= e)).any()) for o, e in zip(op.to_numpy(), ex.to_numpy())]
+                roll = [rollovers(o, e) for o, e in zip(op, ex)]
+                at = hidx.reindex(pd.to_datetime(t["time"]))
+                atr_pct = (at["atr"] / at["close"] * 100).to_numpy()
+                vr, mv = at["vol_ratio"].to_numpy(), at["move_atr"].abs().to_numpy()
+                rc = t["reason"].map({"stop": 0, "trail": 1, "time": 2}).to_numpy()
+                hr = pd.to_datetime(t["time"]).dt.hour.to_numpy()
                 runs[f"{vk}|{ek}"] = [
-                    [int(o.timestamp()), int(e.timestamp()), int(s), round(float(gr), 3), int(n), *map(int, trow), int(gg)]
-                    for o, e, s, gr, n, trow, gg in zip(op, ex, t["side"], t["gross"], nights, tr, g)]
+                    [int(o.timestamp()), int(e.timestamp()), int(s), round(float(gr), 3), int(n), *map(int, trow), int(gg),
+                     int(rl), rnd(ap, 3), rnd(v, 2), rnd(m, 2), int(c), int(hh)]
+                    for o, e, s, gr, n, trow, gg, rl, ap, v, m, c, hh
+                    in zip(op, ex, t["side"], t["gross"], nights, tr, g, roll, atr_pct, vr, mv, rc, hr)]
         out["instruments"][inst] = {"market": MARKET.get(inst, "stock"), "runs": runs}
         print(f"[{inst}] {sum(len(v) for v in runs.values())} сделок во всех вариантах", flush=True)
         del minute

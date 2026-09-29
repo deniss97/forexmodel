@@ -65,11 +65,13 @@ def simulate(minute: pd.DataFrame, sig: pd.DataFrame, cfg, commission: float, de
         if a >= len(t) or b <= a:
             continue
         fill = op[a] * (1 + s * slip_pct / 100) + s * slip_atr * atr
-        g, j, _ = _trailing(hi[a:b + 1], lo[a:b + 1], cl[a:b + 1], fill, atr, s, sim.sl_atr, sim.trail_atr,
-                            sim.activate_atr)
+        g, j, first_stop = _trailing(hi[a:b + 1], lo[a:b + 1], cl[a:b + 1], fill, atr, s, sim.sl_atr, sim.trail_atr,
+                                     sim.activate_atr)
+        # причина выхода: стоп (трейлинг ещё не включился), трейлинг, время
+        reason = "stop" if first_stop else ("time" if j == b - a and (s * (cl[b] - fill) / fill * 100) == g else "trail")
         busy_until = t[a + j]
-        rows.append((tc, s, fill, g, t[a], t[a + j]))
-    r = pd.DataFrame(rows, columns=["time", "side", "entry", "gross", "open_time", "exit_time"])
+        rows.append((tc, s, fill, g, t[a], t[a + j], reason))
+    r = pd.DataFrame(rows, columns=["time", "side", "entry", "gross", "open_time", "exit_time", "reason"])
     r["net"] = r["gross"] - commission
     return r
 
