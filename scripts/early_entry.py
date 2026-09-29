@@ -68,8 +68,8 @@ def simulate(minute: pd.DataFrame, sig: pd.DataFrame, cfg, commission: float, de
         g, j, _ = _trailing(hi[a:b + 1], lo[a:b + 1], cl[a:b + 1], fill, atr, s, sim.sl_atr, sim.trail_atr,
                             sim.activate_atr)
         busy_until = t[a + j]
-        rows.append((tc, s, fill, g))
-    r = pd.DataFrame(rows, columns=["time", "side", "entry", "gross"])
+        rows.append((tc, s, fill, g, t[a], t[a + j]))
+    r = pd.DataFrame(rows, columns=["time", "side", "entry", "gross", "open_time", "exit_time"])
     r["net"] = r["gross"] - commission
     return r
 

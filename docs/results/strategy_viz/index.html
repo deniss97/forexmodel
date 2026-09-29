@@ -129,6 +129,33 @@ tbody tr.sel { background: var(--zone-up); }
 .why td:first-child { font-family: var(--sans); color: var(--ink2); }
 .note { font-size: 12px; color: var(--ink3); max-width: 110ch; }
 .loading { padding: 40px; text-align: center; color: var(--ink3); }
+/* ---------- песочница ---------- */
+.sb { display: grid; gap: 0; }
+.sb-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 0; }
+@media (max-width: 1000px) { .sb-grid { grid-template-columns: minmax(0, 1fr); } }
+.sb-ctl { padding: 12px; border-right: 1px solid var(--rule); display: grid; gap: 14px; align-content: start; }
+@media (max-width: 1000px) { .sb-ctl { border-right: 0; border-bottom: 1px solid var(--rule); } }
+.sb-ctl fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; }
+.sb-ctl legend { font: 600 12px var(--cond); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink3); margin-bottom: 4px; padding: 0; }
+.sb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; font-size: 12.5px; }
+.sb-row output { font: 500 12px var(--mono); font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
+.sb-row input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--ink); }
+.sb-insts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; font-size: 12.5px; }
+.sb-insts label, .sb-chk { display: flex; gap: 6px; align-items: center; cursor: pointer; font-size: 12.5px; }
+.sb-insts i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.sb-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+.sb-quick button, .sb-reset { font: 12px var(--sans); color: var(--ink2); background: transparent; border: 1px solid var(--rule); border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+.sb-ctl select { width: 100%; }
+.sb-years-sel { display: flex; gap: 6px; align-items: center; }
+.sb-years-sel select { width: auto; }
+.sb-hint { font-size: 11.5px; color: var(--ink3); line-height: 1.4; }
+.sb-out { display: grid; gap: 12px; padding: 12px; min-width: 0; align-content: start; }
+.sb-kpis { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.sb-cmp { font: 12px var(--mono); color: var(--ink3); }
+#sb-chart { height: 300px; position: relative; }
+.sb-tw { overflow-x: auto; }
+.sb-tw td i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+.sb-years td { text-align: center; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 
@@ -214,6 +241,63 @@ tbody tr.sel { background: var(--zone-up); }
       <div class="why" id="why"></div>
     </section>
   </div>
+
+  <section class="card sb" id="sandbox" aria-label="Песочница: настройки и пересчёт">
+    <div class="card-head">
+      <h2>Песочница: издержки, набор инструментов, варианты паттерна</h2>
+      <span class="note">всё ниже пересчитывается сразу; блоки выше не меняются</span>
+    </div>
+    <div class="sb-grid">
+      <form class="sb-ctl" id="sb-form" autocomplete="off">
+        <fieldset>
+          <legend>Инструменты портфеля (капитал поровну)</legend>
+          <div class="sb-insts" id="sb-insts"></div>
+          <div class="sb-quick">
+            <button type="button" data-set="silver,lkoh,gazp,sber">ядро 4</button>
+            <button type="button" data-set="silver,gold,lkoh">исходные 3</button>
+            <button type="button" data-set="all">все 8</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Паттерн и выход</legend>
+          <label class="sb-row" for="sb-var">вход <select id="sb-var"></select></label>
+          <label class="sb-row" for="sb-exit">выход <select id="sb-exit"></select></label>
+        </fieldset>
+        <fieldset>
+          <legend>Издержки</legend>
+          <label class="sb-row" for="sb-comm">комиссия за сделку, % <output id="sb-comm-o"></output><input type="range" id="sb-comm" min="0" max="0.2" step="0.01" value="0.04"></label>
+          <label class="sb-row" for="sb-slip">проскальзывание на входе, % <output id="sb-slip-o"></output><input type="range" id="sb-slip" min="0" max="0.3" step="0.01" value="0"></label>
+          <label class="sb-row" for="sb-swap">своп форекс и крипта, % за ночь <output id="sb-swap-o"></output><input type="range" id="sb-swap" min="0" max="0.1" step="0.005" value="0"></label>
+          <label class="sb-row" for="sb-borrow">плата за шорт акций, % за ночь <output id="sb-borrow-o"></output><input type="range" id="sb-borrow" min="0" max="0.1" step="0.005" value="0"></label>
+          <p class="sb-hint">Своп берётся за каждую смену даты в позиции (тройной своп в среду покрывает выходные) и со знаком «расход» для обеих сторон. Проскальзывание вычитается из результата сделки, стопы не сдвигаются.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Фильтры сделок</legend>
+          <label class="sb-row" for="sb-htf">старший тренд (дневки) <select id="sb-htf">
+            <option value="">не учитывать</option>
+            <option value="sma200">цена к SMA200</option>
+            <option value="sma50">цена к SMA50</option>
+            <option value="slope50">наклон SMA50 за 10 дней</option>
+            <option value="ret20">ход за 20 дней</option>
+          </select></label>
+          <label class="sb-row" for="sb-w">вес сделок против старшего тренда <output id="sb-w-o"></output><input type="range" id="sb-w" min="0" max="1" step="0.1" value="1"></label>
+          <label class="sb-row" for="sb-side">сторона <select id="sb-side"><option value="0">лонг и шорт</option><option value="1">только лонг</option><option value="-1">только шорт</option></select></label>
+          <label class="sb-chk" for="sb-gap"><input type="checkbox" id="sb-gap"> исключить сделки через ночной гэп ≥ 4% (дивиденды акций)</label>
+          <div class="sb-row"><span>годы</span><span class="sb-years-sel"><select id="sb-from" aria-label="с года"></select> — <select id="sb-to" aria-label="по год"></select></span></div>
+        </fieldset>
+        <button type="button" class="sb-reset" id="sb-reset">вернуть настройки по умолчанию</button>
+      </form>
+      <div class="sb-out">
+        <div class="sb-kpis" id="sb-kpis"></div>
+        <div class="sb-cmp" id="sb-cmp"></div>
+        <div id="sb-chart"></div>
+        <label class="sb-chk"><input type="checkbox" id="sb-lines"> показать кривые отдельных инструментов (каждый — на свой капитал 1/N)</label>
+        <div class="sb-tw"><table id="sb-inst"></table></div>
+        <div class="sb-tw"><table class="sb-years" id="sb-years"></table></div>
+        <p class="sb-hint">Песочница считает быстрым движком (scripts/build_sandbox_data.py): те же правила, что у штатного симулятора, но без его мелочей (гейт считается по часовым барам лаборатории, вход — через минуту после закрытия часа). Числа близки к блокам выше, но не совпадают до сделки. Фильтры применяются к готовым сделкам: освободившееся время не занимается другими сигналами. Точный пересчёт с фильтром старшего тренда — в docs/results/impulse_instruments.md.</p>
+      </div>
+    </div>
+  </section>
 
   <p class="note">Время — как в исходных данных (биржевое / UTC у ETH). MFE и MAE считаются по часовым high/low внутри сделки, в ATR на момент входа. Итог — сумма % сделок без реинвестирования, как в отчётах проекта. Данные и генератор: <span style="font-family:var(--mono)">scripts/build_strategy_viz.py</span>, описание стратегии — docs/results/patterns_explained.md.</p>
 </div>
@@ -483,6 +567,175 @@ tbody tr.sel { background: var(--zone-up); }
     let start = manifest[0].id;
     try { const s = localStorage.getItem("impulse-viz-inst"); if (s && manifest.some((m) => m.id === s)) start = s; } catch (e) {}
     select(start);
+  }
+  init();
+})();
+</script>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const NAMES = { silver: "Серебро", gold: "Золото", lkoh: "LKOH", gazp: "GAZP", sber: "SBER", moex: "MOEX", mtss: "MTSS", eth: "ETH" };
+  // категориальные цвета (фиксированный порядок)
+  const COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
+  const DEF = { insts: ["silver", "lkoh", "gazp", "sber"], v: "3atr", e: "240_6", comm: 0.04, slip: 0, swap: 0, borrow: 0, htf: "", w: 1, side: "0", gap: false, lines: false };
+  let D = null, chart = null, port = null, lines = {}, yearsAll = [];
+  const fmt = (x, d = 1) => (Math.abs(x) < 0.5 * Math.pow(10, -d) ? "0" : (x > 0 ? "+" : "−") + Math.abs(x).toFixed(d));
+  const cls = (x) => (x > 0 ? "pos" : x < 0 ? "neg" : "");
+
+  function read() {
+    return {
+      insts: [...document.querySelectorAll("#sb-insts input:checked")].map((x) => x.value),
+      v: $("#sb-var").value, e: $("#sb-exit").value,
+      comm: +$("#sb-comm").value, slip: +$("#sb-slip").value, swap: +$("#sb-swap").value, borrow: +$("#sb-borrow").value,
+      htf: $("#sb-htf").value, w: +$("#sb-w").value, side: $("#sb-side").value, gap: $("#sb-gap").checked,
+      from: +$("#sb-from").value, to: +$("#sb-to").value, lines: $("#sb-lines").checked,
+    };
+  }
+
+  function write(s) {
+    document.querySelectorAll("#sb-insts input").forEach((x) => (x.checked = s.insts.includes(x.value)));
+    $("#sb-var").value = s.v; $("#sb-exit").value = s.e;
+    $("#sb-comm").value = s.comm; $("#sb-slip").value = s.slip; $("#sb-swap").value = s.swap; $("#sb-borrow").value = s.borrow;
+    $("#sb-htf").value = s.htf; $("#sb-w").value = s.w; $("#sb-side").value = s.side; $("#sb-gap").checked = s.gap;
+    $("#sb-from").value = s.from ?? yearsAll[0]; $("#sb-to").value = s.to ?? yearsAll[yearsAll.length - 1]; $("#sb-lines").checked = s.lines;
+  }
+
+  // сделки инструмента с учётом настроек: [вход, выход, результат % на капитал инструмента]
+  function tradesOf(inst, s) {
+    const I = D.instruments[inst], rows = I.runs[`${s.v}|${s.e}`] || [];
+    const ti = s.htf ? D.cols.indexOf(s.htf) : -1, out = [];
+    for (const r of rows) {
+      const y = new Date(r[0] * 1000).getUTCFullYear();
+      if (y < s.from || y > s.to) continue;
+      if (s.side !== "0" && r[2] !== +s.side) continue;
+      if (s.gap && r[9]) continue;
+      let w = 1;
+      if (ti >= 0 && r[2] * r[ti] < 0) w = s.w;
+      if (w === 0) continue;
+      let cost = s.comm + s.slip;
+      if (I.market !== "stock") cost += s.swap * r[4];
+      else if (r[2] < 0) cost += s.borrow * r[4];
+      out.push([r[0], r[1], w * (r[3] - cost)]);
+    }
+    return out;
+  }
+
+  function stats(tr, n = 1) {
+    const p = tr.map((x) => x[2] / n), cnt = p.length;
+    if (!cnt) return null;
+    const sum = p.reduce((a, b) => a + b, 0), mean = sum / cnt;
+    const sd = Math.sqrt(p.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, cnt - 1));
+    const gw = p.filter((x) => x > 0).reduce((a, b) => a + b, 0), gl = -p.filter((x) => x < 0).reduce((a, b) => a + b, 0);
+    const byExit = tr.map((x, i) => [x[1], p[i]]).sort((a, b) => a[0] - b[0]);
+    let acc = 0, peak = 0, dd = 0; const yr = {};
+    for (const [t, v] of byExit) { acc += v; peak = Math.max(peak, acc); dd = Math.min(dd, acc - peak); const y = new Date(t * 1000).getUTCFullYear(); yr[y] = (yr[y] || 0) + v; }
+    const top2 = p.slice().sort((a, b) => b - a).slice(0, 2).reduce((a, b) => a + b, 0);
+    const ys = Object.values(yr);
+    return { cnt, sum, ex2: sum - top2, win: (p.filter((x) => x > 0).length / cnt) * 100, pf: gl ? gw / gl : Infinity, dd,
+             t: sd > 0 ? mean / (sd / Math.sqrt(cnt)) : 0, yr, pos: ys.filter((x) => x > 0).length, nY: ys.length, byExit };
+  }
+
+  function curve(byExit) {
+    const m = new Map(); let acc = 0;
+    for (const [t, v] of byExit) { acc += v; m.set(t, +acc.toFixed(2)); }
+    return [...m.entries()].map(([time, value]) => ({ time, value }));
+  }
+
+  function run() {
+    const s = read();
+    ["comm", "slip", "swap", "borrow"].forEach((k) => ($(`#sb-${k}-o`).textContent = s[k].toFixed(k === "comm" || k === "slip" ? 2 : 3) + "%"));
+    $("#sb-w-o").textContent = s.w === 0 ? "исключить" : s.w === 1 ? "как есть" : "× " + s.w.toFixed(1);
+    $("#sb-w").disabled = !s.htf;
+    try { localStorage.setItem("impulse-sandbox", JSON.stringify(s)); } catch (e) {}
+    const n = s.insts.length;
+    if (!n) { $("#sb-kpis").innerHTML = `<p class="note">Выберите хотя бы один инструмент.</p>`; return; }
+    const per = {}; let all = [];
+    for (const inst of s.insts) { per[inst] = tradesOf(inst, s); all = all.concat(per[inst]); }
+    const P = stats(all, n);
+    const years = Math.max(1, s.to - s.from + (s.to === yearsAll[yearsAll.length - 1] ? 0.4 : 1));
+    const k = P ? [
+      ["итог портфеля", fmt(P.sum) + "%", cls(P.sum)], ["в год", fmt(P.sum / years) + "%", cls(P.sum)],
+      ["сделок", P.cnt, ""], ["в год", Math.round(P.cnt / years), ""], ["выигрышей", P.win.toFixed(0) + "%", ""],
+      ["PF", isFinite(P.pf) ? P.pf.toFixed(2) : "—", ""], ["макс. просадка", P.dd.toFixed(1) + " п.п.", P.dd < 0 ? "neg" : ""],
+      ["лет в плюсе", `${P.pos}/${P.nY}`, ""], ["t сделки", P.t.toFixed(2), ""],
+    ] : [["сделок", 0, ""]];
+    $("#sb-kpis").innerHTML = k.map(([a, b, c]) => `<div class="kpi"><span>${a}</span><b class="${c}">${b}</b></div>`).join("");
+    // сравнение с настройками по умолчанию на том же наборе инструментов
+    const base = { ...DEF, insts: s.insts, from: s.from, to: s.to };
+    let ball = []; for (const inst of s.insts) ball = ball.concat(tradesOf(inst, base));
+    const B = stats(ball, n);
+    $("#sb-cmp").textContent = B && P ? `по умолчанию на этом наборе (6 ч ≥ 3 ATR, 240 ч / 6 ATR, комиссия 0.04%, без фильтров): итог ${fmt(B.sum)}%, просадка ${B.dd.toFixed(1)} п.п., t ${B.t.toFixed(2)}` : "";
+
+    if (!chart) {
+      chart = LightweightCharts.createChart($("#sb-chart"), {
+        autoSize: true,
+        layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2"), fontFamily: "IBM Plex Mono, monospace", fontSize: 11 },
+        grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } },
+        rightPriceScale: { borderColor: css("--rule") }, timeScale: { borderColor: css("--rule") },
+      });
+      port = chart.addLineSeries({ color: css("--equity"), lineWidth: 2, priceLineVisible: false, title: "портфель" });
+      for (const inst of Object.keys(D.instruments)) lines[inst] = chart.addLineSeries({ color: COLORS[Object.keys(D.instruments).indexOf(inst)], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, visible: false });
+    }
+    port.setData(P ? curve(P.byExit) : []);
+    for (const inst of Object.keys(lines)) {
+      const on = s.lines && s.insts.includes(inst);
+      lines[inst].applyOptions({ visible: on });
+      lines[inst].setData(on ? curve(stats(per[inst], n)?.byExit || []) : []);
+    }
+    chart.timeScale().fitContent();
+
+    // таблица по инструментам (результат на капитал инструмента)
+    let h = `<thead><tr><th>инструмент</th><th>сделок</th><th>итог</th><th>без 2 лучших</th><th>выигрышей</th><th>PF</th><th>просадка</th><th>t</th><th>лет в плюсе</th></tr></thead><tbody>`;
+    for (const inst of s.insts) {
+      const S = stats(per[inst]); const c = COLORS[Object.keys(D.instruments).indexOf(inst)];
+      if (!S) { h += `<tr><td><i style="background:${c}"></i>${NAMES[inst]}</td><td colspan="8">нет сделок</td></tr>`; continue; }
+      h += `<tr><td><i style="background:${c}"></i>${NAMES[inst]}</td><td>${S.cnt}</td><td class="${cls(S.sum)}">${fmt(S.sum)}%</td><td class="${cls(S.ex2)}">${fmt(S.ex2)}%</td><td>${S.win.toFixed(0)}%</td><td>${isFinite(S.pf) ? S.pf.toFixed(2) : "—"}</td><td class="neg">${S.dd.toFixed(1)}</td><td>${S.t.toFixed(2)}</td><td>${S.pos}/${S.nY}</td></tr>`;
+    }
+    $("#sb-inst").innerHTML = h + "</tbody>";
+    // по годам: портфель и инструменты (на капитал инструмента)
+    const ys = yearsAll.filter((y) => y >= s.from && y <= s.to);
+    let t = `<thead><tr><th>год</th>${ys.map((y) => `<th>${y}</th>`).join("")}</tr></thead><tbody>`;
+    const rowY = (name, yr, bold) => `<tr><td>${name}</td>${ys.map((y) => (yr[y] === undefined ? `<td>—</td>` : `<td class="${cls(yr[y])}" style="${bold ? "font-weight:600" : ""}">${fmt(yr[y], 0)}</td>`)).join("")}</tr>`;
+    if (P) t += rowY("портфель", P.yr, true);
+    for (const inst of s.insts) { const S = stats(per[inst]); if (S) t += rowY(NAMES[inst], S.yr, false); }
+    $("#sb-years").innerHTML = t + "</tbody>";
+  }
+
+  function restyle() {
+    if (!chart) return;
+    chart.applyOptions({ layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2") },
+      grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } } });
+    port.applyOptions({ color: css("--equity") });
+  }
+
+  async function init() {
+    try { const r = await fetch("data/sandbox.json"); if (!r.ok) throw new Error(r.status); D = await r.json(); }
+    catch (e) { $("#sb-kpis").innerHTML = `<p class="note">Нет данных песочницы (data/sandbox.json): запустите scripts/build_sandbox_data.py.</p>`; return; }
+    const keys = Object.keys(D.instruments);
+    $("#sb-insts").innerHTML = keys.map((k, i) => `<label><input type="checkbox" value="${k}"><i style="background:${COLORS[i]}"></i>${NAMES[k] || k}</label>`).join("");
+    $("#sb-var").innerHTML = Object.entries(D.variants).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+    $("#sb-exit").innerHTML = Object.entries(D.exits).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+    const ys = new Set();
+    for (const I of Object.values(D.instruments)) for (const r of I.runs["3atr|240_6"]) ys.add(new Date(r[0] * 1000).getUTCFullYear());
+    yearsAll = [...ys].sort();
+    const opts = yearsAll.map((y) => `<option>${y}</option>`).join("");
+    $("#sb-from").innerHTML = opts; $("#sb-to").innerHTML = opts;
+    let s = { ...DEF };
+    try { const saved = JSON.parse(localStorage.getItem("impulse-sandbox")); if (saved && saved.insts) s = { ...s, ...saved }; } catch (e) {}
+    write(s);
+    $("#sb-form").addEventListener("input", run);
+    $("#sb-form").addEventListener("change", run);
+    $("#sb-lines").addEventListener("change", run);
+    document.querySelectorAll(".sb-quick button").forEach((b) => b.addEventListener("click", () => {
+      const set = b.dataset.set === "all" ? keys : b.dataset.set.split(",");
+      document.querySelectorAll("#sb-insts input").forEach((x) => (x.checked = set.includes(x.value))); run();
+    }));
+    $("#sb-reset").addEventListener("click", () => { write({ ...DEF, from: yearsAll[0], to: yearsAll[yearsAll.length - 1] }); run(); });
+    new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyle);
+    run();
   }
   init();
 })();
