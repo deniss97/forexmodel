@@ -58,10 +58,20 @@ INSTRUMENTS = {
     "gold": ("configs/silver.yaml", "data/raw/XAUUSD_1m_full.csv"),
     "lkoh": ("configs/default.yaml", None),
 }
+# инструменты, добавленные 2026-09-29 для проверки импульсной стратегии (акции MOEX — конфиг LKOH,
+# круглосуточная ETH — конфиг серебра; ETHUSDT_1m_clean.csv — время из open_time, см. patterns_more.md)
+EXTRA_INSTRUMENTS = {
+    "gazp": ("configs/default.yaml", "data/raw/GAZP_1m_15-26_upd.csv"),
+    "sber": ("configs/default.yaml", "data/raw/SBER_1m_15-26.csv"),
+    "moex": ("configs/default.yaml", "data/raw/MOEX_1m_15-26.csv"),
+    "mtss": ("configs/default.yaml", "data/raw/MTSS_1m_15-26.csv"),
+    "eth": ("configs/silver.yaml", "data/raw/ETHUSDT_1m_clean.csv"),
+}
+ALL_INSTRUMENTS = {**INSTRUMENTS, **EXTRA_INSTRUMENTS}
 
 
 def instrument_cfg(name: str):
-    path, csv = INSTRUMENTS[name]
+    path, csv = ALL_INSTRUMENTS[name]
     cfg = load_config(ROOT / path)
     if csv:
         cfg.data.csv_path = csv

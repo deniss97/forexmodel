@@ -1,0 +1,489 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Карта сделок импульса</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  --bg: #f3f4f1;
+  --panel: #ffffff;
+  --ink: #16191d;
+  --ink2: #5a616b;
+  --ink3: #8a919b;
+  --rule: #dcdfe2;
+  --long: #2a78d6;
+  --short: #e0602c;
+  --win: #178f56;
+  --loss: #d23f3f;
+  --zone-up: rgba(23, 143, 86, 0.10);
+  --zone-down: rgba(210, 63, 63, 0.10);
+  --zone-flat: rgba(110, 116, 126, 0.07);
+  --ema: #8a5cc4;
+  --equity: #16191d;
+  --heat-0: #eef0ee;
+  --focus: #2a78d6;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111315;
+    --panel: #181b1e;
+    --ink: #e9ebee;
+    --ink2: #a3a9b2;
+    --ink3: #737a84;
+    --rule: #2a2e33;
+    --long: #3f8fe8;
+    --short: #e56b37;
+    --win: #2fb574;
+    --loss: #e56262;
+    --zone-up: rgba(47, 181, 116, 0.13);
+    --zone-down: rgba(229, 98, 98, 0.13);
+    --zone-flat: rgba(160, 166, 176, 0.07);
+    --ema: #a784dc;
+    --equity: #e9ebee;
+    --heat-0: #22262a;
+    --focus: #3f8fe8;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111315;
+  --panel: #181b1e;
+  --ink: #e9ebee;
+  --ink2: #a3a9b2;
+  --ink3: #737a84;
+  --rule: #2a2e33;
+  --long: #3f8fe8;
+  --short: #e56b37;
+  --win: #2fb574;
+  --loss: #e56262;
+  --zone-up: rgba(47, 181, 116, 0.13);
+  --zone-down: rgba(229, 98, 98, 0.13);
+  --zone-flat: rgba(160, 166, 176, 0.07);
+  --ema: #a784dc;
+  --equity: #e9ebee;
+  --heat-0: #22262a;
+  --focus: #3f8fe8;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); padding-inline: 16px; padding-block: 16px 40px; margin: 0; }
+.wrap { max-width: 1480px; margin: 0 auto; display: grid; gap: 14px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+h1 { font: 600 24px/1.1 var(--cond); margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+.rule { color: var(--ink2); font-size: 13px; max-width: 80ch; }
+.rule b { color: var(--ink); font-weight: 500; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { font: 500 13px var(--sans); color: var(--ink2); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; cursor: pointer; display: grid; gap: 1px; text-align: left; }
+.tab small { font: 400 11px var(--mono); color: var(--ink3); }
+.tab[aria-selected="true"] { color: var(--ink); border-color: var(--ink); }
+.tab:focus-visible, button:focus-visible, select:focus-visible, tr:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.kpis { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; }
+.kpi { display: grid; gap: 1px; min-width: 88px; }
+.kpi span { font-size: 11px; color: var(--ink3); text-transform: uppercase; letter-spacing: 0.06em; }
+.kpi b { font: 500 18px var(--mono); font-variant-numeric: tabular-nums; }
+.kpi b.pos { color: var(--win); } .kpi b.neg { color: var(--loss); }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; min-width: 0; }
+.card h2 { font: 600 14px var(--cond); letter-spacing: 0.02em; margin: 0; }
+.card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--rule); }
+.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { font: 500 12px var(--sans); background: transparent; color: var(--ink2); border: 0; padding: 4px 9px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+select, .chk { font: 12px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 6px; }
+.chk { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+#chart { position: relative; height: min(64vh, 620px); min-height: 380px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 12px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink2); }
+.legend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.tip { position: absolute; left: 10px; top: 8px; z-index: 5; pointer-events: none; font: 12px/1.45 var(--mono); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; max-width: calc(100% - 20px); white-space: pre-wrap; font-variant-numeric: tabular-nums; }
+.list { max-height: calc(min(64vh, 620px) + 88px); overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 6px; text-align: right; white-space: nowrap; font-size: 12px; }
+th { position: sticky; top: 0; background: var(--panel); color: var(--ink3); font-weight: 500; border-bottom: 1px solid var(--rule); cursor: pointer; user-select: none; }
+th:first-child, td:first-child { text-align: left; }
+td { font-family: var(--mono); border-bottom: 1px solid var(--rule); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--zone-flat); }
+tbody tr.sel { background: var(--zone-up); }
+.side-l { color: var(--long); } .side-s { color: var(--short); }
+.pos { color: var(--win); } .neg { color: var(--loss); }
+.lower { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 1100px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.heat { overflow-x: auto; padding: 10px 12px 12px; }
+.heat table { min-width: 560px; }
+.heat td { text-align: center; font-size: 11px; padding: 5px 2px; border: 2px solid var(--panel); border-radius: 3px; cursor: pointer; }
+.heat td.y { text-align: left; font-family: var(--mono); color: var(--ink2); cursor: default; border: 0; padding-right: 8px; }
+.heat td.sum { font-weight: 500; }
+.heat th { position: static; cursor: default; text-align: center; font-size: 11px; }
+.why { padding: 10px 12px 12px; display: grid; gap: 10px; min-width: 0; }
+.why .tw { overflow-x: auto; }
+.why td:first-child, .why th:first-child { white-space: normal; min-width: 150px; }
+.why p { margin: 0; color: var(--ink2); font-size: 12.5px; max-width: 70ch; }
+.why td:first-child { font-family: var(--sans); color: var(--ink2); }
+.note { font-size: 12px; color: var(--ink3); max-width: 110ch; }
+.loading { padding: 40px; text-align: center; color: var(--ink3); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Импульс по тренду</h1>
+    <div class="rule">Правило: цена за <b>6 часов</b> прошла <b>≥ 3 ATR</b> в сторону тренд-гейта C → вход через минуту после закрытия часа; стоп и трейлинг <b>6 ATR</b> (трейлинг включается после +3 ATR), выход не позже <b>240 ч</b>. Сделки — штатный симулятор, walk-forward, после комиссии 0.04%, без проскальзывания.</div>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Инструмент"></nav>
+  <section class="kpis" id="kpis" aria-label="Итоги по выбранным сделкам"></section>
+
+  <div class="main">
+    <section class="card" aria-label="График цены и сделок">
+      <div class="card-head">
+        <h2 id="chart-title">График</h2>
+        <div class="controls">
+          <div class="seg" id="range" role="group" aria-label="Период на графике">
+            <button type="button" data-days="30">месяц</button>
+            <button type="button" data-days="120" aria-pressed="true">4 мес</button>
+            <button type="button" data-days="365">год</button>
+            <button type="button" data-days="0">всё</button>
+          </div>
+          <label class="chk"><input type="checkbox" id="show-ema"> EMA5 (4ч)</label>
+          <label class="chk"><input type="checkbox" id="show-zones" checked> зоны гейта</label>
+        </div>
+      </div>
+      <div id="chart"><div class="loading" id="loading">Загрузка…</div><div class="tip" id="tip" hidden></div></div>
+      <div class="legend">
+        <span><i style="background:var(--zone-up)"></i>гейт вверх</span>
+        <span><i style="background:var(--zone-down)"></i>гейт вниз</span>
+        <span><i style="background:var(--zone-flat)"></i>нейтраль</span>
+        <span><span class="side-l">▲</span> вход в лонг</span>
+        <span><span class="side-s">▼</span> вход в шорт</span>
+        <span><span class="pos">●</span> выход с прибылью</span>
+        <span><span class="neg">●</span> выход с убытком</span>
+        <span>внизу — накопленный результат, %</span>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Список сделок">
+      <div class="card-head">
+        <h2>Сделки <span class="note" id="count"></span></h2>
+        <div class="controls">
+          <div class="seg" id="f-side" role="group" aria-label="Сторона">
+            <button type="button" data-v="all" aria-pressed="true">все</button>
+            <button type="button" data-v="1">лонг</button>
+            <button type="button" data-v="-1">шорт</button>
+          </div>
+          <div class="seg" id="f-res" role="group" aria-label="Итог сделки">
+            <button type="button" data-v="all" aria-pressed="true">все</button>
+            <button type="button" data-v="win">+</button>
+            <button type="button" data-v="loss">−</button>
+          </div>
+          <select id="f-year" aria-label="Год"><option value="all">все годы</option></select>
+        </div>
+      </div>
+      <div class="list">
+        <table>
+          <thead><tr>
+            <th data-k="0" title="Время входа">вход</th>
+            <th data-k="2" title="Сторона: ▲ лонг, ▼ шорт">▲▼</th>
+            <th data-k="5" title="Результат сделки после комиссии">%</th>
+            <th data-k="7" title="Длительность, часов">ч</th>
+            <th data-k="6">выход</th>
+            <th data-k="10" title="Размер импульса на входе, ATR">имп.</th>
+            <th data-k="8" title="Лучший ход в нашу сторону за сделку, ATR">MFE</th>
+            <th data-k="9" title="Худший ход против нас за сделку, ATR">MAE</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="lower">
+    <section class="card" aria-label="Результат по месяцам">
+      <div class="card-head"><h2>Где прибыль и убытки: сумма % сделок по месяцу выхода</h2><span class="note">клик по месяцу — показать его на графике</span></div>
+      <div class="heat" id="heat"></div>
+    </section>
+    <section class="card" aria-label="Чем отличаются проигрыши">
+      <div class="card-head"><h2>Выигрыши против проигрышей</h2></div>
+      <div class="why" id="why"></div>
+    </section>
+  </div>
+
+  <p class="note">Время — как в исходных данных (биржевое / UTC у ETH). MFE и MAE считаются по часовым high/low внутри сделки, в ATR на момент входа. Итог — сумма % сделок без реинвестирования, как в отчётах проекта. Данные и генератор: <span style="font-family:var(--mono)">scripts/build_strategy_viz.py</span>, описание стратегии — docs/results/patterns_explained.md.</p>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const cache = {};
+  let manifest = [], cur = null, chart = null, candles, zones, ema, equity, priceLines = [];
+  const state = { side: "all", res: "all", year: "all", sortK: 0, sortDir: 1, sel: -1 };
+
+  const fmtPct = (x, d = 2) => (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d);
+  const fmtDate = (t) => { const d = new Date(t * 1000); return d.toISOString().slice(0, 16).replace("T", " "); };
+  const cls = (x) => (x > 0 ? "pos" : x < 0 ? "neg" : "");
+
+  async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(url + " " + r.status); return r.json(); }
+
+  function decode(d) {
+    const n = d.dt.length, t = new Array(n);
+    let acc = d.t0;
+    for (let i = 0; i < n; i++) { acc += d.dt[i] * 3600; t[i] = acc; }
+    d.time = t;
+    return d;
+  }
+
+  function snap(times, x) { // последний бар с временем <= x
+    let lo = 0, hi = times.length - 1;
+    if (x <= times[0]) return times[0];
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= x) lo = m; else hi = m - 1; }
+    return times[lo];
+  }
+
+  function filtered() {
+    return cur.trades.filter((r) =>
+      (state.side === "all" || r[2] === +state.side) &&
+      (state.res === "all" || (state.res === "win" ? r[5] > 0 : r[5] <= 0)) &&
+      (state.year === "all" || new Date(r[0] * 1000).getUTCFullYear() === +state.year));
+  }
+
+  function makeChart() {
+    const el = $("#chart");
+    chart = LightweightCharts.createChart(el, {
+      autoSize: true,
+      layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2"), fontFamily: "IBM Plex Mono, monospace", fontSize: 11 },
+      grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } },
+      rightPriceScale: { borderColor: css("--rule"), scaleMargins: { top: 0.04, bottom: 0.26 } },
+      timeScale: { borderColor: css("--rule"), timeVisible: true, secondsVisible: false },
+      crosshair: { mode: 0 },
+    });
+    zones = chart.addHistogramSeries({ priceScaleId: "zones", lastValueVisible: false, priceLineVisible: false, base: 0 });
+    chart.priceScale("zones").applyOptions({ visible: false, scaleMargins: { top: 0, bottom: 0.24 } });
+    candles = chart.addCandlestickSeries({
+      upColor: css("--win"), downColor: css("--loss"), borderVisible: false,
+      wickUpColor: css("--win"), wickDownColor: css("--loss"), lastValueVisible: false, priceLineVisible: false,
+    });
+    ema = chart.addLineSeries({ color: css("--ema"), lineWidth: 1, lastValueVisible: false, priceLineVisible: false, visible: false });
+    equity = chart.addLineSeries({ priceScaleId: "eq", color: css("--equity"), lineWidth: 2, lastValueVisible: true, priceLineVisible: false });
+    chart.priceScale("eq").applyOptions({ scaleMargins: { top: 0.8, bottom: 0.02 }, borderColor: css("--rule") });
+    chart.subscribeCrosshairMove(onMove);
+  }
+
+  function restyle() {
+    if (!chart) return;
+    chart.applyOptions({
+      layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2") },
+      grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } },
+    });
+    candles.applyOptions({ upColor: css("--win"), downColor: css("--loss"), wickUpColor: css("--win"), wickDownColor: css("--loss") });
+    ema.applyOptions({ color: css("--ema") }); equity.applyOptions({ color: css("--equity") });
+    if (cur) { drawZones(); drawTrades(); }
+  }
+
+  function drawZones() {
+    const d = cur, show = $("#show-zones").checked;
+    const col = { 1: css("--zone-up"), "-1": css("--zone-down"), 0: css("--zone-flat") };
+    const out = new Array(d.time.length);
+    let gi = 0, g = d.gate[0][1];
+    for (let i = 0; i < d.time.length; i++) {
+      while (gi + 1 < d.gate.length && d.gate[gi + 1][0] <= i) { gi++; g = d.gate[gi][1]; }
+      out[i] = { time: d.time[i], value: show ? 1 : 0, color: col[g] };
+    }
+    zones.setData(out);
+  }
+
+  function drawTrades() {
+    const d = cur, tr = filtered().slice().sort((a, b) => a[0] - b[0]);
+    const m = [];
+    for (const r of tr) {
+      const long = r[2] === 1;
+      m.push({ time: snap(d.time, r[0]), position: long ? "belowBar" : "aboveBar", shape: long ? "arrowUp" : "arrowDown", color: long ? css("--long") : css("--short"), size: 1 });
+      m.push({ time: snap(d.time, r[1]), position: long ? "aboveBar" : "belowBar", shape: "circle", color: r[5] > 0 ? css("--win") : css("--loss"), text: fmtPct(r[5], 1), size: 0.8 });
+    }
+    m.sort((a, b) => a.time - b.time);
+    candles.setMarkers(m);
+    // накопленный результат по выбранным сделкам, точка — на свече выхода
+    const pts = new Map(); let acc = 0;
+    for (const r of tr.slice().sort((a, b) => a[1] - b[1])) { acc += r[5]; pts.set(snap(d.time, r[1]), +acc.toFixed(2)); }
+    equity.setData([...pts.entries()].sort((a, b) => a[0] - b[0]).map(([time, value]) => ({ time, value })));
+  }
+
+  function setRange(days) {
+    const d = cur, last = d.time[d.time.length - 1];
+    if (!days) chart.timeScale().fitContent();
+    else chart.timeScale().setVisibleRange({ from: last - days * 86400, to: last });
+  }
+
+  function onMove(p) {
+    const tip = $("#tip");
+    if (!p || !p.time || !cur) { tip.hidden = true; return; }
+    const b = p.seriesData.get(candles);
+    if (!b) { tip.hidden = true; return; }
+    const i = cur.time.indexOf(p.time);
+    let g = 0; for (const [k, v] of cur.gate) { if (k <= i) g = v; else break; }
+    const gs = g === 1 ? "вверх" : g === -1 ? "вниз" : "нейтраль";
+    const dec = cur.decimals;
+    let s = `${fmtDate(p.time)}  гейт: ${gs}\nO ${b.open.toFixed(dec)}  H ${b.high.toFixed(dec)}  L ${b.low.toFixed(dec)}  C ${b.close.toFixed(dec)}`;
+    const open = cur.trades.find((r) => r[0] - 3600 < p.time && r[1] >= p.time);
+    if (open) s += `\nв сделке: ${open[2] === 1 ? "лонг" : "шорт"} с ${fmtDate(open[0])}, итог ${fmtPct(open[5])}%`;
+    tip.textContent = s; tip.hidden = false;
+  }
+
+  function kpis() {
+    const tr = filtered(), p = tr.map((r) => r[5]);
+    const n = p.length, sum = p.reduce((a, b) => a + b, 0);
+    const wins = p.filter((x) => x > 0), losses = p.filter((x) => x <= 0);
+    const gl = -losses.reduce((a, b) => a + b, 0), gw = wins.reduce((a, b) => a + b, 0);
+    const top2 = p.slice().sort((a, b) => b - a).slice(0, 2).reduce((a, b) => a + b, 0);
+    let acc = 0, peak = 0, dd = 0;
+    for (const r of tr.slice().sort((a, b) => a[1] - b[1])) { acc += r[5]; peak = Math.max(peak, acc); dd = Math.min(dd, acc - peak); }
+    const years = new Set(tr.map((r) => new Date(r[0] * 1000).getUTCFullYear())).size || 1;
+    const k = [
+      ["сделок", n, ""], ["в год", (n / years).toFixed(0), ""],
+      ["выигрышей", n ? ((wins.length / n) * 100).toFixed(0) + "%" : "—", ""],
+      ["итог", fmtPct(sum, 1) + "%", cls(sum)], ["без 2 лучших", fmtPct(sum - top2, 1) + "%", cls(sum - top2)],
+      ["PF", gl ? (gw / gl).toFixed(2) : "—", ""],
+      ["ср. выигрыш", wins.length ? fmtPct(gw / wins.length) + "%" : "—", "pos"],
+      ["ср. проигрыш", losses.length ? fmtPct(-gl / losses.length) + "%" : "—", "neg"],
+      ["макс. просадка", dd.toFixed(1) + " п.п.", dd < 0 ? "neg" : ""],
+    ];
+    $("#kpis").innerHTML = k.map(([a, b, c]) => `<div class="kpi"><span>${a}</span><b class="${c}">${b}</b></div>`).join("");
+  }
+
+  function rows() {
+    const tr = filtered(), k = state.sortK, dir = state.sortDir;
+    tr.sort((a, b) => (typeof a[k] === "string" ? a[k].localeCompare(b[k]) : (a[k] ?? -1e9) - (b[k] ?? -1e9)) * dir);
+    $("#count").textContent = `· ${tr.length}`;
+    const f = (x) => (x == null ? "—" : x.toFixed(1));
+    $("#rows").innerHTML = tr.map((r) => `<tr tabindex="0" data-t="${r[0]}" class="${r[0] === state.sel ? "sel" : ""}">
+      <td>${fmtDate(r[0]).slice(0, 10)}</td>
+      <td class="${r[2] === 1 ? "side-l" : "side-s"}">${r[2] === 1 ? "▲" : "▼"}</td>
+      <td class="${cls(r[5])}">${fmtPct(r[5])}</td><td>${Math.round(r[7])}</td><td>${r[6]}</td>
+      <td>${f(r[10])}</td><td>${f(r[8])}</td><td>${f(r[9])}</td></tr>`).join("");
+  }
+
+  function focusTrade(t0) {
+    const r = cur.trades.find((x) => x[0] === t0); if (!r) return;
+    state.sel = t0;
+    chart.timeScale().setVisibleRange({ from: r[0] - 3 * 86400, to: r[1] + 3 * 86400 });
+    priceLines.forEach((l) => candles.removePriceLine(l)); priceLines = [];
+    priceLines.push(candles.createPriceLine({ price: r[3], color: r[2] === 1 ? css("--long") : css("--short"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "вход" }));
+    priceLines.push(candles.createPriceLine({ price: r[4], color: r[5] > 0 ? css("--win") : css("--loss"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `выход ${fmtPct(r[5])}%` }));
+    document.querySelectorAll("#rows tr").forEach((tr) => tr.classList.toggle("sel", +tr.dataset.t === t0));
+  }
+
+  function heat() {
+    const tr = filtered(), m = {};
+    for (const r of tr) { const d = new Date(r[1] * 1000); const k = d.getUTCFullYear() * 100 + d.getUTCMonth(); m[k] = (m[k] || 0) + r[5]; }
+    const ys = [...new Set(Object.keys(m).map((k) => Math.floor(k / 100)))].sort();
+    const vmax = Math.max(1, ...Object.values(m).map(Math.abs));
+    const mix = (v) => {
+      const a = Math.min(1, Math.abs(v) / vmax) * 0.85 + 0.12;
+      const c = v > 0 ? css("--win") : css("--loss");
+      return `color-mix(in srgb, ${c} ${Math.round(a * 100)}%, var(--heat-0))`;
+    };
+    const mon = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+    let h = `<table><thead><tr><th></th>${mon.map((x) => `<th>${x}</th>`).join("")}<th>год</th></tr></thead><tbody>`;
+    for (const y of ys) {
+      let s = 0;
+      h += `<tr><td class="y">${y}</td>`;
+      for (let i = 0; i < 12; i++) {
+        const v = m[y * 100 + i];
+        if (v === undefined) { h += `<td style="background:var(--heat-0)"></td>`; continue; }
+        s += v;
+        const light = Math.abs(v) / vmax > 0.45;
+        h += `<td data-y="${y}" data-m="${i}" title="${mon[i]} ${y}: ${fmtPct(v, 1)}%" style="background:${mix(v)};color:${light ? "#fff" : "var(--ink)"}">${Math.abs(v) < 0.5 ? "0" : fmtPct(v, 0)}</td>`;
+      }
+      h += `<td class="sum ${cls(s)}" style="background:transparent">${fmtPct(s, 0)}</td></tr>`;
+    }
+    $("#heat").innerHTML = h + "</tbody></table>";
+  }
+
+  function why() {
+    const tr = filtered(), W = tr.filter((r) => r[5] > 0), L = tr.filter((r) => r[5] <= 0);
+    const med = (a) => { const b = a.filter((x) => x != null).sort((x, y) => x - y); return b.length ? b[b.length >> 1] : NaN; };
+    const row = (name, k, d = 2) => `<tr><td>${name}</td><td>${med(W.map((r) => r[k])).toFixed(d)}</td><td>${med(L.map((r) => r[k])).toFixed(d)}</td></tr>`;
+    const share = (a, f) => (a.length ? ((a.filter(f).length / a.length) * 100).toFixed(0) + "%" : "—");
+    const gaveBack = L.filter((r) => r[8] != null && r[8] >= 3);
+    const quick = L.filter((r) => r[9] != null && r[8] != null && r[8] < 1);
+    $("#why").innerHTML = `
+      <div class="tw"><table><thead><tr><th>медиана</th><th class="pos">выигрыши (${W.length})</th><th class="neg">проигрыши (${L.length})</th></tr></thead><tbody>
+      ${row("импульс на входе, ATR", 10)}
+      ${row("волатильность: ATR часа, % цены", 11, 3)}
+      ${row("длительность, ч", 7, 0)}
+      ${row("лучший ход за сделку (MFE), ATR", 8)}
+      ${row("худший ход против (MAE), ATR", 9)}
+      <tr><td>доля лонгов</td><td>${share(W, (r) => r[2] === 1)}</td><td>${share(L, (r) => r[2] === 1)}</td></tr>
+      </tbody></table></div>
+      <p><b>${gaveBack.length}</b> проигрышей (${L.length ? Math.round((gaveBack.length / L.length) * 100) : 0}%) успели уйти в нашу сторону на 3 ATR и больше, а потом закрылись в минус — это кандидаты на правило «забрать часть прибыли».
+      <b>${quick.length}</b> (${L.length ? Math.round((quick.length / L.length) * 100) : 0}%) ни разу не ушли в нашу сторону даже на 1 ATR — это «ложные импульсы», которые надо было бы отсечь на входе.</p>`;
+  }
+
+  function refresh() { drawTrades(); kpis(); rows(); heat(); why(); }
+
+  async function select(id) {
+    document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.id === id));
+    $("#loading").hidden = false;
+    if (!cache[id]) cache[id] = decode(await getJSON(`data/${id}.json`));
+    cur = cache[id]; state.sel = -1; state.year = "all";
+    $("#loading").hidden = true;
+    $("#chart-title").textContent = cur.title;
+    const ys = [...new Set(cur.trades.map((r) => new Date(r[0] * 1000).getUTCFullYear()))].sort();
+    $("#f-year").innerHTML = `<option value="all">все годы</option>` + ys.map((y) => `<option>${y}</option>`).join("");
+    if (!chart) makeChart();
+    priceLines.forEach((l) => candles.removePriceLine(l)); priceLines = [];
+    candles.applyOptions({ priceFormat: { type: "price", precision: cur.decimals, minMove: Math.pow(10, -cur.decimals) } });
+    candles.setData(cur.time.map((t, i) => ({ time: t, open: cur.o[i], high: cur.h[i], low: cur.l[i], close: cur.c[i] })));
+    ema.setData(cur.time.map((t, i) => (cur.ema[i] == null ? { time: t } : { time: t, value: cur.ema[i] })));
+    drawZones(); refresh();
+    const pressed = document.querySelector("#range button[aria-pressed='true']");
+    setRange(+pressed.dataset.days);
+    try { localStorage.setItem("impulse-viz-inst", id); } catch (e) {}
+  }
+
+  function seg(id, key) {
+    document.querySelectorAll(`#${id} button`).forEach((b) => b.addEventListener("click", () => {
+      document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute("aria-pressed", x === b));
+      state[key] = b.dataset.v; state.sel = -1; refresh();
+    }));
+  }
+
+  async function init() {
+    try { manifest = await getJSON("data/manifest.json"); }
+    catch (e) { $("#loading").textContent = "Не удалось загрузить данные. Откройте страницу через веб-сервер: cd docs/results/strategy_viz && python -m http.server"; return; }
+    $("#tabs").innerHTML = manifest.map((m) => `<button type="button" class="tab" role="tab" data-id="${m.id}">${m.title}<small>${m.total > 0 ? "+" : ""}${m.total}% · ${m.trades} сд. · ${m.years} лет</small></button>`).join("");
+    document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => select(b.dataset.id)));
+    seg("f-side", "side"); seg("f-res", "res");
+    $("#f-year").addEventListener("change", (e) => { state.year = e.target.value; state.sel = -1; refresh(); });
+    document.querySelectorAll("#range button").forEach((b) => b.addEventListener("click", () => {
+      document.querySelectorAll("#range button").forEach((x) => x.setAttribute("aria-pressed", x === b)); setRange(+b.dataset.days);
+    }));
+    $("#show-ema").addEventListener("change", (e) => ema.applyOptions({ visible: e.target.checked }));
+    $("#show-zones").addEventListener("change", drawZones);
+    document.querySelectorAll("th[data-k]").forEach((th) => th.addEventListener("click", () => {
+      const k = +th.dataset.k; state.sortDir = state.sortK === k ? -state.sortDir : (k === 5 ? -1 : 1); state.sortK = k; rows();
+    }));
+    $("#rows").addEventListener("click", (e) => { const tr = e.target.closest("tr"); if (tr) focusTrade(+tr.dataset.t); });
+    $("#rows").addEventListener("keydown", (e) => { if (e.key === "Enter") { const tr = e.target.closest("tr"); if (tr) focusTrade(+tr.dataset.t); } });
+    $("#heat").addEventListener("click", (e) => {
+      const td = e.target.closest("td[data-y]"); if (!td) return;
+      const from = Date.UTC(+td.dataset.y, +td.dataset.m, 1) / 1000, to = Date.UTC(+td.dataset.y, +td.dataset.m + 1, 1) / 1000;
+      chart.timeScale().setVisibleRange({ from, to });
+      $("#chart").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyle);
+    let start = manifest[0].id;
+    try { const s = localStorage.getItem("impulse-viz-inst"); if (s && manifest.some((m) => m.id === s)) start = s; } catch (e) {}
+    select(start);
+  }
+  init();
+})();
+</script>
