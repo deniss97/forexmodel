@@ -102,6 +102,7 @@ select, .chk { font: 12px var(--sans); color: var(--ink); background: var(--pane
 #chart { position: relative; height: min(64vh, 620px); min-height: 380px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 12px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink2); }
 .legend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.trade-lines { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; }
 .tip { position: absolute; left: 10px; top: 8px; z-index: 5; pointer-events: none; font: 12px/1.45 var(--mono); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; max-width: calc(100% - 20px); white-space: pre-wrap; font-variant-numeric: tabular-nums; }
 .list { max-height: calc(min(64vh, 620px) + 88px); overflow: auto; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -161,7 +162,7 @@ tbody tr.sel { background: var(--zone-up); }
 .sb-box table td { font-size: 12px; }
 .sb-bar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: var(--heat-0); }
 .sb-bar span { display: block; height: 100%; }
-#sb-chart { height: 320px; position: relative; }
+#sb-chart { height: 380px; position: relative; }
 .sb-tw { overflow-x: auto; }
 .sb-tw td i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
 .sb-years td { text-align: center; }
@@ -190,6 +191,7 @@ tbody tr.sel { background: var(--zone-up); }
           </div>
           <label class="chk"><input type="checkbox" id="show-ema"> EMA5 (4ч)</label>
           <label class="chk"><input type="checkbox" id="show-zones" checked> зоны гейта</label>
+          <label class="chk"><input type="checkbox" id="show-lines" checked> линии сделок</label>
         </div>
       </div>
       <div id="chart"><div class="loading" id="loading">Загрузка…</div><div class="tip" id="tip" hidden></div></div>
@@ -201,6 +203,7 @@ tbody tr.sel { background: var(--zone-up); }
         <span><span class="side-s">▼</span> вход в шорт</span>
         <span><span class="pos">●</span> выход с прибылью</span>
         <span><span class="neg">●</span> выход с убытком</span>
+        <span><i style="background:var(--win);height:2px;vertical-align:3px"></i>линия вход → выход</span>
         <span>внизу — накопленный результат, %</span>
       </div>
     </section>
@@ -320,7 +323,10 @@ tbody tr.sel { background: var(--zone-up); }
         <div class="sb-kpis" id="sb-kpis"></div>
         <div class="sb-cmp" id="sb-cmp"></div>
         <div id="sb-chart"></div>
-        <label class="sb-chk"><input type="checkbox" id="sb-lines"> показать вклад каждого инструмента</label>
+        <div class="sb-inline">
+          <label class="sb-chk"><input type="checkbox" id="sb-lines"> показать вклад каждого инструмента</label>
+          <label class="sb-chk"><input type="checkbox" id="sb-spans" checked> периоды сделок: полоса от входа до выхода по каждому инструменту (зелёная — в плюс, красная — в минус)</label>
+        </div>
         <div class="sb-boxes">
           <div class="sb-box"><h3>Куда ушло: из валового результата</h3><div id="sb-costs"></div></div>
           <div class="sb-box"><h3>Разброс: другой порядок и набор сделок</h3><div id="sb-boot"></div></div>
@@ -342,6 +348,7 @@ tbody tr.sel { background: var(--zone-up); }
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const cache = {};
   let manifest = [], cur = null, chart = null, candles, zones, ema, equity, priceLines = [];
+  let linesCanvas = null, linesTrades = [], linesRaf = 0;
   const state = { side: "all", res: "all", year: "all", sortK: 0, sortDir: 1, sel: -1 };
 
   const fmtPct = (x, d = 2) => (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d);
@@ -392,6 +399,59 @@ tbody tr.sel { background: var(--zone-up); }
     equity = chart.addLineSeries({ priceScaleId: "eq", color: css("--equity"), lineWidth: 2, lastValueVisible: true, priceLineVisible: false });
     chart.priceScale("eq").applyOptions({ scaleMargins: { top: 0.8, bottom: 0.02 }, borderColor: css("--rule") });
     chart.subscribeCrosshairMove(onMove);
+    // слой с линиями «вход → выход»: у графика нет своих отрезков, рисуем поверх и
+    // перерисовываем при прокрутке, масштабе, движении мыши (перетаскивание шкалы) и размере
+    linesCanvas = document.createElement("canvas");
+    linesCanvas.className = "trade-lines";
+    linesCanvas.setAttribute("aria-hidden", "true");
+    $("#chart").appendChild(linesCanvas);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(queueLines);
+    chart.subscribeCrosshairMove(queueLines);
+    new ResizeObserver(queueLines).observe($("#chart"));
+    $("#chart").addEventListener("wheel", queueLines, { passive: true });
+    $("#chart").addEventListener("pointerup", queueLines);
+  }
+
+  function barIndex(x) { // индекс последнего бара с временем <= x
+    const t = cur.time; let lo = 0, hi = t.length - 1;
+    if (x <= t[0]) return 0;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (t[m] <= x) lo = m; else hi = m - 1; }
+    return lo;
+  }
+
+  function queueLines() { if (!linesRaf) linesRaf = requestAnimationFrame(() => { linesRaf = 0; drawLines(); }); }
+
+  function drawLines() {
+    if (!linesCanvas || !cur) return;
+    const el = $("#chart"), dpr = window.devicePixelRatio || 1;
+    const W = el.clientWidth, H = el.clientHeight;
+    if (linesCanvas.width !== Math.round(W * dpr) || linesCanvas.height !== Math.round(H * dpr)) {
+      linesCanvas.width = Math.round(W * dpr); linesCanvas.height = Math.round(H * dpr);
+      linesCanvas.style.width = W + "px"; linesCanvas.style.height = H + "px";
+    }
+    const ctx = linesCanvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (!$("#show-lines").checked) return;
+    const ts = chart.timeScale(), paneW = ts.width(), paneH = H - ts.height();
+    const vr = ts.getVisibleLogicalRange(); if (!vr) return;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, paneW, paneH); ctx.clip();
+    ctx.lineCap = "round";
+    const win = css("--win"), loss = css("--loss");
+    for (const r of linesTrades) {
+      const i0 = barIndex(r[0]), i1 = barIndex(r[1]);
+      if (i1 < vr.from - 1 || i0 > vr.to + 1) continue;
+      const x0 = ts.logicalToCoordinate(i0), x1 = ts.logicalToCoordinate(i1);
+      const y0 = candles.priceToCoordinate(r[3]), y1 = candles.priceToCoordinate(r[4]);
+      if (x0 == null || x1 == null || y0 == null || y1 == null) continue;
+      const sel = r[0] === state.sel;
+      ctx.strokeStyle = r[5] > 0 ? win : loss;
+      ctx.globalAlpha = sel ? 1 : 0.75;
+      ctx.lineWidth = sel ? 3 : 1.5;
+      ctx.setLineDash(r[5] > 0 ? [] : [5, 3]);   // убыток — пунктиром, чтобы различался не только цветом
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function restyle() {
@@ -402,7 +462,7 @@ tbody tr.sel { background: var(--zone-up); }
     });
     candles.applyOptions({ upColor: css("--win"), downColor: css("--loss"), wickUpColor: css("--win"), wickDownColor: css("--loss") });
     ema.applyOptions({ color: css("--ema") }); equity.applyOptions({ color: css("--equity") });
-    if (cur) { drawZones(); drawTrades(); }
+    if (cur) { drawZones(); drawTrades(); queueLines(); }
   }
 
   function drawZones() {
@@ -427,6 +487,7 @@ tbody tr.sel { background: var(--zone-up); }
     }
     m.sort((a, b) => a.time - b.time);
     candles.setMarkers(m);
+    linesTrades = tr; queueLines();
     // накопленный результат по выбранным сделкам, точка — на свече выхода
     const pts = new Map(); let acc = 0;
     for (const r of tr.slice().sort((a, b) => a[1] - b[1])) { acc += r[5]; pts.set(snap(d.time, r[1]), +acc.toFixed(2)); }
@@ -495,6 +556,7 @@ tbody tr.sel { background: var(--zone-up); }
     priceLines.push(candles.createPriceLine({ price: r[3], color: r[2] === 1 ? css("--long") : css("--short"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "вход" }));
     priceLines.push(candles.createPriceLine({ price: r[4], color: r[5] > 0 ? css("--win") : css("--loss"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `выход ${fmtPct(r[5])}%` }));
     document.querySelectorAll("#rows tr").forEach((tr) => tr.classList.toggle("sel", +tr.dataset.t === t0));
+    queueLines();
   }
 
   function heat() {
@@ -585,6 +647,8 @@ tbody tr.sel { background: var(--zone-up); }
     }));
     $("#show-ema").addEventListener("change", (e) => ema.applyOptions({ visible: e.target.checked }));
     $("#show-zones").addEventListener("change", drawZones);
+    $("#show-lines").addEventListener("change", () => { queueLines(); try { localStorage.setItem("impulse-viz-lines", $("#show-lines").checked ? "1" : "0"); } catch (e) {} });
+    try { if (localStorage.getItem("impulse-viz-lines") === "0") $("#show-lines").checked = false; } catch (e) {}
     document.querySelectorAll("th[data-k]").forEach((th) => th.addEventListener("click", () => {
       const k = +th.dataset.k; state.sortDir = state.sortK === k ? -state.sortDir : (k === 5 ? -1 : 1); state.sortK = k; rows();
     }));
@@ -621,7 +685,9 @@ tbody tr.sel { background: var(--zone-up); }
   // пример, а не тариф брокера: порядок величин для розничного счёта
   const REAL = { ...DEF, "c-fx": 0.04, "c-st": 0.06, "c-cr": 0.1, "s-in": 0.05, "s-out": 0.05, "sw-l": 0.012, "sw-s": 0.004, borrow: 0.03 };
   const LEV = { ...DEF, mode: "risk", risk: 1, maxpos: 3, comp: true };
-  let D = null, chart = null, port = null, lines = {}, yearsAll = [], timer = null;
+  let D = null, chart = null, port = null, grid = null, lines = {}, yearsAll = [], timer = null;
+  let spansCanvas = null, spansData = null, spansRaf = 0;
+  const DAY = 86400;
   const fmt = (x, d = 1) => (Math.abs(x) < 0.5 * Math.pow(10, -d) ? "0" : (x > 0 ? "+" : "−") + Math.abs(x).toFixed(d));
   const cls = (x) => (x > 0 ? "pos" : x < 0 ? "neg" : "");
   const money = (x) => Math.round(x).toLocaleString("ru-RU");
@@ -710,9 +776,47 @@ tbody tr.sel { background: var(--zone-up); }
              worstM: Math.min(...ms), posM: (ms.filter((x) => x > 0).length / ms.length) * 100, nM: ms.length, pts, maxLoad, maxOpen, eq };
   }
 
-  function curve(pts) {
-    const m = new Map(); for (const [t, v] of pts) m.set(t, +v.toFixed(3));
-    return [...m.entries()].map(([time, value]) => ({ time, value }));
+  function curve(pts) { // точки — на начало дня (ось графика — равномерная дневная сетка)
+    const m = new Map(); for (const [t, v] of pts) m.set(Math.floor(t / DAY) * DAY, +v.toFixed(3));
+    return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([time, value]) => ({ time, value }));
+  }
+
+  function queueSpans() { if (!spansRaf) spansRaf = requestAnimationFrame(() => { spansRaf = 0; drawSpans(); }); }
+
+  // полосы «вход → выход» по дорожке на инструмент, под кривой результата
+  function drawSpans() {
+    if (!spansCanvas) return;
+    const el = $("#sb-chart"), dpr = window.devicePixelRatio || 1, W = el.clientWidth, H = el.clientHeight;
+    if (spansCanvas.width !== Math.round(W * dpr) || spansCanvas.height !== Math.round(H * dpr)) {
+      spansCanvas.width = Math.round(W * dpr); spansCanvas.height = Math.round(H * dpr);
+      spansCanvas.style.width = W + "px"; spansCanvas.style.height = H + "px";
+    }
+    const ctx = spansCanvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    if (!spansData || !$("#sb-spans").checked) return;
+    const ts = chart.timeScale(), paneW = ts.width(), paneH = H - ts.height();
+    const { day0, insts, per } = spansData, n = insts.length;
+    const lane = Math.max(5, Math.min(11, Math.floor((paneH * 0.3) / n))), gap = 2;
+    const x = (t) => { // дробная позиция дня: интерполяция между соседними целыми индексами
+      const f = (t - day0) / DAY, i = Math.floor(f), a = ts.logicalToCoordinate(i), b = ts.logicalToCoordinate(i + 1);
+      return a == null || b == null ? null : a + (f - i) * (b - a);
+    };
+    const win = css("--win"), loss = css("--loss"), ink = css("--ink2"), panel = css("--panel");
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, paneW, paneH); ctx.clip();
+    insts.forEach((inst, k) => {
+      const y = 4 + k * (lane + gap);   // дорожки сверху: внизу слева — логотип библиотеки
+      for (const r of per[inst]) {
+        const x0 = x(r[0]), x1 = x(r[1]);
+        if (x0 == null || x1 == null || x1 < 0 || x0 > paneW) continue;
+        ctx.fillStyle = r[2] > 0 ? win : loss;
+        ctx.globalAlpha = 0.8;
+        ctx.fillRect(x0, y, Math.max(1.5, x1 - x0), lane);
+      }
+      ctx.globalAlpha = 0.85; ctx.fillStyle = panel; ctx.fillRect(0, y - 1, 52, lane + 2);
+      ctx.globalAlpha = 1; ctx.fillStyle = ink; ctx.font = `${Math.min(10, lane + 1)}px IBM Plex Mono, monospace`;
+      ctx.textBaseline = "middle"; ctx.fillText(NAMES[inst], 3, y + lane / 2);
+    });
+    ctx.restore();
   }
 
   function boot(tr, s) {
@@ -802,18 +906,33 @@ tbody tr.sel { background: var(--zone-up); }
         autoSize: true,
         layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2"), fontFamily: "IBM Plex Mono, monospace", fontSize: 11 },
         grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } },
-        rightPriceScale: { borderColor: css("--rule") }, timeScale: { borderColor: css("--rule") },
+        rightPriceScale: { borderColor: css("--rule") }, timeScale: { borderColor: css("--rule"), minBarSpacing: 0.01 },
       });
+      grid = chart.addLineSeries({ visible: false, lastValueVisible: false, priceLineVisible: false });
       port = chart.addLineSeries({ color: css("--equity"), lineWidth: 2, priceLineVisible: false, title: "портфель, %" });
+      spansCanvas = document.createElement("canvas");
+      spansCanvas.className = "trade-lines"; spansCanvas.setAttribute("aria-hidden", "true");
+      $("#sb-chart").appendChild(spansCanvas);
+      chart.timeScale().subscribeVisibleLogicalRangeChange(queueSpans);
+      chart.subscribeCrosshairMove(queueSpans);
+      new ResizeObserver(queueSpans).observe($("#sb-chart"));
       Object.keys(D.instruments).forEach((inst, i) => (lines[inst] = chart.addLineSeries({ color: COLORS[i], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, visible: false })));
     }
+    // равномерная дневная ось: пустые точки на каждый день от первого входа до последнего выхода
+    const day0 = Math.floor(Math.min(...all.map((x) => x[0])) / DAY) * DAY, dayN = Math.floor(Math.max(...all.map((x) => x[1])) / DAY) * DAY;
+    const days = []; for (let d = day0; d <= dayN; d += DAY) days.push({ time: d });
+    grid.setData(days);
     port.setData(curve(P.pts));
+    const spans = $("#sb-spans").checked;
+    chart.priceScale("right").applyOptions({ scaleMargins: { top: spans ? Math.min(0.55, 0.08 + s.insts.length * 0.045) : 0.06, bottom: 0.06 } });
+    spansData = { day0, insts: s.insts, per };
     for (const inst of Object.keys(lines)) {
       const on = s.lines && s.insts.includes(inst);
       lines[inst].applyOptions({ visible: on });
       lines[inst].setData(on ? curve(stats(per[inst], { ...s, comp: false })?.pts || []) : []);
     }
     chart.timeScale().fitContent();
+    queueSpans();
 
     // по инструментам: вклад в капитал портфеля
     let h = `<thead><tr><th>инструмент</th><th>сделок</th><th>в месяц</th><th>вклад в итог</th><th>валовый</th><th>комиссия</th><th>своп / заём</th><th>выигрышей</th><th>PF</th><th>t</th><th>лет в плюсе</th></tr></thead><tbody>`;
@@ -839,6 +958,7 @@ tbody tr.sel { background: var(--zone-up); }
     chart.applyOptions({ layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2") },
       grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } } });
     port.applyOptions({ color: css("--equity") });
+    queueSpans();
   }
 
   async function init() {
@@ -859,6 +979,7 @@ tbody tr.sel { background: var(--zone-up); }
     $("#sb-form").addEventListener("input", schedule);
     $("#sb-form").addEventListener("change", schedule);
     $("#sb-lines").addEventListener("change", schedule);
+    $("#sb-spans").addEventListener("change", schedule);
     document.querySelectorAll("#sb-form .sb-quick button").forEach((b) => b.addEventListener("click", () => {
       const set = b.dataset.set === "all" ? keys : b.dataset.set.split(",");
       document.querySelectorAll("#sb-insts input").forEach((x) => (x.checked = set.includes(x.value))); run();
