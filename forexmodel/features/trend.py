@@ -27,6 +27,18 @@
     после его закрытия;
   * соседние сетки иногда расходятся, и тренд мигает (включается на час).
     `hold_bars` не даёт короткой нейтрали сбросить направление.
+
+Слои поверх фильтра (по умолчанию выключены, порядок применения такой):
+
+  * `hysteresis` (только confirm) — гистерезис из ноутбука S_TrendFiter_dev
+    (add_trend_filter_v3): закрытие бина по другую сторону EMA без подтверждения
+    ADX+DI — нейтраль, а не разворот;
+  * шок-слой (`shock_atr` > 0) — быстрый слой ноутбука (apply_shock_override):
+    резкий ход за несколько баров рабочего ТФ сразу задаёт направление в нейтрали
+    и гасит встречный тренд;
+  * сброс по EMA (`ema_reset_period` > 0) — идея 2026-10-03: тренд не может быть
+    +1, пока свеча закрывается ниже EMA, и −1 — пока выше. Применяется последним,
+    поэтому правило выполняется на каждой свече рабочего ТФ.
 """
 
 from __future__ import annotations
@@ -50,6 +62,9 @@ __all__ = [
     "add_trend_filter_confirm",
     "trend_gate_values",
     "hold_direction",
+    "ema_reset",
+    "reset_ema",
+    "shock_direction",
     "TREND_COLUMNS",
 ]
 
@@ -129,9 +144,111 @@ def add_trend_filter(df: pd.DataFrame, cfg: TrendConfig) -> pd.DataFrame:
         out["trend_4h"] = 0.0
         return out
 
-    if cfg.mode == "early":
-        return add_trend_filter_early(df, cfg)
-    return add_trend_filter_confirm(df, cfg)
+    out = add_trend_filter_early(df, cfg) if cfg.mode == "early" else add_trend_filter_confirm(df, cfg)
+    if cfg.shock_atr > 0:
+        out["trend_4h"] = _apply_shock(out, cfg)
+    if cfg.ema_reset_period > 0:
+        ema = reset_ema(out, cfg)
+        side = np.sign(out["close"].to_numpy(dtype=float) - ema)
+        out["trend_4h"] = ema_reset(out["trend_4h"].to_numpy(dtype=float), side, cfg.ema_reset_confirm_bars)
+    return out
+
+
+def reset_ema(df: pd.DataFrame, cfg: TrendConfig) -> np.ndarray:
+    """EMA для сброса тренда — на каждой свече рабочего ТФ.
+
+    base: EMA закрытий рабочего ТФ (включая текущую свечу — её close известен на закрытии);
+    htf:  EMA закрытий старшего ТФ по последнему ЗАКРЫТОМУ бину (при update_every_bar —
+          самое свежее окно из всех сеток), как линия ema_4h на графике ноутбука.
+    """
+    if cfg.ema_reset_tf == "base":
+        return ind.ema(df["close"].astype(float), cfg.ema_reset_period).to_numpy(dtype=float)
+    frames = []
+    for htf in _htf_grids(df[["time", "open", "high", "low", "close"]], cfg):
+        frames.append(pd.DataFrame({"time": htf["time"], "_ema": ind.ema(htf["close"], cfg.ema_reset_period)}))
+    merged = merge_htf_causal(df[["time"]], pd.concat(frames, ignore_index=True), cfg.timeframe, ["_ema"])
+    return merged["_ema"].to_numpy(dtype=float)
+
+
+def ema_reset(trend: np.ndarray, side: np.ndarray, confirm_bars: int = 1) -> np.ndarray:
+    """Сброс тренда по стороне EMA: +1 при закрытии ниже EMA и −1 при закрытии выше → 0.
+
+    side — знак (close − EMA) на каждой свече (NaN — EMA ещё нет, сброса нет). После сброса
+    направление возвращается, когда confirm_bars свечей подряд закрылись на «своей» стороне
+    (1 — сразу же на первой). Новый эпизод тренда (смена знака или выход из нейтрали)
+    начинается без памяти о сбросах прошлого. Решение на свече i зависит только от свечей <= i.
+    """
+    out = trend.astype(float).copy()
+    cur, latched, run = 0.0, False, 0
+    for i in range(len(trend)):
+        t = trend[i]
+        if np.isnan(t) or t == 0:
+            cur, latched, run = 0.0, False, 0
+            continue
+        if t != cur:
+            cur, latched, run = t, False, 0
+        s = side[i]
+        if s == -t:
+            out[i], latched, run = 0.0, True, 0
+        elif latched:
+            run += 1
+            if run >= confirm_bars:
+                latched = False
+            else:
+                out[i] = 0.0
+    return out
+
+
+def shock_direction(df: pd.DataFrame, window: int, atr_mult: float, confirm_bars: int = 1) -> np.ndarray:
+    """Направление резкого хода: |close − close[−window]| >= atr_mult · ATR(14) и последние
+    confirm_bars баров в ту же сторону. В ноутбуке направление бралось по последним барам,
+    даже если сам ход был в другую сторону; здесь они обязаны совпадать."""
+    close = df["close"].astype(float)
+    atr = ind.atr(df, 14).replace(0, np.nan)
+    move = (close - close.shift(window)) / atr
+    move_dir = np.sign(move)
+    bar_dir = np.sign(close.diff())
+    run = bar_dir.rolling(confirm_bars).sum()                   # ±confirm_bars — все бары в одну сторону
+    same = np.where(run == confirm_bars, 1.0, np.where(run == -confirm_bars, -1.0, 0.0))
+    shock = np.where((move.abs() >= atr_mult) & (same == move_dir), move_dir, 0.0)
+    return np.nan_to_num(shock)
+
+
+def _apply_shock(out: pd.DataFrame, cfg: TrendConfig) -> np.ndarray:
+    trend = out["trend_4h"].to_numpy(dtype=float).copy()
+    shock = shock_direction(out, cfg.shock_window, cfg.shock_atr, cfg.shock_confirm_bars)
+    decided = ~np.isnan(trend)
+    conflict = decided & (shock != 0) & (trend != 0) & (np.sign(trend) != shock)
+    neutral = decided & (shock != 0) & (trend == 0)
+    trend[conflict] = shock[conflict] if cfg.shock_mode == "flip" else 0.0
+    trend[neutral] = shock[neutral]
+    return trend
+
+
+def _hysteresis(close: np.ndarray, ema: np.ndarray, adx_dir: np.ndarray, slope_dir) -> np.ndarray:
+    """Гистерезис add_trend_filter_v3 из ноутбука, на барах старшего ТФ.
+
+    Пока тренд ±1, закрытие по другую сторону EMA без подтверждения (ADX+DI, при
+    require_slope_agreement — и наклон, в ту же сторону, что EMA) — нейтраль, а не разворот;
+    из нейтрали — только при подтверждении; с подтверждением — разворот сразу.
+    """
+    out = np.zeros(len(close))
+    state = 0.0
+    for i in range(len(close)):
+        if np.isnan(close[i]) or np.isnan(ema[i]):
+            out[i] = state
+            continue
+        side = 1.0 if close[i] > ema[i] else (-1.0 if close[i] < ema[i] else 0.0)
+        ok = side != 0 and adx_dir[i] == side
+        if slope_dir is not None:
+            ok = ok and slope_dir[i] == side
+        if state == 0:
+            if ok:
+                state = side
+        elif side != state:
+            state = side if ok else 0.0
+        out[i] = state
+    return out
 
 
 def trend_gate_values(df: pd.DataFrame, cfg: TrendConfig) -> np.ndarray:
@@ -211,12 +328,18 @@ def add_trend_filter_confirm(df: pd.DataFrame, cfg: TrendConfig) -> pd.DataFrame
         atr = ind.atr(htf, cfg.adx_period, method="wilder").replace(0, np.nan)
         htf["slope_atr_4h"] = ind.linreg_slope(htf["close"], cfg.slope_period) / atr
 
-        raw = pd.Series(trend_ema * (trend_adx != 0), index=htf.index, dtype=float)
-        if cfg.require_slope_agreement:
-            raw = raw * (np.sign(raw) == np.sign(htf["slope_atr_4h"]))
-
-        raw = raw.replace(0, np.nan)
-        htf["trend_4h"] = raw.ffill(limit=cfg.max_ffill_bars).fillna(0.0)
+        if cfg.hysteresis:
+            slope_dir = np.sign(htf["slope_atr_4h"].to_numpy()) if cfg.require_slope_agreement else None
+            htf["trend_4h"] = _hysteresis(htf["close"].to_numpy(dtype=float), htf["ema"].to_numpy(dtype=float),
+                                          trend_adx, slope_dir)
+        else:
+            raw = pd.Series(trend_ema * (trend_adx != 0), index=htf.index, dtype=float)
+            if cfg.require_slope_agreement:
+                raw = raw * (np.sign(raw) == np.sign(htf["slope_atr_4h"]))
+            raw = raw.replace(0, np.nan)
+            if cfg.max_ffill_bars > 0:
+                raw = raw.ffill(limit=cfg.max_ffill_bars)
+            htf["trend_4h"] = raw.fillna(0.0)
         htf["trend_age_4h"] = _trend_age(htf["trend_4h"])
         return htf
 

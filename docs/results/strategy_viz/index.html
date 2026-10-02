@@ -99,6 +99,7 @@ h1 { font: 600 24px/1.1 var(--cond); margin: 0; letter-spacing: 0.01em; text-wra
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
 select, .chk { font: 12px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 6px; }
 .chk { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+#ema-src, #zone-src { max-width: 220px; }
 #chart { position: relative; height: min(64vh, 620px); min-height: 380px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 12px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink2); }
 .legend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
@@ -189,8 +190,14 @@ tbody tr.sel { background: var(--zone-up); }
             <button type="button" data-days="365">год</button>
             <button type="button" data-days="0">всё</button>
           </div>
-          <label class="chk"><input type="checkbox" id="show-ema"> EMA5 (4ч)</label>
-          <label class="chk"><input type="checkbox" id="show-zones" checked> зоны гейта</label>
+          <select id="ema-src" aria-label="Линия EMA на графике">
+            <option value="">EMA: нет</option>
+            <option value="ema">EMA5 4ч (раз в 4 часа)</option>
+            <option value="ema4h_live">EMA5 4ч, каждый час (по ней сброс 4ч)</option>
+            <option value="ema1h">EMA5 часа (по ней сброс часа)</option>
+          </select>
+          <label class="chk"><input type="checkbox" id="show-zones" checked> зоны:</label>
+          <select id="zone-src" aria-label="Чей тренд показывать зонами"><option value="">гейт C (по нему сделки)</option></select>
           <label class="chk"><input type="checkbox" id="show-lines" checked> линии сделок</label>
         </div>
       </div>
@@ -465,13 +472,21 @@ tbody tr.sel { background: var(--zone-up); }
     if (cur) { drawZones(); drawTrades(); queueLines(); }
   }
 
+  function gateArr() { const k = $("#zone-src").value; return k && cur.gates && cur.gates[k] ? cur.gates[k] : cur.gate; }
+
+  function setEma() {
+    const k = $("#ema-src").value, a = k && cur[k];
+    ema.applyOptions({ visible: !!a });
+    ema.setData(a ? cur.time.map((t, i) => (a[i] == null ? { time: t } : { time: t, value: a[i] })) : []);
+  }
+
   function drawZones() {
-    const d = cur, show = $("#show-zones").checked;
+    const d = cur, show = $("#show-zones").checked, G = gateArr();
     const col = { 1: css("--zone-up"), "-1": css("--zone-down"), 0: css("--zone-flat") };
     const out = new Array(d.time.length);
-    let gi = 0, g = d.gate[0][1];
+    let gi = 0, g = G[0][1];
     for (let i = 0; i < d.time.length; i++) {
-      while (gi + 1 < d.gate.length && d.gate[gi + 1][0] <= i) { gi++; g = d.gate[gi][1]; }
+      while (gi + 1 < G.length && G[gi + 1][0] <= i) { gi++; g = G[gi][1]; }
       out[i] = { time: d.time[i], value: show ? 1 : 0, color: col[g] };
     }
     zones.setData(out);
@@ -506,7 +521,7 @@ tbody tr.sel { background: var(--zone-up); }
     const b = p.seriesData.get(candles);
     if (!b) { tip.hidden = true; return; }
     const i = cur.time.indexOf(p.time);
-    let g = 0; for (const [k, v] of cur.gate) { if (k <= i) g = v; else break; }
+    let g = 0; for (const [k, v] of gateArr()) { if (k <= i) g = v; else break; }
     const gs = g === 1 ? "вверх" : g === -1 ? "вниз" : "нейтраль";
     const dec = cur.decimals;
     let s = `${fmtDate(p.time)}  гейт: ${gs}\nO ${b.open.toFixed(dec)}  H ${b.high.toFixed(dec)}  L ${b.low.toFixed(dec)}  C ${b.close.toFixed(dec)}`;
@@ -621,7 +636,10 @@ tbody tr.sel { background: var(--zone-up); }
     priceLines.forEach((l) => candles.removePriceLine(l)); priceLines = [];
     candles.applyOptions({ priceFormat: { type: "price", precision: cur.decimals, minMove: Math.pow(10, -cur.decimals) } });
     candles.setData(cur.time.map((t, i) => ({ time: t, open: cur.o[i], high: cur.h[i], low: cur.l[i], close: cur.c[i] })));
-    ema.setData(cur.time.map((t, i) => (cur.ema[i] == null ? { time: t } : { time: t, value: cur.ema[i] })));
+    setEma();
+    const zs = $("#zone-src"), keep = zs.value;
+    zs.innerHTML = `<option value="">гейт C (по нему сделки)</option>` + Object.keys(cur.gates || {}).map((k) => `<option>${k}</option>`).join("");
+    zs.value = cur.gates && cur.gates[keep] ? keep : "";
     drawZones(); refresh();
     const pressed = document.querySelector("#range button[aria-pressed='true']");
     setRange(+pressed.dataset.days);
@@ -645,7 +663,8 @@ tbody tr.sel { background: var(--zone-up); }
     document.querySelectorAll("#range button").forEach((b) => b.addEventListener("click", () => {
       document.querySelectorAll("#range button").forEach((x) => x.setAttribute("aria-pressed", x === b)); setRange(+b.dataset.days);
     }));
-    $("#show-ema").addEventListener("change", (e) => ema.applyOptions({ visible: e.target.checked }));
+    $("#ema-src").addEventListener("change", setEma);
+    $("#zone-src").addEventListener("change", drawZones);
     $("#show-zones").addEventListener("change", drawZones);
     $("#show-lines").addEventListener("change", () => { queueLines(); try { localStorage.setItem("impulse-viz-lines", $("#show-lines").checked ? "1" : "0"); } catch (e) {} });
     try { if (localStorage.getItem("impulse-viz-lines") === "0") $("#show-lines").checked = false; } catch (e) {}

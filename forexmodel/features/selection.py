@@ -95,7 +95,8 @@ def select_feature_columns(
     features = [
         c
         for c in df.columns
-        if c not in exclude and pd.api.types.is_numeric_dtype(df[c]) and not pd.api.types.is_bool_dtype(df[c])
+        if c not in exclude and not c.startswith("trend_gate__")      # варианты гейта входа — тоже не признаки
+        and pd.api.types.is_numeric_dtype(df[c]) and not pd.api.types.is_bool_dtype(df[c])
     ]
 
     dropped_all_nan = [c for c in features if df[c].isna().all()]

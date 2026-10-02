@@ -1,0 +1,34 @@
+{
+ "plateau": {
+  "mode": "confirm",
+  "timeframe": "6h",
+  "update_every_bar": false,
+  "hold_bars": 0,
+  "slope_period": 4,
+  "adx_period": 9,
+  "ema_period": 21,
+  "adx_threshold": 25.0,
+  "require_slope_agreement": true,
+  "hysteresis": true,
+  "shock_atr": 3.0,
+  "shock_window": 2,
+  "shock_mode": "neutral",
+  "ema_reset_period": 13,
+  "ema_reset_tf": "htf",
+  "ema_reset_confirm_bars": 3
+ },
+ "top1": {
+  "mode": "confirm",
+  "timeframe": "6h",
+  "update_every_bar": false,
+  "hold_bars": 4,
+  "slope_period": 6,
+  "adx_period": 5,
+  "ema_period": 21,
+  "adx_threshold": 10.0,
+  "require_slope_agreement": true,
+  "hysteresis": true,
+  "shock_atr": 0.0,
+  "ema_reset_period": 0
+ }
+}

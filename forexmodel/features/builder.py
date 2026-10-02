@@ -52,6 +52,10 @@ def build_features(df_tf: pd.DataFrame, cfg: Config) -> pd.DataFrame:
         # гейт входа — отдельно от признака trend_4h, см. TrendGateConfig
         df["trend_gate"] = trend_gate_values(df, cfg.trend_gate.resolve(cfg.trend))
         log.info("Гейт входа trend_gate: доля баров с трендом %.1f%%", 100 * (df["trend_gate"] != 0).mean())
+        for name in cfg.trend_gate.variants:
+            col = f"trend_gate__{name}"
+            df[col] = trend_gate_values(df, cfg.trend_gate.resolve_variant(cfg.trend, name))
+            log.info("Вариант гейта %s: доля баров с трендом %.1f%%", col, 100 * (df[col] != 0).mean())
 
     log.info("Признаки построены: %d баров, %d колонок", len(df), df.shape[1])
     return df

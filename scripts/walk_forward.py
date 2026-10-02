@@ -33,6 +33,13 @@ reports/walk_forward/<name>_trades.csv.
 --set volatility.enabled=true): `vol:<min_ratio>:<power>` — прогноз моделью,
 `volatr:<min_ratio>:<power>` — наивный прогноз «текущий ATR». Сигнал — primary (cb).
 
+`gate:<имя>` — сигнал primary (cb), но вход по варианту гейта trend_gate.variants.<имя>
+(колонка trend_gate__<имя>); модель та же, меняется только правило входа:
+
+    python scripts/walk_forward.py -c configs/silver.yaml --years 2019 2026 \
+        --set 'trend_gate.variants={ema4h: {ema_reset_period: 5, ema_reset_tf: htf}}' \
+        --variants cb gate:ema4h
+
 Варианты: `cb` — сигнал primary без меты; `meta:<порог>` — мета-фильтр с порогом;
 `rule:<признак>:<порог>` — правило входа по признаку без модели (EV- и
 тренд-фильтр выключены; `rule:<признак>:<порог>:trend` — с тренд-фильтром);
@@ -221,6 +228,12 @@ def main(argv=None) -> int:
                 elif v and v.startswith("meta:"):
                     vcfg.simulation.signal_source = "meta"
                     vcfg.meta.threshold = float(v.split(":", 1)[1])
+                elif v and v.startswith("gate:"):
+                    # вариант гейта входа из trend_gate.variants на той же обученной модели
+                    vcfg.simulation.signal_source = "cb"
+                    vcfg.simulation.trend_col = f"trend_gate__{v.split(':', 1)[1]}"
+                    if vcfg.simulation.trend_col not in ds.test.columns:
+                        raise ValueError(f"{v}: колонки {vcfg.simulation.trend_col} нет — задайте trend_gate.variants")
                 elif v and v.split(":")[0] in ("vol", "volatr"):
                     kind, mn, pw = v.split(":")[:3]
                     vcfg.simulation.signal_source = "cb"

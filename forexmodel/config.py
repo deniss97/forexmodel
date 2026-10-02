@@ -211,14 +211,51 @@ class TrendConfig:
     # нейтраль короче hold_bars баров рабочего ТФ не сбрасывает направление
     # (противоположный знак срабатывает сразу) — от мигания при update_every_bar
     hold_bars: int = 0
+    # confirm: гистерезис из ноутбука (S_TrendFiter_dev, add_trend_filter_v3): закрытие бина
+    # старшего ТФ по другую сторону EMA без подтверждения ADX+DI переводит тренд в нейтраль,
+    # а не разворачивает; из нейтрали — только при подтверждении. Вместо ffill
+    hysteresis: bool = False
+    # быстрый слой ноутбука (apply_shock_override): ход close за shock_window баров рабочего ТФ
+    # >= shock_atr ATR(14), последние shock_confirm_bars баров в ту же сторону. В нейтрали тренд
+    # сразу берёт направление шока; при встречном тренде — нейтраль (neutral) или разворот (flip).
+    # 0 — выключен
+    shock_atr: float = 0.0
+    shock_window: int = 3
+    shock_confirm_bars: int = 1
+    shock_mode: str = "neutral"
+    # сброс по EMA (идея 2026-10-03): тренд не может быть +1, пока свеча рабочего ТФ закрывается
+    # ниже EMA, и −1 — пока выше; такие бары становятся нейтралью. Применяется последним, после
+    # hold_bars и шок-слоя, поэтому правило выполняется на каждой свече. ema_reset_period — период
+    # EMA (0 — выключен); ema_reset_tf: base — EMA закрытий рабочего ТФ, htf — EMA закрытий
+    # старшего ТФ по последнему закрытому бину (линия ema_4h на графике ноутбука);
+    # ema_reset_confirm_bars — после сброса направление возвращается, когда N свечей подряд
+    # закрылись на «своей» стороне EMA (1 — сразу)
+    ema_reset_period: int = 0
+    ema_reset_tf: str = "base"
+    ema_reset_confirm_bars: int = 1
 
 
 #: Параметры тренд-фильтра, которые можно переопределить в `trend_gate`.
 _GATE_FIELDS = (
     "mode", "timeframe", "slope_period", "adx_period", "adx_min", "adx_max", "require_adx_rising",
     "ema_period", "adx_threshold", "max_ffill_bars", "require_slope_agreement",
-    "update_every_bar", "hold_bars",
+    "update_every_bar", "hold_bars", "hysteresis", "shock_atr", "shock_window", "shock_confirm_bars", "shock_mode",
+    "ema_reset_period", "ema_reset_tf", "ema_reset_confirm_bars",
 )
+
+
+def validate_trend_layers(tc: TrendConfig, name: str = "trend") -> None:
+    """Проверка слоёв тренд-фильтра: гистерезис, шок-слой, сброс по EMA."""
+    if tc.ema_reset_period < 0:
+        raise ValueError(f"{name}.ema_reset_period не может быть отрицательным (0 — выключен)")
+    if tc.ema_reset_tf not in {"base", "htf"}:
+        raise ValueError(f"{name}.ema_reset_tf: ожидалось base|htf, получено {tc.ema_reset_tf!r}")
+    if tc.ema_reset_confirm_bars < 1:
+        raise ValueError(f"{name}.ema_reset_confirm_bars должен быть >= 1")
+    if tc.shock_atr < 0 or tc.shock_window < 1 or tc.shock_confirm_bars < 1:
+        raise ValueError(f"{name}.shock_*: shock_atr >= 0, shock_window >= 1, shock_confirm_bars >= 1")
+    if tc.shock_mode not in {"neutral", "flip"}:
+        raise ValueError(f"{name}.shock_mode: ожидалось neutral|flip, получено {tc.shock_mode!r}")
 
 
 @dataclass
@@ -248,10 +285,29 @@ class TrendGateConfig:
     require_slope_agreement: Optional[bool] = None
     update_every_bar: Optional[bool] = None
     hold_bars: Optional[int] = None
+    hysteresis: Optional[bool] = None
+    shock_atr: Optional[float] = None
+    shock_window: Optional[int] = None
+    shock_confirm_bars: Optional[int] = None
+    shock_mode: Optional[str] = None
+    ema_reset_period: Optional[int] = None
+    ema_reset_tf: Optional[str] = None
+    ema_reset_confirm_bars: Optional[int] = None
+    # дополнительные варианты гейта: имя -> поправки поверх этого гейта. Каждый даёт колонку
+    # trend_gate__<имя> (не признак модели); в walk-forward вариант gate:<имя> подставляет её
+    # в simulation.trend_col — так несколько гейтов сравниваются на одной обученной модели
+    variants: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def resolve(self, base: TrendConfig) -> TrendConfig:
         overrides = {k: getattr(self, k) for k in _GATE_FIELDS if getattr(self, k) is not None}
         return dataclasses.replace(base, enabled=True, **overrides)
+
+    def resolve_variant(self, base: TrendConfig, name: str) -> TrendConfig:
+        extra = self.variants[name] or {}
+        unknown = set(extra) - set(_GATE_FIELDS)
+        if unknown:
+            raise ValueError(f"trend_gate.variants.{name}: неизвестные параметры {sorted(unknown)}")
+        return dataclasses.replace(self.resolve(base), **extra)
 
 
 @dataclass
@@ -543,6 +599,12 @@ def _validate(cfg: Config) -> None:
         raise ValueError("simulation.trend_col='trend_gate', но trend_gate.enabled=false — колонки не будет")
     if cfg.trend.hold_bars < 0 or (cfg.trend_gate.hold_bars or 0) < 0:
         raise ValueError("hold_bars не может быть отрицательным")
+    for name, tc in (("trend", cfg.trend), ("trend_gate", cfg.trend_gate.resolve(cfg.trend))):
+        validate_trend_layers(tc, name)
+    for vname in cfg.trend_gate.variants:
+        if not cfg.trend_gate.enabled:
+            raise ValueError("trend_gate.variants заданы, но trend_gate.enabled=false")
+        validate_trend_layers(cfg.trend_gate.resolve_variant(cfg.trend, vname), f"trend_gate.variants.{vname}")
     if cfg.simulation.exit_mode not in {"fixed_pct", "atr", "trailing"}:
         raise ValueError(
             f"simulation.exit_mode: ожидалось fixed_pct|atr|trailing, получено {cfg.simulation.exit_mode!r}"

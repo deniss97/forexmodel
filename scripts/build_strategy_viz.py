@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import math
@@ -23,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from forexmodel.data.loader import load_minute_compact
+from forexmodel.features.trend import add_trend_filter, reset_ema
 from impulse_universe import hourly
 from pattern_lab import ALL_INSTRUMENTS, instrument_cfg
 
@@ -34,6 +36,28 @@ TITLES = {"silver": "Серебро · XAGUSD", "gold": "Золото · XAUUSD"
           "eth": "Эфир · ETHUSDT"}
 REASONS = {"stop_loss": "стоп", "trailing_stop": "трейлинг", "timeout": "время", "take_profit": "тейк",
            "trend_flip": "разворот"}
+
+
+def gate_variants() -> dict:
+    """Варианты тренд-фильтра для зон на графике (поверх гейта C из configs/silver.yaml)."""
+    from trend_filter_lab import NB_V3, base_config
+
+    v = {
+        "C + сброс по EMA5 4ч": dict(ema_reset_period=5, ema_reset_tf="htf"),
+        "C + сброс по EMA5 часа": dict(ema_reset_period=5),
+        "ноутбук v3 (гистерезис)": NB_V3,
+        "ноутбук v3 + сброс по EMA5 4ч": {**NB_V3, "ema_reset_period": 5, "ema_reset_tf": "htf"},
+    }
+    best = ROOT / "reports" / "trend_lab" / "tune_best.json"
+    if best.exists():
+        v["лучший из подбора"] = json.loads(best.read_text(encoding="utf-8"))["params"]
+    return {name: dataclasses.replace(base_config(), **kw) for name, kw in v.items()}
+
+
+def rle(a: np.ndarray) -> list:
+    a = np.nan_to_num(a)
+    ch = np.flatnonzero(np.r_[True, a[1:] != a[:-1]])
+    return [[int(i), int(a[i])] for i in ch]
 
 
 def build(inst: str) -> dict | None:
@@ -58,6 +82,13 @@ def build(inst: str) -> dict | None:
     r = lambda a: [round(float(x), dec) if np.isfinite(x) else None for x in a]  # noqa: E731
     gate = h["gate"].to_numpy()
     ch = np.flatnonzero(np.r_[True, gate[1:] != gate[:-1]])
+    # варианты фильтра для зон и линии EMA, по которым работает сброс
+    bars = h[["time", "open", "high", "low", "close"]]
+    variants = gate_variants()
+    gates = {name: rle(add_trend_filter(bars, tc)["trend_4h"].to_numpy(dtype=float)) for name, tc in variants.items()}
+    any_tc = next(iter(variants.values()))
+    ema1 = reset_ema(bars, dataclasses.replace(any_tc, ema_reset_period=5, ema_reset_tf="base"))
+    ema4_live = reset_ema(bars, dataclasses.replace(any_tc, ema_reset_period=5, ema_reset_tf="htf"))
 
     tr = pd.read_csv(tf, parse_dates=["signal_dt", "open_dt", "close_dt"])
     hi, lo, atr_h, mv = h["high"].to_numpy(), h["low"].to_numpy(), h["atr"].to_numpy(), h["move_atr"].to_numpy()
@@ -89,6 +120,9 @@ def build(inst: str) -> dict | None:
         "t0": int(t[0]), "dt": (np.diff(t, prepend=t[0]) // 3600).astype(int).tolist(),
         "o": r(h["open"]), "h": r(h["high"]), "l": r(h["low"]), "c": r(h["close"]),
         "ema": r(ema4),
+        "ema1h": r(ema1),
+        "ema4h_live": r(ema4_live),
+        "gates": gates,
         "gate": [[int(i), int(gate[i])] for i in ch],
         "trade_cols": ["вход", "выход", "сторона", "цена_входа", "цена_выхода", "результат_%", "причина_выхода",
                        "часов", "mfe_atr", "mae_atr", "импульс_atr", "atr_%"],
