@@ -161,3 +161,23 @@ def test_entry_slippage_moves_fill_against_the_trade():
     assert short_t.iloc[0]["open_price"] == pytest.approx(100.0 * 0.999 - 0.5)
     # цена стоит: выход по 100, результат — минус проскальзывание и комиссия
     assert long_t.iloc[0]["gross_pct"] < 0 and short_t.iloc[0]["gross_pct"] < 0
+
+
+def test_trend_flip_exit_waits_for_bar_close_and_uses_exit_column():
+    """Тренд часового бара с меткой T известен на его закрытии T+1ч: выход по флипу не раньше."""
+    path = [100.0] * 300
+    px = _minutes(path)
+    hours = pd.date_range("2024-01-01", periods=5, freq="1h")
+    sig = pd.DataFrame({"time": hours, "final_class": [2, np.nan, np.nan, np.nan, np.nan], "atr_14": [1.0] * 5,
+                        "trend_fast": [1, 1, 1, 1, 1], "trend_slow": [1, 1, -1, -1, -1]})
+    cfg = _cfg(horizon_minutes=240, close_on_trend_flip=True, use_trend_filter=False,
+               trend_col="trend_fast", exit_trend_col="trend_slow")
+    trades, _ = simulate_trades(sig, px, cfg)
+    t = trades.iloc[0]
+    assert t["exit_reason"] == "trend_flip"
+    # разворот на баре 02:00 известен в 03:00 — не в 02:00
+    assert pd.Timestamp(t["close_dt"]) == pd.Timestamp("2024-01-01 03:00")
+    # без exit_trend_col флипа нет (гейт входа не разворачивается)
+    plain, _ = simulate_trades(sig, px, _cfg(horizon_minutes=240, close_on_trend_flip=True, use_trend_filter=False,
+                                             trend_col="trend_fast"))
+    assert plain.iloc[0]["exit_reason"] != "trend_flip"

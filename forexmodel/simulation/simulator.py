@@ -57,7 +57,11 @@ def simulate_trades(
     if signal_col not in sig.columns:
         raise KeyError(f"Нет колонки сигнала {signal_col!r} — вызовите signals.build_signal_column")
 
-    trend_minutes = _trend_on_minutes(sig, px, sim.trend_col, time_col) if sim.close_on_trend_flip else None
+    trend_minutes = (
+        _trend_on_minutes(sig, px, sim.exit_trend_col or sim.trend_col, time_col,
+                          pd.Timedelta(minutes=cfg.data.signal_tf_minutes))
+        if sim.close_on_trend_flip else None
+    )
 
     p_time = px[time_col].to_numpy()
     p_open = px["open"].to_numpy(dtype=float)
@@ -243,8 +247,14 @@ def _resolve_exit(sim, side, entry_price, atr, high, low, close):
     return last, float(close[last]), "timeout"
 
 
-def _trend_on_minutes(sig: pd.DataFrame, px: pd.DataFrame, trend_col: str, time_col: str) -> Optional[np.ndarray]:
-    """Растягивает тренд рабочего ТФ на минутную сетку (последнее известное значение)."""
+def _trend_on_minutes(sig: pd.DataFrame, px: pd.DataFrame, trend_col: str, time_col: str,
+                      bar: pd.Timedelta = pd.Timedelta(0)) -> Optional[np.ndarray]:
+    """Растягивает тренд рабочего ТФ на минутную сетку (последнее известное значение).
+
+    Значение бара с меткой T известно только на его закрытии T + bar, поэтому на минуты оно
+    переносится со сдвигом на длину бара. Раньше сдвига не было, и выход по флипу видел разворот
+    до закрытия бара (заглядывание до bar − 1 минуты).
+    """
     if trend_col not in sig.columns:
         log.warning("close_on_trend_flip=True, но колонки %r нет — выход по флипу отключён", trend_col)
         return None
@@ -259,6 +269,7 @@ def _trend_on_minutes(sig: pd.DataFrame, px: pd.DataFrame, trend_col: str, time_
         log.warning("Нет валидных значений тренда — выход по флипу отключён")
         return None
 
+    lookup = lookup.assign(**{time_col: lookup[time_col] + bar})
     merged = pd.merge_asof(px[[time_col]], lookup, on=time_col, direction="backward")
     return merged[trend_col].to_numpy(dtype=float)
 

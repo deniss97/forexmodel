@@ -138,6 +138,10 @@ class FeatureConfig:
     # на 4 барах и автокорреляция часовых доходностей — единственные метрики с
     # согласованным знаком на серебре и LKOH за 10 лет (docs/results/instrument_profile.md)
     use_regime_features: bool = False
+    # «слабая зона» тренда по EMA5 (docs/results/trend_filter_ema.md): расстояние close до EMA5 часа и
+    # EMA5 4ч в ATR и сторона закрытия относительно этих EMA в направлении тренда (гейта, если он
+    # включён, иначе trend_4h): +1 — по тренду, −1 — слабая зона, 0 — тренда нет
+    use_ema_zone_features: bool = False
     regime_windows: List[int] = field(default_factory=lambda: [240, 720])
     use_volume_features: bool = True
     dimensionless_only: bool = True
@@ -460,6 +464,9 @@ class SimulationConfig:
     trend_col: str = "trend_4h"
     close_on_trend_flip: bool = False
     trend_flip_mode: str = "opposite"    # opposite | not_aligned
+    # тренд для выхода по развороту; None — тот же trend_col, что и для входа. Позволяет входить по
+    # быстрому гейту, а держать позицию по медленному фильтру (напр. trend_gate__<вариант>)
+    exit_trend_col: Optional[str] = None
     allow_overlapping_positions: bool = False
 
 

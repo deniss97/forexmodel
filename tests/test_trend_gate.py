@@ -202,3 +202,27 @@ def test_gate_variants_become_columns_not_features(hourly_df, cfg):
     with pytest.raises(ValueError, match="неизвестные параметры"):
         config_from_dict({"trend_gate": {"enabled": True, "variants": {"x": {"ema_resett": 5}}},
                           "meta": {"enabled": False}})
+
+
+def test_ema_zone_features_are_causal_and_signed(hourly_df, cfg):
+    from forexmodel.config import config_from_dict
+    from forexmodel.features.builder import EMA_ZONE_COLUMNS
+
+    c = config_from_dict({
+        "trend_gate": {"enabled": True, "update_every_bar": True, "hold_bars": 2},
+        "features": {"use_ema_zone_features": True},
+        "simulation": {"signal_source": "cb", "use_expected_value_filter": False, "trend_col": "trend_gate"},
+        "meta": {"enabled": False}, "nn": {"enabled": False},
+    })
+    full = build_features(hourly_df, c)
+    prefix = build_features(hourly_df.iloc[:PREFIX].copy(), c)
+    for col in EMA_ZONE_COLUMNS:
+        assert np.allclose(full[col].iloc[:PREFIX].to_numpy(dtype=float), prefix[col].to_numpy(dtype=float),
+                           equal_nan=True), col
+    # на синтетике тренда может не быть (стороны — константы и отсекаются), поэтому отбор — на шуме
+    varied = full.assign(**{c_: np.random.default_rng(0).choice([-1.0, 0.0, 1.0], len(full))
+                            for c_ in ("trend_ema5_1h_side", "trend_ema5_4h_side")})
+    assert set(EMA_ZONE_COLUMNS) <= set(select_feature_columns(varied, c.features))
+    side = full["trend_ema5_4h_side"]
+    assert set(np.unique(side.dropna())) <= {-1.0, 0.0, 1.0}
+    assert ((side != 0) <= (full["trend_gate"] != 0)).all()
