@@ -162,6 +162,11 @@ def simulate_trades(
         exit_rel, exit_price, exit_reason = _resolve_exit(
             sim, side, entry_price, atr, p_high[win], p_low[win], p_close[win]
         )
+        if sim.stop_fill == "gap" and exit_reason in ("stop_loss", "trailing_stop"):
+            # минута открылась уже за стопом — исполнение по open, а не по уровню
+            o = float(p_open[win][exit_rel])
+            if (o - exit_price) * (1.0 if side == "buy" else -1.0) < 0:
+                exit_price = o
 
         if trend_minutes is not None:
             flip = _trend_flip_index(trend_minutes[win], side, sim.trend_flip_mode)

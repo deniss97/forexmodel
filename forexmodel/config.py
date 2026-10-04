@@ -447,6 +447,10 @@ class SimulationConfig:
     # проскальзывание на входе против сделки: доля цены (%) и доля ATR сигнального бара
     entry_slippage_pct: float = 0.0
     entry_slippage_atr: float = 0.0
+    # исполнение стопа: level — по уровню стопа (как было); gap — если минута открылась уже за стопом
+    # (ночной гэп, дивидендная отсечка), исполнение по её open. Аудит (docs/results/audit.md): на
+    # акциях MOEX уровень завышает итог импульса на 11–17 п.п. за 2015–2026
+    stop_fill: str = "level"
     min_conf_cb: Optional[float] = None
     min_conf_nn: Optional[float] = None
     use_expected_value_filter: bool = True
@@ -624,6 +628,8 @@ def _validate(cfg: Config) -> None:
         raise ValueError("simulation.signal_source='meta', но meta.enabled=False")
     if cfg.simulation.signal_source == "rule" and not cfg.simulation.rule_feature:
         raise ValueError("simulation.signal_source='rule', но simulation.rule_feature не задан")
+    if cfg.simulation.stop_fill not in {"level", "gap"}:
+        raise ValueError(f"simulation.stop_fill: ожидалось level|gap, получено {cfg.simulation.stop_fill!r}")
     if cfg.simulation.rule_threshold <= 0:
         raise ValueError("simulation.rule_threshold должен быть > 0: порог симметричный, знак задаёт направление")
     if cfg.labeling.atr_col != f"atr_{cfg.features.atr_period}":

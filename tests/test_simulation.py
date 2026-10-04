@@ -181,3 +181,20 @@ def test_trend_flip_exit_waits_for_bar_close_and_uses_exit_column():
     plain, _ = simulate_trades(sig, px, _cfg(horizon_minutes=240, close_on_trend_flip=True, use_trend_filter=False,
                                              trend_col="trend_fast"))
     assert plain.iloc[0]["exit_reason"] != "trend_flip"
+
+
+def test_stop_fill_gap_uses_open_when_bar_opens_beyond_stop():
+    """Гэп через стоп: level — по уровню стопа (оптимистично), gap — по open минуты."""
+    path = [100.0] * 5 + [97.0] * 50          # шестая минута открывается на 3% ниже
+    px = _minutes(path)
+    sig = pd.DataFrame({"time": [px["time"].iloc[0]], "final_class": [2], "atr_14": [1.0]})
+    level, _ = simulate_trades(sig, px, _cfg(stop_loss_pct=1.0))
+    gap, _ = simulate_trades(sig, px, _cfg(stop_loss_pct=1.0, stop_fill="gap"))
+    assert level.iloc[0]["exit_price"] == pytest.approx(99.0)
+    assert gap.iloc[0]["exit_price"] == pytest.approx(97.0)
+    # без гэпа режимы совпадают
+    path2 = [100.0] * 5 + [99.0] * 50
+    px2 = _minutes(path2)
+    a, _ = simulate_trades(sig, px2, _cfg(stop_loss_pct=1.0))
+    b, _ = simulate_trades(sig, px2, _cfg(stop_loss_pct=1.0, stop_fill="gap"))
+    assert a.iloc[0]["exit_price"] == b.iloc[0]["exit_price"]
