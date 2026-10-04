@@ -198,3 +198,13 @@ def test_stop_fill_gap_uses_open_when_bar_opens_beyond_stop():
     a, _ = simulate_trades(sig, px2, _cfg(stop_loss_pct=1.0))
     b, _ = simulate_trades(sig, px2, _cfg(stop_loss_pct=1.0, stop_fill="gap"))
     assert a.iloc[0]["exit_price"] == b.iloc[0]["exit_price"]
+
+
+def test_exit_slippage_applies_to_stops_only():
+    path = [100.0] * 5 + [99.0] * 50
+    px = _minutes(path)
+    sig = pd.DataFrame({"time": [px["time"].iloc[0]], "final_class": [2], "atr_14": [1.0]})
+    t, _ = simulate_trades(sig, px, _cfg(stop_loss_pct=1.0, exit_slippage_pct=0.1))
+    assert t.iloc[0]["exit_reason"] == "stop_loss" and t.iloc[0]["exit_price"] == pytest.approx(99.0 * 0.999)
+    flat, _ = simulate_trades(sig, _minutes([100.0] * 60), _cfg(horizon_minutes=10, exit_slippage_pct=0.1))
+    assert flat.iloc[0]["exit_reason"] == "timeout" and flat.iloc[0]["exit_price"] == pytest.approx(100.0)

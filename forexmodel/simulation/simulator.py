@@ -167,6 +167,8 @@ def simulate_trades(
             o = float(p_open[win][exit_rel])
             if (o - exit_price) * (1.0 if side == "buy" else -1.0) < 0:
                 exit_price = o
+        if sim.exit_slippage_pct and exit_reason in ("stop_loss", "trailing_stop"):
+            exit_price *= 1 - (1.0 if side == "buy" else -1.0) * sim.exit_slippage_pct / 100.0
 
         if trend_minutes is not None:
             flip = _trend_flip_index(trend_minutes[win], side, sim.trend_flip_mode)

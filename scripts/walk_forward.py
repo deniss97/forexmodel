@@ -141,6 +141,8 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
             # slip<%> / slipatr<доля ATR> — проскальзывание на входе против сделки
             if x.startswith("slipatr"):
                 c.simulation.entry_slippage_atr = float(x[7:])
+            elif x.startswith("xslip"):          # проскальзывание на выходе по стопу, %
+                c.simulation.exit_slippage_pct = float(x[5:])
             elif x.startswith("slip"):
                 c.simulation.entry_slippage_pct = float(x[4:])
     else:
