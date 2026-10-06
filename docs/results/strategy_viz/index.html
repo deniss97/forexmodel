@@ -199,6 +199,8 @@ tbody tr.sel { background: var(--zone-up); }
           <label class="chk"><input type="checkbox" id="show-zones" checked> зоны:</label>
           <select id="zone-src" aria-label="Чей тренд показывать зонами"><option value="">гейт C (по нему сделки)</option></select>
           <label class="chk"><input type="checkbox" id="show-lines" checked> линии сделок</label>
+          <label class="chk" title="Где правило управления позицией закрыло бы сделку: в первый час, когда вероятность пройти ещё +3 ATR раньше стопа (модель CatBoost, вне выборки, с 2017) ниже порога"><input type="checkbox" id="show-early"> досрочные закрытия</label>
+          <select id="early-th" aria-label="Порог вероятности для досрочного закрытия"><option value="0.3">P &lt; 0.3</option><option value="0.2">P &lt; 0.2</option></select>
         </div>
       </div>
       <div id="chart"><div class="loading" id="loading">Загрузка…</div><div class="tip" id="tip" hidden></div></div>
@@ -211,6 +213,7 @@ tbody tr.sel { background: var(--zone-up); }
         <span><span class="pos">●</span> выход с прибылью</span>
         <span><span class="neg">●</span> выход с убытком</span>
         <span><i style="background:var(--win);height:2px;vertical-align:3px"></i>линия вход → выход</span>
+        <span><span class="side-l">◆</span> досрочное закрытие лучше удержания · <span class="side-s">◇</span> держать было лучше (пунктир — что было после)</span>
         <span>внизу — накопленный результат, %</span>
       </div>
     </section>
@@ -458,7 +461,52 @@ tbody tr.sel { background: var(--zone-up); }
       ctx.setLineDash(r[5] > 0 ? [] : [5, 3]);   // убыток — пунктиром, чтобы различался не только цветом
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     }
+    drawEarly(ctx, ts, vr);
     ctx.restore();
+  }
+
+  // ---------- досрочные закрытия (правило управления позицией) ----------
+  function earlyMap() {
+    if (!$("#show-early").checked || !cur || !cur.early) return null;
+    return cur.early.by_theta[$("#early-th").value] || null;
+  }
+
+  function drawEarly(ctx, ts, vr) {
+    const E = earlyMap(); if (!E) return;
+    const good = css("--long"), bad = css("--short");
+    for (const r of linesTrades) {
+      const e = E[r[0]]; if (!e) continue;
+      const ie = barIndex(e[0]), i1 = barIndex(r[1]);
+      if (i1 < vr.from - 1 || ie > vr.to + 1) continue;
+      const xe = ts.logicalToCoordinate(ie), x1 = ts.logicalToCoordinate(i1);
+      const ye = candles.priceToCoordinate(e[1]), y1 = candles.priceToCoordinate(r[4]);
+      if (xe == null || ye == null) continue;
+      const better = e[2] > r[5], col = better ? good : bad, sel = r[0] === state.sel;
+      if (x1 != null && y1 != null) {           // что было после досрочного выхода — до фактического выхода
+        ctx.strokeStyle = col; ctx.globalAlpha = sel ? 0.9 : 0.55; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(xe, ye); ctx.lineTo(x1, y1); ctx.stroke();
+      }
+      const s = sel ? 7 : 5;
+      ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.lineWidth = 1.5; ctx.strokeStyle = col; ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(xe, ye - s); ctx.lineTo(xe + s, ye); ctx.lineTo(xe, ye + s); ctx.lineTo(xe - s, ye); ctx.closePath();
+      if (better) ctx.fill(); else { ctx.fillStyle = css("--panel"); ctx.fill(); ctx.stroke(); }
+    }
+  }
+
+  function earlySummary(tr) {
+    const E = earlyMap(); if (!E) return "";
+    const th = $("#early-th").value;
+    const hit = tr.filter((r) => E[r[0]]);
+    if (!hit.length) return `<p>Досрочных закрытий при P &lt; ${th} среди выбранных сделок нет (вероятности есть с 2017 года).</p>`;
+    const diff = hit.map((r) => E[r[0]][2] - r[5]);
+    const better = diff.filter((x) => x > 0), worse = diff.filter((x) => x < 0);
+    const sum = (a) => a.reduce((x, y) => x + y, 0);
+    const early = sum(hit.map((r) => E[r[0]][2])), hold = sum(hit.map((r) => r[5]));
+    return `<p><b>Досрочные закрытия (P &lt; ${th}):</b> правило сработало бы в <b>${hit.length}</b> сделках из ${tr.length}.
+      Закрыть было бы лучше в <b>${better.length}</b> (${Math.round((better.length / hit.length) * 100)}%, в среднем ${fmtPct(better.length ? sum(better) / better.length : 0)} п.п.),
+      держать — в <b>${worse.length}</b> (в среднем ${fmtPct(worse.length ? sum(worse) / worse.length : 0)} п.п.).
+      Итог этих сделок: досрочно ${fmtPct(early, 1)}% против ${fmtPct(hold, 1)}% при удержании — разница <b class="${cls(early - hold)}">${fmtPct(early - hold, 1)} п.п.</b>
+      Закрытие чаще выигрывает понемногу, а проигрывает на крупных движениях, ради которых стратегия держит позицию.</p>`;
   }
 
   function restyle() {
@@ -527,6 +575,8 @@ tbody tr.sel { background: var(--zone-up); }
     let s = `${fmtDate(p.time)}  гейт: ${gs}\nO ${b.open.toFixed(dec)}  H ${b.high.toFixed(dec)}  L ${b.low.toFixed(dec)}  C ${b.close.toFixed(dec)}`;
     const open = cur.trades.find((r) => r[0] - 3600 < p.time && r[1] >= p.time);
     if (open) s += `\nв сделке: ${open[2] === 1 ? "лонг" : "шорт"} с ${fmtDate(open[0])}, итог ${fmtPct(open[5])}%`;
+    const E = earlyMap(), e = open && E && E[open[0]];
+    if (e) s += `\nдосрочно (P < ${$("#early-th").value}): ${fmtPct(e[2])}% в ${fmtDate(e[0])}`;
     tip.textContent = s; tip.hidden = false;
   }
 
@@ -563,13 +613,15 @@ tbody tr.sel { background: var(--zone-up); }
       <td>${f(r[10])}</td><td>${f(r[8])}</td><td>${f(r[9])}</td></tr>`).join("");
   }
 
-  function focusTrade(t0) {
+  function focusTrade(t0, keepView) {
     const r = cur.trades.find((x) => x[0] === t0); if (!r) return;
     state.sel = t0;
-    chart.timeScale().setVisibleRange({ from: r[0] - 3 * 86400, to: r[1] + 3 * 86400 });
+    if (!keepView) chart.timeScale().setVisibleRange({ from: r[0] - 3 * 86400, to: r[1] + 3 * 86400 });
     priceLines.forEach((l) => candles.removePriceLine(l)); priceLines = [];
     priceLines.push(candles.createPriceLine({ price: r[3], color: r[2] === 1 ? css("--long") : css("--short"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "вход" }));
     priceLines.push(candles.createPriceLine({ price: r[4], color: r[5] > 0 ? css("--win") : css("--loss"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `выход ${fmtPct(r[5])}%` }));
+    const E = earlyMap(), e = E && E[r[0]];
+    if (e) priceLines.push(candles.createPriceLine({ price: e[1], color: e[2] > r[5] ? css("--long") : css("--short"), lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: `досрочно ${fmtPct(e[2])}% через ${Math.round(e[3])} ч` }));
     document.querySelectorAll("#rows tr").forEach((tr) => tr.classList.toggle("sel", +tr.dataset.t === t0));
     queueLines();
   }
@@ -618,7 +670,8 @@ tbody tr.sel { background: var(--zone-up); }
       <tr><td>доля лонгов</td><td>${share(W, (r) => r[2] === 1)}</td><td>${share(L, (r) => r[2] === 1)}</td></tr>
       </tbody></table></div>
       <p><b>${gaveBack.length}</b> проигрышей (${L.length ? Math.round((gaveBack.length / L.length) * 100) : 0}%) успели уйти в нашу сторону на 3 ATR и больше, а потом закрылись в минус — это кандидаты на правило «забрать часть прибыли».
-      <b>${quick.length}</b> (${L.length ? Math.round((quick.length / L.length) * 100) : 0}%) ни разу не ушли в нашу сторону даже на 1 ATR — это «ложные импульсы», которые надо было бы отсечь на входе.</p>`;
+      <b>${quick.length}</b> (${L.length ? Math.round((quick.length / L.length) * 100) : 0}%) ни разу не ушли в нашу сторону даже на 1 ATR — это «ложные импульсы», которые надо было бы отсечь на входе.</p>
+      ${earlySummary(tr)}`;
   }
 
   function refresh() { drawTrades(); kpis(); rows(); heat(); why(); }
@@ -668,6 +721,9 @@ tbody tr.sel { background: var(--zone-up); }
     $("#show-zones").addEventListener("change", drawZones);
     $("#show-lines").addEventListener("change", () => { queueLines(); try { localStorage.setItem("impulse-viz-lines", $("#show-lines").checked ? "1" : "0"); } catch (e) {} });
     try { if (localStorage.getItem("impulse-viz-lines") === "0") $("#show-lines").checked = false; } catch (e) {}
+    const earlyChanged = () => { queueLines(); why(); if (state.sel !== -1) focusTrade(state.sel, true); };
+    $("#show-early").addEventListener("change", earlyChanged);
+    $("#early-th").addEventListener("change", earlyChanged);
     document.querySelectorAll("th[data-k]").forEach((th) => th.addEventListener("click", () => {
       const k = +th.dataset.k; state.sortDir = state.sortK === k ? -state.sortDir : (k === 5 ? -1 : 1); state.sortK = k; rows();
     }));

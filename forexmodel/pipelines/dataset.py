@@ -64,6 +64,12 @@ def build_dataset(cfg: Config, with_labels: bool = True) -> Dataset:
         minute = load_minute_compact(cfg.data.csv_path, cfg.data.time_col, cache_dir, cfg.data.volume_candidates)
     else:
         minute = load_minute_csv(cfg.data.csv_path, cfg.data.time_col, cfg.data.volume_candidates)
+    if cfg.data.dividends_path:
+        from ..data.dividends import adjust_for_dividends, load_dividends
+
+        divs = load_dividends(cfg.data.dividends_path, cfg.data.dividend_ticker or Path(cfg.data.csv_path).stem.split("_")[0])
+        minute = adjust_for_dividends(minute, divs)
+        log.info("Цены скорректированы на дивиденды: %d отсечек", len(divs))
     hourly = resample_ohlcv(minute, cfg.data.base_timeframe)
     log.info("Рабочий ТФ %s: %d баров", cfg.data.base_timeframe, len(hourly))
 

@@ -104,6 +104,11 @@ class DataConfig:
     # UTC потока сделок конвертируется в неё с учётом летнего времени, а фиксированный
     # сдвиг выше игнорируется. Для МСК (без DST) достаточно сдвига +3
     orderflow_tz: Optional[str] = None
+    # дивиденды (акции): таблица data/dividends/moex_dividends.csv и тикер в ней. Если заданы, минутные
+    # цены обратно корректируются на дивиденды (forexmodel/data/dividends.py): гэп отсечки исчезает,
+    # доходность — полная, как у CFD с дивидендной корректировкой
+    dividends_path: Optional[str] = None
+    dividend_ticker: Optional[str] = None
 
     def split_config(self) -> SplitConfig:
         return _build(SplitConfig, self.splits, "data.splits")
@@ -453,6 +458,15 @@ class SimulationConfig:
     # (ночной гэп, дивидендная отсечка), исполнение по её open. Аудит (docs/results/audit.md): на
     # акциях MOEX уровень завышает итог импульса на 11–17 п.п. за 2015–2026
     stop_fill: str = "level"
+    # перенос позиции через ночь (своп, «форвардные пункты» брокера): % цены за один перенос со знаком
+    # (минус — списание). Переносы считаются в моменты swap_rollover_hour (время котировок) по торговым
+    # дням пн–пт; с дня swap_triple_weekday (0 — пн) переносится трижды — так брокер берёт выходные
+    # (Альфа-Форекс: форекс и металлы — со среды, акции РФ — с четверга, крипта — с пятницы).
+    # swap_triple_weekday: null — каждая календарная ночь по разу. Профили брокеров — configs/costs/
+    swap_long_pct: float = 0.0
+    swap_short_pct: float = 0.0
+    swap_rollover_hour: int = 0
+    swap_triple_weekday: Optional[int] = 2
     min_conf_cb: Optional[float] = None
     min_conf_nn: Optional[float] = None
     use_expected_value_filter: bool = True

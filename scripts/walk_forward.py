@@ -46,7 +46,11 @@ reports/walk_forward/<name>_trades.csv.
 `impulse:<баров>:<ATR>[:notrend][:vol][:slip<%>][:slipatr<доля>]` — импульс
 (docs/results/patterns.md): ход за N баров >= x ATR в сторону хода, по тренд-гейту;
 `vol` — только при ATR >= медианы хвоста train; `slip0.05` / `slipatr0.25` —
-проскальзывание на входе. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr.
+проскальзывание на входе. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr
+или токенами варианта `h<часов>` (горизонт) и `tr<ATR>` (стоп = трейлинг, активация на половине).
+
+`--costs configs/costs/alfaforex.yaml:silver` — издержки брокера: спред вместо комиссии и свопы за
+перенос позиции (forexmodel/simulation/costs.py). Дивиденды акций — `--set data.dividends_path=...`.
 Если все варианты — правила, модель не обучается вовсе.
 Файлы: <name>__<вариант>.csv на каждый вариант.
 
@@ -119,6 +123,7 @@ def _stats_row(key: str, label: str, t: pd.DataFrame, metrics: dict) -> dict:
         "без_2_лучших_%": round(float(ex2.sum()), 2) if len(pnl) else 0.0,
         "PF": round(float(pnl[pnl > 0].sum() / loss), 2) if loss > 0 else float("inf"),
         "до_комиссии": round(float(t["gross_pct"].mean()), 3) if len(t) else float("nan"),
+        "своп_%": round(float(t["swap_pct"].sum()), 2) if len(t) and "swap_pct" in t else 0.0,
         "winrate": round(float((pnl > 0).mean() * 100), 1) if len(pnl) else float("nan"),
         "просадка_%": _max_dd(pnl),
         "средний_размер": round(float(t["size"].mean()), 3) if len(t) and "size" in t else float("nan"),
@@ -145,6 +150,14 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
                 c.simulation.exit_slippage_pct = float(x[5:])
             elif x.startswith("slip"):
                 c.simulation.entry_slippage_pct = float(x[4:])
+            # выход: h<часов> — горизонт, tr<ATR> — стоп и трейлинг (активация на половине), act<ATR>
+            elif re.fullmatch(r"h\d+", x):
+                c.simulation.horizon_minutes = int(x[1:]) * 60
+            elif re.fullmatch(r"tr[\d.]+", x):
+                c.simulation.sl_atr = c.simulation.trail_atr = float(x[2:])
+                c.simulation.activate_atr = float(x[2:]) / 2
+            elif re.fullmatch(r"act[\d.]+", x):
+                c.simulation.activate_atr = float(x[3:])
     else:
         c.simulation.signal_source = "rule"
         c.simulation.rule_feature = parts[1]
@@ -175,6 +188,8 @@ def main(argv=None) -> int:
     ap.add_argument("--name", default=None, help="имя для файлов результата (по умолчанию run_name конфига)")
     ap.add_argument("--variants", nargs="+", default=None,
                     help="правила входа: cb, meta:<порог>, rule:<признак>:<порог>[:trend]; по умолчанию — как в конфиге")
+    ap.add_argument("--costs", default=None, metavar="ПРОФИЛЬ.yaml:ИНСТРУМЕНТ",
+                    help="издержки брокера (спред, свопы) из configs/costs/")
     args = ap.parse_args(argv)
     setup_logging(logging.WARNING)
     pd.set_option("display.width", 250)
@@ -183,6 +198,14 @@ def main(argv=None) -> int:
     for item in args.overrides:
         path, raw = item.split("=", 1)
         set_by_path(base, path.strip(), yaml.safe_load(raw))
+    if args.costs:
+        from forexmodel.simulation.costs import apply_profile, profile_entry
+
+        prof, inst = args.costs.rsplit(":", 1)
+        entry = profile_entry(ROOT / prof, inst)
+        apply_profile(base.simulation, entry)
+        print(f"издержки {args.costs}: спред {entry['spread_pct']:.3f}% за круг, своп лонг "
+              f"{entry['swap_long_pct']:+.4f}% / шорт {entry['swap_short_pct']:+.4f}% за перенос", flush=True)
     name = args.name or base.paths.run_name
     out_dir = ROOT / "reports" / "walk_forward"
     out_dir.mkdir(parents=True, exist_ok=True)

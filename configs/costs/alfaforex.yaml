@@ -1,0 +1,59 @@
+# Условия Альфа-Форекс на 06.10.2026: https://alfaforex.ru/trading-terms/ (specifications-POINT.xlsx).
+# Спред — издержка за круг (вход + выход), заменяет commission_pct; свопы («форвардные пункты») — за один
+# перенос позиции на следующий торговый день, со знаком (минус — списание). Тройной перенос: форекс и
+# металлы — в ночь со среды на четверг, CFD на акции РФ — с четверга на пятницу, крипта — с пятницы на
+# субботу. 1 пункт — минимальный шаг цены инструмента.
+#
+# Металлы заданы в пунктах. Пункты переводятся в % по последней цене в наших данных (29.05.2026), то
+# есть сегодняшние условия как доля цены применяются ко всей истории (стресс-тест «если бы так было
+# всегда»: в 2016–2021 ставки были ниже, свопы — тоже).
+#
+# rollover_hour — час переноса во времени котировок: форекс-фид в нью-йоркском времени (перерыв
+# 17:00–18:00 ≈ 00:00 МСК), акции — МСК, ETH — UTC (21:00 = 00:00 МСК).
+broker: Альфа-Форекс
+date: 2026-10-06
+instruments:
+  silver:
+    symbol: XAG/USD
+    point: 0.001          # шаг цены при котировке с 3 знаками — УТОЧНИТЬ в терминале (см. silver_4dp)
+    ref_price: 75.238
+    spread_points: 90
+    swap_long_points: -55
+    swap_short_points: -15
+    triple_weekday: 2
+    rollover_hour: 17
+  silver_4dp:             # то же, если серебро котируется с 4 знаками (1 пункт = 0.0001)
+    symbol: XAG/USD
+    point: 0.0001
+    ref_price: 75.238
+    spread_points: 90
+    swap_long_points: -55
+    swap_short_points: -15
+    triple_weekday: 2
+    rollover_hour: 17
+  gold:
+    symbol: XAU/USD
+    point: 0.01
+    ref_price: 4539.998
+    spread_points: 45
+    swap_long_points: -50
+    swap_short_points: 0
+    triple_weekday: 2
+    rollover_hour: 17
+  lkoh: &ru_stock
+    spread_pct: 0.15
+    swap_long_pct: -0.068
+    swap_short_pct: -0.068
+    triple_weekday: 3
+    rollover_hour: 0
+  gazp: *ru_stock
+  sber: *ru_stock
+  moex: *ru_stock
+  mtss: *ru_stock
+  eth:
+    symbol: ETHUSD
+    spread_pct: 0.09
+    swap_long_pct: -0.042
+    swap_short_pct: -0.042
+    triple_weekday: 4
+    rollover_hour: 21

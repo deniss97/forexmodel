@@ -26,6 +26,7 @@ import pandas as pd
 from ..config import Config
 from ..logging_utils import get_logger
 from ..progress import Progress
+from .costs import rollover_count
 from .exits import fixed_barrier_exit, trailing_exit
 from .report import build_report
 
@@ -181,9 +182,14 @@ def simulate_trades(
 
         direction = 1.0 if side == "buy" else -1.0
         gross_unit = direction * (exit_price - entry_price) / entry_price * 100.0
+        # перенос через ночь: число переносов (тройной за выходные) × своп стороны, % цены
+        swap_rate = sim.swap_long_pct if side == "buy" else sim.swap_short_pct
+        rollovers = (rollover_count(px[time_col].iloc[open_idx], exit_dt, sim.swap_rollover_hour,
+                                    sim.swap_triple_weekday) if swap_rate else 0)
+        swap_unit = rollovers * swap_rate
         # результат и комиссия масштабируются размером позиции (1 без volatility.enabled)
         gross_pct = size * gross_unit
-        profit_pct = size * (gross_unit - sim.commission_pct)  # комиссия за круг, отдельно от барьеров
+        profit_pct = size * (gross_unit - sim.commission_pct + swap_unit)  # комиссия за круг, отдельно от барьеров
 
         trades.append(
             {
@@ -196,6 +202,8 @@ def simulate_trades(
                 "exit_price": exit_price,
                 "gross_pct": gross_pct,
                 "commission_pct": size * sim.commission_pct,
+                "swap_pct": size * swap_unit,
+                "rollovers": rollovers,
                 "size": size,
                 "gross_unit_pct": gross_unit,
                 "profit_pct": profit_pct,

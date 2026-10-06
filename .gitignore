@@ -20,6 +20,7 @@ catboost_info/
 !docs/**/*.csv
 !docs/**/*.html
 !docs/**/*.log
+!data/dividends/*.csv
 
 # --- Python ---
 __pycache__/
