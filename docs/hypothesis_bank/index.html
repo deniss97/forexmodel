@@ -1,0 +1,621 @@
+<title>Банк гипотез forexmodel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Реестр исследования: узкая шапка с правилами, полоса «на этой неделе», затем список гипотез строками
+   (код · формулировка · оценки В×У×С · приоритет · статус); строка раскрывается в редактор. */
+:root {
+  --bg: #eef1f3;
+  --panel: #fbfcfc;
+  --ink: #16202b;
+  --ink2: #4b5866;
+  --ink3: #7a8794;
+  --rule: #d5dbe0;
+  --accent: #2459b3;
+  --accent-soft: #e2eaf7;
+  --warm: #c8641e;
+  --st-new: #5b6773;   --st-new-bg: #e6eaee;
+  --st-work: #2459b3;  --st-work-bg: #e0e9f8;
+  --st-yes: #1d7a55;   --st-yes-bg: #ddf0e6;
+  --st-no: #b4462a;    --st-no-bg: #f7e3dc;
+  --st-hold: #6b6f76;  --st-hold-bg: #ececec;
+  --st-ask: #94690c;   --st-ask-bg: #f6ecd2;
+  --bar: #2459b3;
+  --focus: #2459b3;
+  --on-accent: #ffffff;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #12171c; --panel: #192027; --ink: #e8edf1; --ink2: #a9b5c0; --ink3: #7c8995; --rule: #2a333c;
+    --accent: #6e9ff0; --accent-soft: #1d2b40; --warm: #e88a4a;
+    --st-new: #a9b5c0; --st-new-bg: #252e37; --st-work: #8db3f2; --st-work-bg: #1d2b40;
+    --st-yes: #5cc796; --st-yes-bg: #15322a; --st-no: #ee8b6c; --st-no-bg: #3a2119;
+    --st-hold: #a3a7ad; --st-hold-bg: #2a2d31; --st-ask: #e3b54c; --st-ask-bg: #352b12;
+    --bar: #6e9ff0; --focus: #8db3f2; --on-accent: #0e1420;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12171c; --panel: #192027; --ink: #e8edf1; --ink2: #a9b5c0; --ink3: #7c8995; --rule: #2a333c;
+  --accent: #6e9ff0; --accent-soft: #1d2b40; --warm: #e88a4a;
+  --st-new: #a9b5c0; --st-new-bg: #252e37; --st-work: #8db3f2; --st-work-bg: #1d2b40;
+  --st-yes: #5cc796; --st-yes-bg: #15322a; --st-no: #ee8b6c; --st-no-bg: #3a2119;
+  --st-hold: #a3a7ad; --st-hold-bg: #2a2d31; --st-ask: #e3b54c; --st-ask-bg: #352b12;
+  --bar: #6e9ff0; --focus: #8db3f2; --on-accent: #0e1420;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); margin: 0; padding-inline: 16px; padding-block: 20px 48px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--cond); text-wrap: balance; margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+header.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 24px; }
+.brand { display: grid; gap: 2px; min-width: 0; }
+.eyebrow { font: 600 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink3); }
+h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.01em; }
+.lede { color: var(--ink2); max-width: 68ch; margin: 2px 0 0; }
+.me { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.me img { width: 26px; height: 26px; border-radius: 50%; }
+
+.notice { background: var(--panel); border: 1px solid var(--rule); border-left: 4px solid var(--st-ask); border-radius: 8px; padding: 10px 14px; color: var(--ink2); font-size: 14px; }
+
+.rules { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; }
+.rules summary { cursor: pointer; padding: 12px 16px; font: 600 15px var(--cond); list-style-position: inside; }
+.rules-body { padding: 0 16px 16px; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.rules-body > div { min-width: 0; }
+.rules-body h3 { font-size: 14px; color: var(--ink2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+.rules-body p, .rules-body li { font-size: 14px; color: var(--ink2); margin: 0; }
+.rules-body ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.formula { font: 600 15px var(--mono); color: var(--ink); }
+
+.week { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 16px; display: grid; gap: 8px; }
+.week-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.week h2 { font-size: 18px; }
+.week .muted { color: var(--ink3); font-size: 13px; }
+.week-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.week-item { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: 6px; padding: 3px 8px; background: transparent; cursor: pointer; font-size: 13px; max-width: 100%; text-align: left; }
+.week-item .code { font: 500 12px var(--mono); color: var(--ink3); }
+.week-item span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; }
+
+.bar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--rule); background: var(--panel); border-radius: 999px; padding: 4px 11px; font-size: 13px; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; }
+.chip b { font: 600 12px var(--mono); color: var(--ink3); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.chip[aria-pressed="true"] b { color: var(--panel); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tools input[type="search"], .tools select { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+.tools input[type="search"] { width: min(260px, 100%); }
+.btn { border: 1px solid var(--rule); background: var(--panel); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 14px; font-weight: 500; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.danger { color: var(--st-no); border-color: var(--st-no); background: transparent; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.list { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.list-head, .row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 132px 92px 150px; gap: 12px; align-items: center; padding: 10px 16px; }
+.list-head { font: 600 11.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); border-bottom: 1px solid var(--rule); }
+.row { border-top: 1px solid var(--rule); cursor: pointer; }
+.list-head + .row { border-top: 0; }
+.row:hover { background: var(--accent-soft); }
+.row[aria-expanded="true"] { background: var(--accent-soft); }
+.code { font: 600 13px var(--mono); color: var(--ink2); font-variant-numeric: tabular-nums; }
+.htext { min-width: 0; display: grid; gap: 3px; }
+.htext .t { font-weight: 500; }
+.meta { font-size: 12.5px; color: var(--ink3); display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.type { font: 500 11.5px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink2); }
+.type.check { color: var(--warm); }
+.scores { display: flex; gap: 4px; }
+.sc { display: grid; place-items: center; width: 38px; border: 1px solid var(--rule); border-radius: 6px; padding: 2px 0; }
+.sc small { font: 500 10px var(--mono); color: var(--ink3); }
+.sc b { font: 600 14px var(--mono); font-variant-numeric: tabular-nums; }
+.prio { display: grid; gap: 4px; }
+.prio b { font: 600 16px var(--mono); font-variant-numeric: tabular-nums; }
+.prio .track { height: 5px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+.prio .fill { height: 100%; background: var(--bar); }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 500; white-space: nowrap; justify-self: start; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.st-new { color: var(--st-new); background: var(--st-new-bg); }
+.st-work { color: var(--st-work); background: var(--st-work-bg); }
+.st-yes { color: var(--st-yes); background: var(--st-yes-bg); }
+.st-no { color: var(--st-no); background: var(--st-no-bg); }
+.st-hold { color: var(--st-hold); background: var(--st-hold-bg); }
+.st-ask { color: var(--st-ask); background: var(--st-ask-bg); }
+.stcell { display: grid; gap: 4px; justify-items: start; }
+.wk { font: 500 11px var(--mono); color: var(--accent); }
+
+.editor { border-top: 1px dashed var(--rule); padding: 14px 16px 18px; display: grid; gap: 14px; background: var(--panel); }
+.ed-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px 20px; }
+.ed-grid > * { min-width: 0; }
+label.f { display: grid; gap: 4px; font-size: 13px; color: var(--ink2); }
+label.f input, label.f select, label.f textarea { background: var(--bg); border: 1px solid var(--rule); border-radius: 8px; padding: 7px 10px; font-size: 14px; width: 100%; }
+label.f textarea { resize: vertical; min-height: 64px; }
+.vote { display: grid; gap: 8px; }
+.vote-row { display: grid; grid-template-columns: 180px auto; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.seg { display: inline-flex; justify-self: start; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 4px 11px; font: 600 13px var(--mono); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.voters { font-size: 12.5px; color: var(--ink3); display: grid; gap: 2px; }
+.voters span b { font: 500 12px var(--mono); color: var(--ink2); }
+.ed-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.ed-actions .left, .ed-actions .right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.confirm { font-size: 13px; color: var(--st-no); }
+.result-link a { color: var(--accent); }
+
+.empty { padding: 28px 16px; color: var(--ink2); text-align: center; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px); z-index: 10; }
+
+.add { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 12px; }
+.add h2 { font-size: 18px; }
+.add-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.add-grid .wide { grid-column: 1 / -1; }
+
+@media (max-width: 760px) {
+  .list-head { display: none; }
+  .row { grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: "c t" "c s" "c q" "c p"; row-gap: 8px; }
+  .row .code { grid-area: c; align-self: start; }
+  .row .htext { grid-area: t; }
+  .row .scorecell { grid-area: s; display: flex; gap: 12px; align-items: center; }
+  .row .stcell { grid-area: p; }
+  .row .prio { grid-area: q; max-width: 220px; }
+  .ed-grid { grid-template-columns: minmax(0, 1fr); }
+  .vote-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">forexmodel · исследование</span>
+      <h1>Банк гипотез</h1>
+      <p class="lede">Всё, что стоит проверить: идеи со встреч, от Тагира, из статей и наблюдений. Каждый ставит свои оценки, раз в неделю выбираем, что берём в работу. Результаты проверок — в журнале изменений в репозитории.</p>
+    </div>
+    <div class="me" id="me" hidden></div>
+  </header>
+
+  <div class="notice" id="notice" hidden></div>
+
+  <details class="rules" id="rules">
+    <summary>Как оцениваем и выбираем на неделю</summary>
+    <div class="rules-body">
+      <div>
+        <h3>Три оценки от 1 до 5</h3>
+        <p><b>В — влияние:</b> насколько изменится главный результат, если гипотеза верна (1 — косметика, 5 — меняет вывод «работает / не работает»).</p>
+        <p><b>У — уверенность:</b> сколько уже оснований, что она верна (1 — догадка, 5 — прямые признаки в данных).</p>
+        <p><b>С — стоимость проверки:</b> 5 — дёшево, данные и код есть; 1 — нужны новые данные и недели работы.</p>
+        <p class="formula">Приоритет = В × У × С (до 125)</p>
+        <p>Если оценили несколько человек, берётся среднее по каждой оценке. Пока никто не оценил — черновая оценка Дениса.</p>
+      </div>
+      <div>
+        <h3>Выбор на неделю</h3>
+        <ol>
+          <li>Сначала проверки достоверности: всё, что может отменить уже полученный результат.</li>
+          <li>Затем 2–3 гипотезы с наибольшим приоритетом.</li>
+          <li>Плюс одна «дикая карта»: большое влияние при низкой уверенности.</li>
+          <li>До проверки записываем критерий вердикта: на каком периоде выбираем, на каком проверяем, какие метрики.</li>
+          <li>Сравниваем по профит-фактору и итогу без 2 лучших сделок, к каждому вердикту — график.</li>
+        </ol>
+      </div>
+    </div>
+  </details>
+
+  <section class="week" id="week" aria-label="Взято на эту неделю">
+    <div class="week-head"><h2>На этой неделе</h2><span class="muted" id="week-label"></span></div>
+    <div class="week-list" id="week-list"><span class="muted">Загрузка…</span></div>
+  </section>
+
+  <div class="bar-row">
+    <div class="chips" id="chips" role="group" aria-label="Статус"></div>
+    <div class="tools">
+      <input type="search" id="q" placeholder="Поиск по тексту" aria-label="Поиск по тексту гипотезы">
+      <select id="f-type" aria-label="Тип гипотезы"></select>
+      <select id="sort" aria-label="Сортировка">
+        <option value="prio">по приоритету</option>
+        <option value="num">по номеру</option>
+        <option value="new">сначала новые</option>
+      </select>
+      <button type="button" class="btn primary" id="add-btn">Добавить гипотезу</button>
+    </div>
+  </div>
+
+  <form class="add" id="add-form" hidden autocomplete="off">
+    <h2>Новая гипотеза</h2>
+    <div class="add-grid">
+      <label class="f wide" for="a-text">Формулировка: что именно проверяем
+        <textarea id="a-text" required maxlength="600" placeholder="Например: дельта ленты за 6 часов в сторону импульса отсеивает ложные входы"></textarea></label>
+      <label class="f" for="a-type">Тип
+        <select id="a-type"></select></label>
+      <label class="f" for="a-source">Откуда идея
+        <input id="a-source" maxlength="120" placeholder="встреча 12.10, Тагир, статья…"></label>
+      <label class="f wide" for="a-crit">Критерий вердикта (можно позже)
+        <input id="a-crit" maxlength="300" placeholder="выбор на 2016–2020, проверка на 2021–2026, PF и итог без 2 лучших"></label>
+    </div>
+    <div class="vote" id="a-vote"></div>
+    <div class="ed-actions"><span class="muted" id="a-msg"></span>
+      <div class="right"><button type="button" class="btn" id="a-cancel">Отмена</button><button type="submit" class="btn primary" id="a-save">Добавить</button></div></div>
+  </form>
+
+  <section class="list" id="list" aria-label="Гипотезы">
+    <div class="list-head"><span>№</span><span>гипотеза</span><span>В · У · С</span><span>приоритет</span><span>статус</span></div>
+    <div class="empty" id="empty">Загрузка банка…</div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const TYPES = { check: "проверка достоверности", strategy: "стратегия", model: "модель", data: "данные", viz: "визуализация", process: "процесс" };
+  const STATUSES = { new: "новая", work: "в работе", yes: "подтвердилась", no: "не подтвердилась", hold: "отложена", ask: "уточнить" };
+  const OPEN = ["new", "work", "ask", "hold"];
+  const DIMS = [["i", "В", "влияние"], ["c", "У", "уверенность"], ["e", "С", "стоимость (5 — дёшево)"]];
+
+  let db = null, user = null, col = null;
+  let me = { id: null, name: "" };
+  let canWrite = null;               // true / false / null (неизвестно — решит отказ записи)
+  let docs = new Map();              // код -> данные
+  let loaded = false, ready = false;   // ready — платформа ответила, есть ли общая база
+  const view = { status: "open", type: "", q: "", sort: "prio", open: null };
+  const draftVote = { i: null, c: null, e: null };
+
+  // ---------- даты недели ----------
+  function mondayOf(d) {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const wd = (x.getDay() + 6) % 7;
+    x.setDate(x.getDate() - wd);
+    return x;
+  }
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const thisWeek = iso(mondayOf(new Date()));
+  const fmtDay = (s) => { const [y, m, d] = s.split("-"); return `${d}.${m}`; };
+
+  // ---------- данные из общей базы: пишут разные люди — всё приводится к ожидаемому виду ----------
+  const score = (x) => { x = Number(x); return Number.isFinite(x) && x >= 1 && x <= 5 ? Math.round(x) : null; };
+  const safeId = (x) => (typeof x === "string" && /^[A-Za-z0-9_\-:.@+~]{1,200}$/.test(x) ? x : null);
+  const str = (x, max = 1000) => (typeof x === "string" ? x.slice(0, max) : "");
+  function clean(id, d) {
+    const votes = {};
+    if (d.votes && typeof d.votes === "object") {
+      for (const [k, v] of Object.entries(d.votes)) {
+        const uid = safeId(k), i = score(v && v.i), c = score(v && v.c), e = score(v && v.e);
+        if (uid && i && c && e) votes[uid] = { i, c, e };
+      }
+    }
+    const dr = d.draft && typeof d.draft === "object" ? { i: score(d.draft.i), c: score(d.draft.c), e: score(d.draft.e) } : null;
+    const num = Number.isFinite(Number(d.num)) ? Number(d.num) : Number(String(id).replace(/\D/g, "")) || 0;
+    return {
+      code: id, num, votes, draft: dr && dr.i && dr.c && dr.e ? dr : null,
+      text: str(d.text, 600), source: str(d.source, 120), criterion: str(d.criterion, 300), result: str(d.result, 600),
+      link: str(d.link, 400), status: STATUSES[d.status] ? d.status : "new", type: TYPES[d.type] ? d.type : "process",
+      author: safeId(d.author), createdAt: str(d.createdAt, 40),
+      sprint: /^\d{4}-\d{2}-\d{2}$/.test(String(d.sprint || "")) ? d.sprint : "",
+    };
+  }
+
+  // ---------- оценки ----------
+  function effective(h) {
+    const votes = h.votes && typeof h.votes === "object" ? Object.values(h.votes).filter((v) => v && v.i && v.c && v.e) : [];
+    if (votes.length) {
+      const m = (k) => votes.reduce((a, v) => a + Number(v[k]), 0) / votes.length;
+      return { i: m("i"), c: m("c"), e: m("e"), n: votes.length, draft: false };
+    }
+    const d = h.draft;
+    if (d && d.i && d.c && d.e) return { i: d.i, c: d.c, e: d.e, n: 0, draft: true };
+    return null;
+  }
+  const prio = (s) => (s ? s.i * s.c * s.e : null);
+  const num1 = (x) => (Number.isInteger(x) ? String(x) : x.toFixed(1).replace(".", ","));
+
+  // ---------- вывод ----------
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, 3200);
+  }
+
+  function notice(msg) { const n = $("#notice"); n.textContent = msg; n.hidden = !msg; }
+
+  function setReadOnly(reason) {
+    canWrite = false;
+    notice(reason || "Читать банк можно, а добавлять и менять гипотезы — только участникам с правом редактирования. Попросите Дениса пригласить вас по почте как редактора.");
+    render();
+  }
+
+  function filtered() {
+    const q = view.q.trim().toLowerCase();
+    let a = [...docs.values()].filter((h) =>
+      (view.status === "all" || (view.status === "open" ? OPEN.includes(h.status) : h.status === view.status)) &&
+      (!view.type || h.type === view.type) &&
+      (!q || `${h.code} ${h.text} ${h.source || ""} ${h.result || ""}`.toLowerCase().includes(q)));
+    const by = {
+      prio: (x, y) => (prio(effective(y)) ?? -1) - (prio(effective(x)) ?? -1) || x.num - y.num,
+      num: (x, y) => x.num - y.num,
+      new: (x, y) => String(y.createdAt || "").localeCompare(String(x.createdAt || "")) || y.num - x.num,
+    };
+    return a.sort(by[view.sort]);
+  }
+
+  function renderChips() {
+    const all = [...docs.values()];
+    const cnt = (s) => all.filter((h) => (s === "all" ? true : s === "open" ? OPEN.includes(h.status) : h.status === s)).length;
+    const items = [["open", "открытые"], ...Object.entries(STATUSES), ["all", "все"]];
+    $("#chips").innerHTML = items.map(([k, l]) => `<button type="button" class="chip" data-k="${k}" aria-pressed="${view.status === k}">${l} <b>${cnt(k)}</b></button>`).join("");
+  }
+
+  function renderWeek() {
+    $("#week-label").textContent = `неделя с ${fmtDay(thisWeek)}`;
+    const w = [...docs.values()].filter((h) => h.sprint === thisWeek).sort((a, b) => a.num - b.num);
+    const box = $("#week-list");
+    box.textContent = "";
+    if (!loaded) { box.innerHTML = `<span class="muted">Загрузка…</span>`; return; }
+    if (!w.length) { box.innerHTML = `<span class="muted">Пока ничего не взято. Откройте гипотезу и нажмите «Взять на эту неделю».</span>`; return; }
+    for (const h of w) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "week-item"; b.dataset.code = h.code;
+      b.innerHTML = `<span class="code"></span><span class="t"></span><span class="pill st-${h.status}"></span>`;
+      b.querySelector(".code").textContent = h.code;
+      b.querySelector(".t").textContent = h.text;
+      b.querySelector(".pill").textContent = STATUSES[h.status] || h.status;
+      box.appendChild(b);
+    }
+  }
+
+  function scoreTiles(s) {
+    return DIMS.map(([k, l]) => `<span class="sc" title="${l}"><small>${l}</small><b>${s ? num1(s[k]) : "—"}</b></span>`).join("");
+  }
+
+  function rowHTML(h) {
+    const s = effective(h), p = prio(s);
+    const exp = view.open === h.code;
+    return `<div class="row" role="button" tabindex="0" data-code="${h.code}" aria-expanded="${exp}">
+      <span class="code"></span>
+      <div class="htext"><span class="t"></span>
+        <span class="meta"><span class="type ${h.type === "check" ? "check" : ""}">${TYPES[h.type] || "—"}</span><span class="src"></span>${h.author ? `<span>автор: <span data-uid="${h.author}">…</span></span>` : ""}</span></div>
+      <div class="scorecell"><div class="scores">${scoreTiles(s)}</div></div>
+      <div class="prio"><b>${p == null ? "—" : num1(p)}</b><div class="track"><div class="fill" style="width:${p == null ? 0 : Math.min(100, (p / 125) * 100)}%"></div></div>
+        <span class="meta">${s ? (s.draft ? "черновая" : `оценок: ${s.n}`) : "нет оценок"}</span></div>
+      <div class="stcell"><span class="pill st-${h.status}">${STATUSES[h.status] || h.status}</span>${h.sprint === thisWeek ? `<span class="wk">на этой неделе</span>` : ""}</div>
+    </div>${exp ? editorHTML(h) : ""}`;
+  }
+
+  function voteHTML(prefix, vals) {
+    return DIMS.map(([k, l, title]) => `<div class="vote-row"><span>${title}</span><div class="seg" role="group" aria-label="${title}" data-dim="${k}" data-prefix="${prefix}">
+      ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-v="${n}" aria-pressed="${vals && Number(vals[k]) === n}">${n}</button>`).join("")}</div></div>`).join("");
+  }
+
+  function editorHTML(h) {
+    const ro = canWrite === false;
+    const mine = me.id && h.votes ? h.votes[me.id] : null;
+    const voters = h.votes ? Object.entries(h.votes).filter(([, v]) => v && v.i) : [];
+    const dis = ro ? "disabled" : "";
+    return `<div class="editor" data-code="${h.code}">
+      <div class="ed-grid">
+        <div style="display:grid;gap:12px">
+          <label class="f">Формулировка<textarea data-f="text" maxlength="600" ${dis}></textarea></label>
+          <label class="f">Критерий вердикта<input data-f="criterion" maxlength="300" ${dis} placeholder="на каком периоде выбираем, на каком проверяем, какие метрики"></label>
+          <label class="f">Результат проверки<textarea data-f="result" maxlength="600" ${dis} placeholder="что получилось, с цифрами"></textarea></label>
+          <label class="f">Ссылка на результат<input data-f="link" maxlength="400" ${dis} placeholder="https://github.com/…"></label>
+          ${h.link && /^https:\/\//.test(h.link) ? `<span class="result-link"><a target="_blank" rel="noopener"></a></span>` : ""}
+        </div>
+        <div style="display:grid;gap:12px;align-content:start">
+          <label class="f">Статус<select data-f="status" ${dis}>${Object.entries(STATUSES).map(([k, l]) => `<option value="${k}" ${h.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label class="f">Тип<select data-f="type" ${dis}>${Object.entries(TYPES).map(([k, l]) => `<option value="${k}" ${h.type === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label class="f">Откуда идея<input data-f="source" maxlength="120" ${dis}></label>
+          <div class="vote">
+            <span class="eyebrow">${me.id ? "ваша оценка" : "оценка"}</span>
+            ${me.id && !ro ? voteHTML("e", mine) : `<span class="meta">Оценивать могут участники, вошедшие в аккаунт.</span>`}
+            <div class="voters">${voters.length ? voters.map(([uid, v]) => `<span><span data-uid="${uid}">…</span>: <b>В ${v.i} · У ${v.c} · С ${v.e}</b></span>`).join("") : (h.draft ? `<span>черновая оценка Дениса: <b>В ${h.draft.i} · У ${h.draft.c} · С ${h.draft.e}</b></span>` : "")}</div>
+          </div>
+        </div>
+      </div>
+      <div class="ed-actions">
+        <div class="left">${ro ? "" : `<button type="button" class="btn" data-act="sprint">${h.sprint === thisWeek ? "Снять с этой недели" : "Взять на эту неделю"}</button>
+          <button type="button" class="btn danger" data-act="del">Удалить</button><span class="confirm" data-confirm hidden>Удалить безвозвратно? <button type="button" class="btn danger" data-act="del-yes">Да, удалить</button> <button type="button" class="btn" data-act="del-no">Нет</button></span>`}</div>
+        <div class="right"><button type="button" class="btn" data-act="close">Свернуть</button>${ro ? "" : `<button type="button" class="btn primary" data-act="save">Сохранить</button>`}</div>
+      </div>
+    </div>`;
+  }
+
+  async function resolveNames(root) {
+    if (!user) return;
+    const els = [...root.querySelectorAll("[data-uid]")];
+    if (!els.length) return;
+    const ps = await user.profiles([...new Set(els.map((e) => e.dataset.uid))]);
+    for (const e of els) { const p = ps[e.dataset.uid]; e.textContent = (p && p.isMe) ? "вы" : (p && p.name) || "участник"; }
+  }
+
+  function render() {
+    renderChips(); renderWeek();
+    $("#add-btn").hidden = canWrite === false || !db;
+    const list = $("#list");
+    // несохранённые правки открытой гипотезы переживают перерисовку (чужие сохранения приходят вживую)
+    const prev = list.querySelector(".editor");
+    const keep = prev ? { code: prev.dataset.code, fields: readEditor(prev), segs: {},
+                          focus: document.activeElement && prev.contains(document.activeElement) ? document.activeElement.dataset.f : null } : null;
+    if (prev) for (const seg of prev.querySelectorAll(".seg")) {
+      const on = seg.querySelector("button[aria-pressed='true']"); if (on) keep.segs[seg.dataset.dim] = on.dataset.v;
+    }
+    list.querySelectorAll(".row, .editor, .empty").forEach((e) => e.remove());
+    const items = filtered();
+    if (!items.length) {
+      const e = document.createElement("div"); e.className = "empty";
+      e.textContent = !ready || (db && !loaded) ? "Загрузка банка…"
+        : !db ? "Банк недоступен в этом просмотре. Откройте страницу на claude.ai, войдя в аккаунт."
+        : docs.size ? "Под этот фильтр ничего не подходит." : "Банк пока пуст. Добавьте первую гипотезу кнопкой «Добавить гипотезу».";
+      list.appendChild(e); return;
+    }
+    list.insertAdjacentHTML("beforeend", items.map(rowHTML).join(""));
+    for (const h of items) {
+      const r = list.querySelector(`.row[data-code="${h.code}"]`);
+      r.querySelector(".code").textContent = h.code;
+      r.querySelector(".t").textContent = h.text;
+      r.querySelector(".src").textContent = h.source || "";
+      const ed = list.querySelector(`.editor[data-code="${h.code}"]`);
+      if (ed) {
+        for (const el of ed.querySelectorAll("[data-f]")) if (el.tagName !== "SELECT") el.value = h[el.dataset.f] || "";
+        const a = ed.querySelector(".result-link a"); if (a) { a.href = h.link; a.textContent = "открыть результат"; }
+        if (keep && keep.code === h.code) {
+          for (const el of ed.querySelectorAll("[data-f]")) if (keep.fields[el.dataset.f] !== undefined) el.value = keep.fields[el.dataset.f];
+          for (const seg of ed.querySelectorAll(".seg")) {
+            const v = keep.segs[seg.dataset.dim];
+            if (v) seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === v));
+          }
+          if (keep.focus) ed.querySelector(`[data-f="${keep.focus}"]`)?.focus();
+        }
+      }
+    }
+    resolveNames(list);
+  }
+
+  // ---------- запись ----------
+  async function write(fn, okMsg) {
+    try { await fn(); if (okMsg) toast(okMsg); return true; }
+    catch (e) {
+      const code = e && e.code;
+      if (code === "invalid_argument") setReadOnly();
+      else if (code === "quota_exceeded") toast("Банк заполнен: удалите ненужные гипотезы и попробуйте снова.");
+      else if (code === "revoked") setReadOnly("Доступ к банку изменился. Обновите страницу.");
+      else toast("Не удалось сохранить. Проверьте соединение и попробуйте ещё раз.");
+      return false;
+    }
+  }
+
+  function readEditor(ed) {
+    const o = {};
+    for (const el of ed.querySelectorAll("[data-f]")) o[el.dataset.f] = el.value.trim();
+    return o;
+  }
+
+  async function saveEditor(code, ed) {
+    const h = docs.get(code); if (!h) return;
+    const v = readEditor(ed);
+    if (!v.text) { toast("Формулировка не может быть пустой."); return; }
+    const patch = {};
+    for (const k of ["text", "criterion", "result", "link", "status", "type", "source"]) if ((h[k] || "") !== v[k]) patch[k] = v[k];
+    const vote = {};
+    for (const seg of ed.querySelectorAll(".seg[data-prefix='e']")) {
+      const on = seg.querySelector("button[aria-pressed='true']"); if (on) vote[seg.dataset.dim] = Number(on.dataset.v);
+    }
+    const mine = me.id && h.votes ? h.votes[me.id] : null;
+    if (me.id && vote.i && vote.c && vote.e && (!mine || mine.i !== vote.i || mine.c !== vote.c || mine.e !== vote.e)) {
+      patch.votes = { [me.id]: { ...vote, at: new Date().toISOString() } };
+    } else if (me.id && Object.keys(vote).length && !(vote.i && vote.c && vote.e)) {
+      toast("Поставьте все три оценки: В, У и С."); return;
+    }
+    if (!Object.keys(patch).length) { toast("Изменений нет."); return; }
+    patch.updatedAt = new Date().toISOString();
+    if (me.id) patch.updatedBy = me.id;
+    await write(() => col.doc(code).update(patch), "Сохранено");
+  }
+
+  async function addHypothesis(ev) {
+    ev.preventDefault();
+    const text = $("#a-text").value.trim();
+    if (!text) { $("#a-msg").textContent = "Напишите формулировку."; return; }
+    const vote = {};
+    for (const seg of document.querySelectorAll("#a-vote .seg")) {
+      const on = seg.querySelector("button[aria-pressed='true']"); if (on) vote[seg.dataset.dim] = Number(on.dataset.v);
+    }
+    if (Object.keys(vote).length && !(vote.i && vote.c && vote.e)) { $("#a-msg").textContent = "Поставьте все три оценки или ни одной."; return; }
+    $("#a-save").disabled = true;
+    // следующий свободный номер: проверяем, что документ ещё не занят
+    let n = Math.max(0, ...[...docs.values()].map((h) => h.num || 0)) + 1, code = "";
+    for (let tries = 0; tries < 20; tries++, n++) {
+      code = "H" + String(n).padStart(2, "0");
+      try { const s = await col.doc(code).get(); if (!s.exists) break; } catch (e) { break; }
+    }
+    const now = new Date().toISOString();
+    const body = { code, num: n, text, type: $("#a-type").value, source: $("#a-source").value.trim(), criterion: $("#a-crit").value.trim(),
+                   status: "new", result: "", link: "", author: me.id || null, createdAt: now, updatedAt: now };
+    if (vote.i && me.id) body.votes = { [me.id]: { ...vote, at: now } };
+    const ok = await write(() => col.doc(code).set(body), `Добавлена гипотеза ${code}`);
+    $("#a-save").disabled = false;
+    if (ok) { $("#add-form").reset(); $("#add-form").hidden = true; resetDraftVote(); view.open = code; view.status = "open"; render(); }
+  }
+
+  function resetDraftVote() { draftVote.i = draftVote.c = draftVote.e = null; $("#a-vote").innerHTML = me.id ? `<span class="eyebrow">ваша оценка (можно позже)</span>${voteHTML("a", null)}` : ""; }
+
+  // ---------- события ----------
+  document.addEventListener("click", async (e) => {
+    const chip = e.target.closest(".chip");
+    if (chip) { view.status = chip.dataset.k; render(); return; }
+    const segBtn = e.target.closest(".seg button");
+    if (segBtn) {
+      const seg = segBtn.parentElement;
+      seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b === segBtn));
+      return;
+    }
+    const wk = e.target.closest(".week-item");
+    if (wk) { view.open = wk.dataset.code; view.status = "all"; render(); document.querySelector(`.row[data-code="${wk.dataset.code}"]`)?.scrollIntoView({ block: "center" }); return; }
+    const act = e.target.closest("[data-act]");
+    if (act) {
+      const ed = act.closest(".editor"), code = ed && ed.dataset.code, h = docs.get(code);
+      const k = act.dataset.act;
+      if (k === "close") { view.open = null; render(); }
+      else if (k === "save") await saveEditor(code, ed);
+      else if (k === "sprint" && h) await write(() => col.doc(code).update({ sprint: h.sprint === thisWeek ? "" : thisWeek, updatedAt: new Date().toISOString() }),
+                                               h.sprint === thisWeek ? "Снято с этой недели" : "Взято на эту неделю");
+      else if (k === "del") ed.querySelector("[data-confirm]").hidden = false;
+      else if (k === "del-no") ed.querySelector("[data-confirm]").hidden = true;
+      else if (k === "del-yes") { if (await write(() => col.doc(code).delete(), `Гипотеза ${code} удалена`)) { view.open = null; render(); } }
+      return;
+    }
+    const row = e.target.closest(".row");
+    if (row) { view.open = view.open === row.dataset.code ? null : row.dataset.code; render(); }
+  });
+  document.addEventListener("keydown", (e) => {
+    const row = e.target.closest && e.target.closest(".row");
+    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); row.click(); }
+  });
+  $("#q").addEventListener("input", (e) => { view.q = e.target.value; render(); });
+  $("#f-type").innerHTML = `<option value="">все типы</option>` + Object.entries(TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+  $("#f-type").addEventListener("change", (e) => { view.type = e.target.value; render(); });
+  $("#sort").addEventListener("change", (e) => { view.sort = e.target.value; render(); });
+  $("#a-type").innerHTML = Object.entries(TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+  $("#add-btn").addEventListener("click", () => { const f = $("#add-form"); f.hidden = !f.hidden; if (!f.hidden) $("#a-text").focus(); });
+  $("#a-cancel").addEventListener("click", () => { $("#add-form").reset(); $("#add-form").hidden = true; $("#a-msg").textContent = ""; resetDraftVote(); });
+  $("#add-form").addEventListener("submit", addHypothesis);
+  try { if (localStorage.getItem("hb-rules-open") === "1") $("#rules").open = true; } catch (e) {}
+  $("#rules").addEventListener("toggle", () => { try { localStorage.setItem("hb-rules-open", $("#rules").open ? "1" : "0"); } catch (e) {} });
+
+  render();
+
+  // ---------- подключение к общей базе ----------
+  (async () => {
+    const C = window.claude;
+    if (!C || !C.use) { ready = true; render(); return; }
+    [db, user] = await Promise.all([C.use("db"), C.use("user")]);
+    ready = true;
+    if (user) {
+      const v = await user.me();
+      me = { id: v.id, name: v.name };
+      canWrite = await user.can("data.write");
+      if (v.id) {
+        const box = $("#me"); box.hidden = false;
+        const img = document.createElement("img"); img.src = v.avatarUrl; img.alt = "";
+        const s = document.createElement("span"); s.textContent = v.name || "вы";
+        box.append(img, s);
+      }
+      if (canWrite === false) setReadOnly();
+    }
+    resetDraftVote();
+    if (!db) { loaded = true; render(); return; }
+    col = db.collection("hypotheses");
+    col.onSnapshot((snap) => {
+      docs = new Map(snap.docs.filter((d) => d.exists && safeId(d.id)).map((d) => [d.id, clean(d.id, d.data() || {})]));
+      loaded = true;
+      render();
+    }, (err) => {
+      if (err && err.code === "revoked") setReadOnly("Доступ к банку изменился. Обновите страницу.");
+      else notice("Связь с банком прервалась. Обновите страницу.");
+    });
+  })();
+})();
+</script>
