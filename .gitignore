@@ -42,3 +42,6 @@ env/
 .claude/
 .DS_Store
 Thumbs.db
+
+# данные страницы журнала экспериментов пересобираются scripts/experiments.py
+docs/experiments/site/data/

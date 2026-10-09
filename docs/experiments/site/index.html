@@ -1,0 +1,359 @@
+<title>Журнал экспериментов forexmodel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+/* Реестр: протокол и фильтры сверху, таблица экспериментов (метрики против базы на одном срезе и
+   периоде), под ней карточка выбранного эксперимента: итог против базы, журнал сделок, сделки на свечах. */
+:root {
+  --bg: #eef1f3; --panel: #fbfcfc; --ink: #16202b; --ink2: #4b5866; --ink3: #7a8794; --rule: #d5dbe0;
+  --accent: #2459b3; --accent-soft: #e2eaf7; --on-accent: #ffffff;
+  --up: #1d7a55; --up-bg: #ddf0e6; --down: #b4462a; --down-bg: #f7e3dc; --flat: #5b6773; --flat-bg: #e6eaee;
+  --base: #9aa3ae; --win: #1d7a55; --loss: #b4462a; --long: #2459b3; --short: #c8641e;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #12171c; --panel: #192027; --ink: #e8edf1; --ink2: #a9b5c0; --ink3: #7c8995; --rule: #2a333c;
+    --accent: #6e9ff0; --accent-soft: #1d2b40; --on-accent: #0e1420;
+    --up: #5cc796; --up-bg: #15322a; --down: #ee8b6c; --down-bg: #3a2119; --flat: #a9b5c0; --flat-bg: #252e37;
+    --base: #6c7782; --win: #5cc796; --loss: #ee8b6c; --long: #8db3f2; --short: #e88a4a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12171c; --panel: #192027; --ink: #e8edf1; --ink2: #a9b5c0; --ink3: #7c8995; --rule: #2a333c;
+  --accent: #6e9ff0; --accent-soft: #1d2b40; --on-accent: #0e1420;
+  --up: #5cc796; --up-bg: #15322a; --down: #ee8b6c; --down-bg: #3a2119; --flat: #a9b5c0; --flat-bg: #252e37;
+  --base: #6c7782; --win: #5cc796; --loss: #ee8b6c; --long: #8db3f2; --short: #e88a4a;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 14.5px/1.5 var(--sans); margin: 0; padding-inline: 16px; padding-block: 20px 48px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 14px; }
+h1, h2, h3 { font-family: var(--cond); margin: 0; text-wrap: balance; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button, select, input { font: inherit; color: inherit; }
+.eyebrow { font: 600 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink3); }
+h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; }
+.lede { color: var(--ink2); max-width: 78ch; margin: 4px 0 0; }
+.lede b { color: var(--ink); font-weight: 600; }
+details.help { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; }
+details.help summary { cursor: pointer; padding: 10px 14px; font: 600 14.5px var(--cond); }
+.help-body { padding: 0 14px 14px; display: grid; gap: 8px 24px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); font-size: 13.5px; color: var(--ink2); }
+.help-body b { color: var(--ink); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: transparent; padding: 5px 11px; cursor: pointer; font-size: 13.5px; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+select, input[type="search"] { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 5px 9px; font-size: 13.5px; }
+input[type="search"] { width: min(240px, 100%); }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; min-width: 0; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 9px; text-align: right; white-space: nowrap; font-size: 13px; border-bottom: 1px solid var(--rule); }
+th { font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink3); background: var(--panel); position: sticky; top: 0; }
+th:nth-child(2), td:nth-child(2) { text-align: left; white-space: normal; min-width: 240px; }
+th:first-child, td:first-child { text-align: left; }
+td { font-family: var(--mono); }
+td:nth-child(2) { font-family: var(--sans); }
+tr.fam td { background: var(--bg); font: 600 12px var(--mono); color: var(--ink2); text-transform: uppercase; letter-spacing: 0.06em; text-align: left; }
+tbody tr.exp { cursor: pointer; }
+tbody tr.exp:hover, tbody tr.exp[aria-selected="true"] { background: var(--accent-soft); }
+.id { font-weight: 600; color: var(--ink2); }
+.ttl { font-weight: 500; }
+.sub { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 3px; font-size: 12px; color: var(--ink3); }
+.pill { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11.5px; font-weight: 500; }
+.v-good { color: var(--up); background: var(--up-bg); } .v-bad { color: var(--down); background: var(--down-bg); } .v-flat { color: var(--flat); background: var(--flat-bg); }
+.d-up { color: var(--up); } .d-down { color: var(--down); } .muted { color: var(--ink3); }
+.base { color: var(--ink3); font-size: 11.5px; display: block; }
+.detail { padding: 16px; display: grid; gap: 14px; }
+.d-head { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; justify-content: space-between; }
+.d-head h2 { font-size: 22px; }
+.links { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13.5px; }
+.links a { color: var(--accent); }
+.kv { color: var(--ink2); max-width: 90ch; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.grid2 > * { min-width: 0; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+.chart { height: 300px; border: 1px solid var(--rule); border-radius: 8px; position: relative; }
+.chart.big { height: 420px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink2); }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: 3px; margin-right: 5px; }
+.log { max-height: 420px; overflow: auto; border: 1px solid var(--rule); border-radius: 8px; }
+.log td, .log th { font-size: 12.5px; padding: 5px 8px; }
+.log td:nth-child(2), .log th:nth-child(2) { min-width: 0; text-align: right; font-family: var(--mono); }
+.log tbody tr { cursor: pointer; }
+.log tbody tr:hover, .log tbody tr.sel { background: var(--accent-soft); }
+.pos { color: var(--win); } .neg { color: var(--loss); }
+.nolog li { margin-bottom: 6px; color: var(--ink2); font-size: 13.5px; }
+.nolog a { color: var(--accent); }
+.empty { padding: 24px; color: var(--ink2); text-align: center; }
+h3 { font-size: 15px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">forexmodel · что помогло и насколько</span>
+    <h1>Журнал экспериментов</h1>
+    <p class="lede">Каждый эксперимент посчитан одинаково: <b>проверка — сделки, открытые с 1 января 2021 года</b>, параметры выбирались раньше; метрики после издержек эксперимента; база — на тех же инструментах. Выберите срез и период, нажмите на эксперимент, чтобы увидеть итог против базы, журнал сделок и сделки на графике.</p>
+  </header>
+
+  <details class="help">
+    <summary>Что значат метрики</summary>
+    <div class="help-body">
+      <div><b>Итог %</b> — сумма результатов сделок в процентах без реинвестирования; у портфеля инструменты поровну. <b>Δ к базе</b> — разница итога с базой на тех же инструментах.</div>
+      <div><b>Ожидание</b> — средний результат одной сделки после издержек. <b>Выигрышей</b> — доля прибыльных сделок.</div>
+      <div><b>PF</b> — сумма прибылей, делённая на сумму убытков (больше 1 — в плюсе). <b>Без 2 лучших</b> — итог без двух самых прибыльных сделок: не держится ли результат на удаче.</div>
+      <div><b>Просадка</b> — наибольшее падение накопленного итога, п.п. <b>t</b> — значимость средней сделки (больше 2 — значимо); у моделей с несколькими seed — среднее по прогонам.</div>
+    </div>
+  </details>
+
+  <div class="bar">
+    <div class="seg" id="fam" role="group" aria-label="Семейство">
+      <button type="button" data-v="" aria-pressed="true">все</button>
+      <button type="button" data-v="strategy" aria-pressed="false">стратегия</button>
+      <button type="button" data-v="model" aria-pressed="false">модели</button>
+    </div>
+    <div class="seg" id="per" role="group" aria-label="Период">
+      <button type="button" data-v="проверка" aria-pressed="true">проверка 2021–26</button>
+      <button type="button" data-v="выбор" aria-pressed="false">выбор до 2021</button>
+      <button type="button" data-v="всё" aria-pressed="false">весь период</button>
+    </div>
+    <select id="scope" aria-label="Срез"></select>
+    <input type="search" id="q" placeholder="Поиск" aria-label="Поиск по экспериментам">
+  </div>
+
+  <section class="card" aria-label="Эксперименты">
+    <div class="tw">
+      <table>
+        <thead><tr><th>id</th><th>эксперимент</th><th>сделок</th><th>итог %</th><th>Δ к базе</th><th>выигр.</th><th>ожидание</th><th>PF</th><th>без 2 лучших</th><th>просадка</th><th>t</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="11" class="empty">Загрузка журнала…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="detail" aria-label="Выбранный эксперимент" hidden></section>
+
+  <section class="card" style="padding:14px 16px" aria-label="Проверки без журнала сделок">
+    <h3>Проверено без журнала сделок</h3>
+    <p class="muted" style="margin:4px 0 10px;font-size:13px">Быстрые расчёты и статистика паттернов: выводы — в документах; через журнал их стоит пересчитать, если гипотеза вернётся в работу.</p>
+    <ul class="nolog" id="nolog"></ul>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const st = { fam: "", per: "проверка", scope: "main", q: "", sel: null, inst: null, run: 0 };
+  let R = null;
+  const cache = {}, candles = {};
+
+  const f2 = (x) => (x == null ? "—" : x.toFixed(2));
+  const pct = (x, d = 1) => (x == null ? "—" : (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d));
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const name = (k) => (R.names[k] || k);
+  const verdictClass = (v) => /не помог|хуже|убыточ|не подтверж|без улучш|в минусе/.test(v) ? "v-bad" : /плюс|подтверд|лучше|учтено/.test(v) ? "v-good" : "v-flat";
+
+  async function getJSON(u) { const r = await fetch(u); if (!r.ok) throw new Error(u); return r.json(); }
+
+  function scopeOf(e) { return st.scope === "main" ? e.main : st.scope; }
+
+  function renderScopes() {
+    const all = new Set();
+    R.experiments.forEach((e) => Object.keys(e.res["проверка"]).forEach((s) => all.add(s)));
+    const order = ["все", "портфель 4", "silver", "gold", "lkoh", "gazp", "sber", "moex", "mtss", "eth"];
+    $("#scope").innerHTML = `<option value="main">срез: основной для эксперимента</option>` +
+      order.filter((s) => all.has(s)).map((s) => `<option value="${s}">срез: ${esc(name(s))}</option>`).join("");
+    $("#scope").value = st.scope;
+  }
+
+  function cell(m, k, fmt) { return m && m[k] != null ? fmt(m[k]) : "—"; }
+
+  function renderRows() {
+    const q = st.q.trim().toLowerCase();
+    let html = "", lastFam = null;
+    const list = R.experiments.filter((e) => (!st.fam || e.family === st.fam) &&
+      (!q || `${e.id} ${e.title} ${e.change} ${e.verdict} ${e.hypothesis || ""}`.toLowerCase().includes(q)));
+    for (const e of list) {
+      if (e.family !== lastFam) { html += `<tr class="fam"><td colspan="11">${esc(R.families[e.family])}</td></tr>`; lastFam = e.family; }
+      const sc = scopeOf(e), r = (e.res[st.per] || {})[sc];
+      const m = r && r.m && r.m["сделок"] ? r.m : null, b = r && r.b && r.b["сделок"] ? r.b : null;
+      const d = m && b ? m["итог"] - b["итог"] : null;
+      const sub = `<span class="pill ${verdictClass(e.verdict)}">${esc(e.verdict)}</span>` +
+        (e.baseline ? `<span>база ${esc(e.baseline)}</span>` : "") + (e.hypothesis ? `<span>гипотеза ${esc(e.hypothesis)}</span>` : "") +
+        `<span>${esc(name(sc))}${m ? ` · ${esc(m["с"])}–${esc(m["по"])}` : ""}</span>`;
+      const withBase = (k, fmt) => m ? `${cell(m, k, fmt)}${b ? `<span class="base">${cell(b, k, fmt)}</span>` : ""}` : "—";
+      html += `<tr class="exp" data-id="${esc(e.id)}" tabindex="0" aria-selected="${st.sel === e.id}">
+        <td class="id">${esc(e.id)}</td>
+        <td><div class="ttl">${esc(e.title)}</div><div class="sub">${sub}</div></td>
+        <td>${m ? m["сделок"] : "—"}</td>
+        <td>${withBase("итог", (x) => pct(x))}</td>
+        <td class="${d == null ? "muted" : d > 0 ? "d-up" : "d-down"}">${d == null ? "—" : (d > 0 ? "▲ " : "▼ ") + pct(d)}</td>
+        <td>${withBase("выигрышей", (x) => x.toFixed(0) + "%")}</td>
+        <td>${withBase("ожидание", (x) => pct(x, 3))}</td>
+        <td>${withBase("PF", f2)}</td>
+        <td>${withBase("без_2_лучших", (x) => pct(x))}</td>
+        <td>${withBase("просадка", (x) => pct(x))}</td>
+        <td>${withBase("t", f2)}</td></tr>`;
+    }
+    $("#rows").innerHTML = html || `<tr><td colspan="11" class="empty">Ничего не найдено.</td></tr>`;
+  }
+
+  // ---------- карточка эксперимента ----------
+  let eqChart = null, pxChart = null, pxCandles = null, priceLines = [];
+
+  function weightsFor(data, insts) {
+    const w = {};
+    for (const i of insts) w[i] = 1 / insts.length / Math.max(1, data.runs || 1);
+    return w;
+  }
+
+  function equitySeries(data, insts) {
+    const pts = [];
+    const w = weightsFor(data, insts);
+    for (const i of insts) for (const t of (data.trades[i] || [])) pts.push([t[1], t[5] * w[i]]);
+    pts.sort((a, b) => a[0] - b[0]);
+    const out = []; let acc = 0;
+    for (const [time, v] of pts) { acc += v; if (out.length && out[out.length - 1].time === time) out[out.length - 1].value = +acc.toFixed(3); else out.push({ time, value: +acc.toFixed(3) }); }
+    return out;
+  }
+
+  function chartOpts(el) {
+    return { autoSize: true, layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2"), fontFamily: "IBM Plex Mono, monospace", fontSize: 11 },
+             grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } },
+             rightPriceScale: { borderColor: css("--rule") }, timeScale: { borderColor: css("--rule"), timeVisible: true }, crosshair: { mode: 0 } };
+  }
+
+  async function openDetail(id) {
+    const e = R.experiments.find((x) => x.id === id); if (!e) return;
+    st.sel = id; renderRows();
+    try { history.replaceState(null, "", "#" + id); } catch (err) {}
+    const box = $("#detail"); box.hidden = false;
+    const scopesList = Object.keys(e.res["проверка"]);
+    const mrow = (s, per) => {
+      const r = e.res[per][s]; const m = r.m, b = r.b;
+      if (!m || !m["сделок"]) return "";
+      const c = (k, fmt) => `${cell(m, k, fmt)}${b && b["сделок"] ? `<span class="base">${cell(b, k, fmt)}</span>` : ""}`;
+      return `<tr><td>${esc(name(s))}</td><td>${per}</td><td>${c("сделок", (x) => x)}</td><td>${c("итог", (x) => pct(x))}</td><td>${c("выигрышей", (x) => x.toFixed(0) + "%")}</td>
+        <td>${c("ожидание", (x) => pct(x, 3))}</td><td>${c("ср_выигрыш", (x) => pct(x, 2))}</td><td>${c("ср_проигрыш", (x) => pct(x, 2))}</td><td>${c("PF", f2)}</td>
+        <td>${c("без_2_лучших", (x) => pct(x))}</td><td>${c("просадка", (x) => pct(x))}</td><td>${c("t", f2)}</td><td>${c("лет_в_плюсе", (x) => x)}</td></tr>`;
+    };
+    st.inst = e.instruments[0]; st.run = 0;
+    box.innerHTML = `<div class="detail">
+      <div class="d-head"><h2>${esc(e.id)}. ${esc(e.title)}</h2>
+        <div class="links"><a href="${esc(e.card)}" target="_blank" rel="noopener">карточка в репозитории</a><a href="${esc(e.doc)}" target="_blank" rel="noopener">подробности</a></div></div>
+      ${e.change ? `<div class="kv"><b>Что поменяли:</b> ${esc(e.change)}</div>` : ""}
+      <div class="kv"><b>База:</b> ${e.baseline ? esc(e.baseline) + " — " + esc((R.experiments.find((x) => x.id === e.baseline) || {}).title || "") : "нет (это база)"} · <b>вердикт:</b> <span class="pill ${verdictClass(e.verdict)}">${esc(e.verdict)}</span>${e.costs ? ` · <b>издержки:</b> профиль ${esc(e.costs)}` : ""}${e.dividends ? " · цены акций скорректированы на дивиденды" : ""}</div>
+      <div class="tw"><table><thead><tr><th>срез</th><th>период</th><th>сделок</th><th>итог %</th><th>выигр.</th><th>ожидание</th><th>ср. выигрыш</th><th>ср. проигрыш</th><th>PF</th><th>без 2 лучших</th><th>просадка</th><th>t</th><th>лет в плюсе</th></tr></thead>
+        <tbody>${scopesList.map((s) => mrow(s, "проверка") + mrow(s, "выбор")).join("")}</tbody></table></div>
+      <p class="muted" style="margin:0;font-size:12.5px">Серым под значением — база на тех же инструментах.</p>
+      <div class="grid2">
+        <div style="display:grid;gap:6px"><h3>Накопленный итог: ${esc(name(e.main))}</h3><div class="chart" id="eq"></div>
+          <div class="legend"><span><i style="background:var(--accent)"></i>${esc(e.id)}</span>${e.baseline ? `<span><i style="background:var(--base)"></i>база ${esc(e.baseline)}</span>` : ""}<span>проверка — с 2021 года</span></div></div>
+        <div style="display:grid;gap:6px;align-content:start"><div class="bar"><h3 style="margin-right:auto">Журнал сделок</h3>
+          <select id="d-inst" aria-label="Инструмент">${e.instruments.map((i) => `<option value="${i}">${esc(name(i))}</option>`).join("")}</select>
+          <select id="d-run" aria-label="Прогон"></select></div>
+          <div class="log"><table><thead><tr><th>вход</th><th>сторона</th><th>часов</th><th>%</th><th>выход</th></tr></thead><tbody id="log"><tr><td colspan="5" class="empty">Загрузка…</td></tr></tbody></table></div>
+          <span class="muted" style="font-size:12.5px">Нажмите на сделку — она откроется на графике ниже.</span></div>
+      </div>
+      <div style="display:grid;gap:6px"><h3 id="px-title">Сделки на графике</h3><div class="chart big" id="px"></div>
+        <div class="legend"><span class="pos">▲ / ▼</span> вход в лонг / шорт <span class="pos">●</span> выход с прибылью <span class="neg">●</span> выход с убытком</div></div>
+    </div>`;
+    box.scrollIntoView({ block: "start" });
+    $("#d-inst").addEventListener("change", (ev) => { st.inst = ev.target.value; st.run = 0; fillLog(e); });
+    $("#d-run").addEventListener("change", (ev) => { st.run = +ev.target.value; fillLog(e); });
+    $("#log").addEventListener("click", (ev) => { const tr = ev.target.closest("tr[data-i]"); if (tr) focusTrade(+tr.dataset.i, tr); });
+    const [data, base] = await Promise.all([loadExp(e.id), e.baseline ? loadExp(e.baseline) : null]);
+    if (st.sel !== id) return;
+    // накопленный итог
+    eqChart = LightweightCharts.createChart($("#eq"), chartOpts());
+    const insts = scopeMembers(e, e.main);
+    if (base && insts.every((i) => base.trades[i])) eqChart.addLineSeries({ color: css("--base"), lineWidth: 2, priceLineVisible: false, lastValueVisible: true }).setData(equitySeries(base, insts));
+    eqChart.addLineSeries({ color: css("--accent"), lineWidth: 2, priceLineVisible: false, lastValueVisible: true }).setData(equitySeries(data, insts));
+    eqChart.timeScale().fitContent();
+    fillLog(e);
+  }
+
+  function scopeMembers(e, sc) { return sc === "все" ? e.instruments : sc === "портфель 4" ? ["silver", "lkoh", "gazp", "sber"] : [sc]; }
+
+  async function loadExp(id) { if (!cache[id]) cache[id] = await getJSON(`data/exp/${id}.json`); return cache[id]; }
+
+  async function fillLog(e) {
+    const data = await loadExp(e.id);
+    const runs = data.runs || 1;
+    $("#d-run").innerHTML = Array.from({ length: runs }, (_, k) => `<option value="${k}">${runs > 1 ? "прогон " + (k + 1) : "один прогон"}</option>`).join("");
+    $("#d-run").value = String(st.run); $("#d-run").hidden = runs < 2;
+    const tr = (data.trades[st.inst] || []).map((t, i) => [t, i]).filter(([t]) => t[7] === st.run);
+    const dt = (s) => new Date(s * 1000).toISOString().slice(0, 16).replace("T", " ");
+    $("#log").innerHTML = tr.length ? tr.map(([t, i]) => `<tr data-i="${i}"><td>${dt(t[0])}</td><td>${t[2] > 0 ? "▲ лонг" : "▼ шорт"}</td><td>${Math.round((t[1] - t[0]) / 3600)}</td>
+      <td class="${t[5] > 0 ? "pos" : "neg"}">${pct(t[5], 2)}</td><td>${esc(t[6])}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">Сделок нет.</td></tr>`;
+    await drawPrice(e, data);
+  }
+
+  async function drawPrice(e, data) {
+    const inst = st.inst;
+    $("#px-title").textContent = `Сделки на графике: ${name(inst)}${(data.runs || 1) > 1 ? `, прогон ${st.run + 1}` : ""}`;
+    if (!candles[inst]) {
+      try { const d = await getJSON(`data/candles/${inst}.json`); const t = new Array(d.dt.length); let acc = d.t0; for (let i = 0; i < d.dt.length; i++) { acc += d.dt[i] * 3600; t[i] = acc; } candles[inst] = { d, t }; }
+      catch (err) { $("#px").innerHTML = `<div class="empty">Свечей для этого инструмента нет.</div>`; return; }
+    }
+    const { d, t } = candles[inst];
+    if (pxChart) { pxChart.remove(); pxChart = null; }
+    $("#px").innerHTML = "";
+    pxChart = LightweightCharts.createChart($("#px"), chartOpts());
+    pxCandles = pxChart.addCandlestickSeries({ upColor: css("--win"), downColor: css("--loss"), borderVisible: false, wickUpColor: css("--win"), wickDownColor: css("--loss"), priceLineVisible: false, lastValueVisible: false });
+    pxCandles.applyOptions({ priceFormat: { type: "price", precision: d.decimals, minMove: Math.pow(10, -d.decimals) } });
+    pxCandles.setData(t.map((x, i) => ({ time: x, open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] })));
+    const snap = (x) => { let lo = 0, hi = t.length - 1; if (x <= t[0]) return t[0]; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (t[m] <= x) lo = m; else hi = m - 1; } return t[lo]; };
+    const m = [];
+    for (const tr of (data.trades[inst] || []).filter((x) => x[7] === st.run)) {
+      const long = tr[2] > 0;
+      m.push({ time: snap(tr[0]), position: long ? "belowBar" : "aboveBar", shape: long ? "arrowUp" : "arrowDown", color: long ? css("--long") : css("--short"), size: 1 });
+      m.push({ time: snap(tr[1]), position: long ? "aboveBar" : "belowBar", shape: "circle", color: tr[5] > 0 ? css("--win") : css("--loss"), text: pct(tr[5], 1), size: 0.8 });
+    }
+    m.sort((a, b) => a.time - b.time);
+    pxCandles.setMarkers(m);
+    priceLines = [];
+    const last = t[t.length - 1];
+    pxChart.timeScale().setVisibleRange({ from: last - 120 * 86400, to: last });
+  }
+
+  function focusTrade(i, row) {
+    const data = cache[st.sel]; const tr = data && data.trades[st.inst][i]; if (!tr || !pxChart) return;
+    document.querySelectorAll("#log tr.sel").forEach((r) => r.classList.remove("sel")); row.classList.add("sel");
+    pxChart.timeScale().setVisibleRange({ from: tr[0] - 3 * 86400, to: tr[1] + 3 * 86400 });
+    priceLines.forEach((l) => pxCandles.removePriceLine(l));
+    priceLines = [pxCandles.createPriceLine({ price: tr[3], color: tr[2] > 0 ? css("--long") : css("--short"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "вход" }),
+                  pxCandles.createPriceLine({ price: tr[4], color: tr[5] > 0 ? css("--win") : css("--loss"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `выход ${pct(tr[5], 2)}%` })];
+    $("#px").scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  // ---------- события ----------
+  function seg(id, key) {
+    document.querySelectorAll(`#${id} button`).forEach((b) => b.addEventListener("click", () => {
+      document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute("aria-pressed", x === b));
+      st[key] = b.dataset.v; renderRows();
+    }));
+  }
+  seg("fam", "fam"); seg("per", "per");
+  $("#scope").addEventListener("change", (ev) => { st.scope = ev.target.value; renderRows(); });
+  $("#q").addEventListener("input", (ev) => { st.q = ev.target.value; renderRows(); });
+  $("#rows").addEventListener("click", (ev) => { const tr = ev.target.closest("tr.exp"); if (tr) openDetail(tr.dataset.id); });
+  $("#rows").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { const tr = ev.target.closest("tr.exp"); if (tr) openDetail(tr.dataset.id); } });
+
+  getJSON("data/registry.json").then((r) => {
+    R = r;
+    renderScopes(); renderRows();
+    $("#nolog").innerHTML = R.no_log.map((x) => `<li><b>${esc(x.title)}.</b> ${esc(x.result)} · <a href="${esc(x.doc)}" target="_blank" rel="noopener">подробно</a></li>`).join("");
+    const h = (location.hash || "").slice(1);
+    if (h && R.experiments.some((e) => e.id === h)) openDetail(h);
+  }).catch(() => { $("#rows").innerHTML = `<tr><td colspan="11" class="empty">Не удалось загрузить журнал. Обновите страницу.</td></tr>`; });
+})();
+</script>
