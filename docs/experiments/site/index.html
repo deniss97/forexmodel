@@ -67,6 +67,11 @@ tbody tr.exp { cursor: pointer; }
 tbody tr.exp:hover, tbody tr.exp[aria-selected="true"] { background: var(--accent-soft); }
 .id { font-weight: 600; color: var(--ink2); }
 .ttl { font-weight: 500; }
+.what { font-size: 12.5px; color: var(--ink2); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 80ch; }
+.desc { display: grid; gap: 10px; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr); }
+.desc > div { min-width: 0; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; color: var(--ink2); }
+.desc h4 { margin: 0 0 4px; font: 600 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); }
+@media (max-width: 900px) { .desc { grid-template-columns: minmax(0, 1fr); } }
 .sub { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 3px; font-size: 12px; color: var(--ink3); }
 .pill { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11.5px; font-weight: 500; }
 .v-good { color: var(--up); background: var(--up-bg); } .v-bad { color: var(--down); background: var(--down-bg); } .v-flat { color: var(--flat); background: var(--flat-bg); }
@@ -180,7 +185,7 @@ h3 { font-size: 15px; }
     const q = st.q.trim().toLowerCase();
     let html = "", lastFam = null;
     const list = R.experiments.filter((e) => (!st.fam || e.family === st.fam) &&
-      (!q || `${e.id} ${e.title} ${e.change} ${e.verdict} ${e.hypothesis || ""}`.toLowerCase().includes(q)));
+      (!q || `${e.id} ${e.title} ${e.change} ${e.what || ""} ${e.why || ""} ${e.verdict} ${e.hypothesis || ""}`.toLowerCase().includes(q)));
     for (const e of list) {
       if (e.family !== lastFam) { html += `<tr class="fam"><td colspan="11">${esc(R.families[e.family])}</td></tr>`; lastFam = e.family; }
       const sc = scopeOf(e), r = (e.res[st.per] || {})[sc];
@@ -192,7 +197,7 @@ h3 { font-size: 15px; }
       const withBase = (k, fmt) => m ? `${cell(m, k, fmt)}${b ? `<span class="base">${cell(b, k, fmt)}</span>` : ""}` : "—";
       html += `<tr class="exp" data-id="${esc(e.id)}" tabindex="0" aria-selected="${st.sel === e.id}">
         <td class="id">${esc(e.id)}</td>
-        <td><div class="ttl">${esc(e.title)}</div><div class="sub">${sub}</div></td>
+        <td><div class="ttl">${esc(e.title)}</div>${e.what ? `<div class="what" title="${esc(e.what)}">${esc(e.what)}</div>` : ""}<div class="sub">${sub}</div></td>
         <td>${m ? m["сделок"] : "—"}</td>
         <td>${withBase("итог", (x) => pct(x))}</td>
         <td class="${d == null ? "muted" : d > 0 ? "d-up" : "d-down"}">${d == null ? "—" : (d > 0 ? "▲ " : "▼ ") + pct(d)}</td>
@@ -249,7 +254,7 @@ h3 { font-size: 15px; }
     box.innerHTML = `<div class="detail">
       <div class="d-head"><h2>${esc(e.id)}. ${esc(e.title)}</h2>
         <div class="links"><a href="${esc(e.card)}" target="_blank" rel="noopener">карточка в репозитории</a><a href="${esc(e.doc)}" target="_blank" rel="noopener">подробности</a></div></div>
-      ${e.change ? `<div class="kv"><b>Что поменяли:</b> ${esc(e.change)}</div>` : ""}
+      ${e.what || e.why || e.outcome ? `<div class="desc">${e.what ? `<div><h4>что проверяли</h4>${esc(e.what)}</div>` : ""}${e.why ? `<div><h4>зачем</h4>${esc(e.why)}</div>` : ""}${e.outcome ? `<div><h4>итог простыми словами</h4>${esc(e.outcome)}</div>` : ""}</div>` : (e.change ? `<div class="kv"><b>Что поменяли:</b> ${esc(e.change)}</div>` : "")}
       <div class="kv"><b>База:</b> ${e.baseline ? esc(e.baseline) + " — " + esc((R.experiments.find((x) => x.id === e.baseline) || {}).title || "") : "нет (это база)"} · <b>вердикт:</b> <span class="pill ${verdictClass(e.verdict)}">${esc(e.verdict)}</span>${e.costs ? ` · <b>издержки:</b> профиль ${esc(e.costs)}` : ""}${e.dividends ? " · цены акций скорректированы на дивиденды" : ""}</div>
       <div class="tw"><table><thead><tr><th>срез</th><th>период</th><th>сделок</th><th>итог %</th><th>выигр.</th><th>ожидание</th><th>ср. выигрыш</th><th>ср. проигрыш</th><th>PF</th><th>без 2 лучших</th><th>просадка</th><th>t</th><th>лет в плюсе</th></tr></thead>
         <tbody>${scopesList.map((s) => mrow(s, "проверка") + mrow(s, "выбор")).join("")}</tbody></table></div>

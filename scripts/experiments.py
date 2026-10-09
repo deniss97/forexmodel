@@ -134,6 +134,10 @@ def equity_png(exp: dict, t: pd.DataFrame, base: pd.DataFrame | None, inst: list
 def main(argv=None) -> int:
     cat = yaml.safe_load((DOC / "catalog.yaml").read_text(encoding="utf-8"))
     exps = {e["id"]: e for e in cat["experiments"]}
+    desc_path = DOC / "descriptions.yaml"
+    desc = yaml.safe_load(desc_path.read_text(encoding="utf-8")) if desc_path.exists() else {}
+    for k, e in exps.items():
+        e.update({f: (desc.get(k) or {}).get(f, "") for f in ("what", "why", "outcome")})
     want = list(argv) if argv else list(exps)
     need = set(want) | {exps[i]["baseline"] for i in want if exps[i].get("baseline")}
     trades = {}
@@ -168,8 +172,14 @@ def main(argv=None) -> int:
         lines = [f"# {i}. {exp['title']}", "",
                  f"**Семейство:** {cat['families'][exp['family']]} · **база:** {exp.get('baseline') or '—'} · "
                  f"**гипотеза:** {exp.get('hypothesis') or '—'} · **вердикт:** {exp.get('verdict', '')}", ""]
-        if exp.get("change"):
+        if exp.get("what"):
+            lines += [f"**Что проверяли.** {exp['what']}", ""]
+        elif exp.get("change"):
             lines += [f"**Что поменяли:** {exp['change']}", ""]
+        if exp.get("why"):
+            lines += [f"**Зачем.** {exp['why']}", ""]
+        if exp.get("outcome"):
+            lines += [f"**Итог простыми словами.** {exp['outcome']}", ""]
         if exp.get("costs"):
             lines += [f"**Издержки:** профиль `{exp['costs']['profile']}` (спред и свопы брокера)", ""]
         lines += [f"Подробности: [{exp['doc']}](../../{exp['doc']})", "",
@@ -230,7 +240,7 @@ def main(argv=None) -> int:
     # реестр для страницы
     clean = lambda v: None if isinstance(v, float) and not np.isfinite(v) else v  # noqa: E731
     out = {"protocol": {"test_start": "2021-01-01", "periods": list(PERIODS)}, "families": cat["families"], "names": NAMES,
-           "experiments": [{"id": e["id"], "family": e["family"], "title": e["title"], "change": e.get("change", ""),
+           "experiments": [{"id": e["id"], "family": e["family"], "title": e["title"], "change": e.get("change", ""), "what": e.get("what", ""), "why": e.get("why", ""), "outcome": e.get("outcome", ""),
                             "hypothesis": e.get("hypothesis"), "baseline": e.get("baseline"), "verdict": e.get("verdict", ""),
                             "doc": GH + e["doc"], "card": GH + f"experiments/{e['id']}/summary.md",
                             "costs": (e.get("costs") or {}).get("profile"), "dividends": bool(e.get("dividends")),
