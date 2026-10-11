@@ -56,6 +56,8 @@ def trailing_exit(
     sl_atr: float = 1.0,
     trail_atr: float = 1.5,
     activate_atr: float = 1.0,
+    early_sl_atr: float = 0.0,
+    early_bars: int = 0,
 ) -> ExitResult:
     """Трейлинг вместо фиксированного TP.
 
@@ -69,12 +71,17 @@ def trailing_exit(
     """
     sgn = 1.0 if side == "buy" else -1.0
     stop = entry_price - sgn * sl_atr * atr
+    early = entry_price - sgn * early_sl_atr * atr if early_sl_atr > 0 else None
     best = entry_price
     activated = False
 
     for j in range(len(high)):
         worst = low[j] if sgn > 0 else high[j]
-        if (worst - stop) * sgn <= 0:
+        # ранний стоп: первые early_bars баров, пока трейлинг не включился, — если он ближе обычного
+        if early is not None and j < early_bars and not activated and (early - stop) * sgn > 0:
+            if (worst - early) * sgn <= 0:
+                return j, float(early), "early_stop"
+        elif (worst - stop) * sgn <= 0:
             return j, float(stop), "trailing_stop" if activated else "stop_loss"
 
         ext = high[j] if sgn > 0 else low[j]

@@ -434,6 +434,10 @@ class SimulationConfig:
     tp_atr: float = 2.0
     trail_atr: float = 1.5
     activate_atr: float = 1.0
+    # ранний стоп (гипотеза H32): первые early_stop_hours часов после входа, пока трейлинг не включился,
+    # стоп ближе — early_stop_atr ATR от входа (0 — выключен); потом обычный стоп sl_atr
+    early_stop_atr: float = 0.0
+    early_stop_hours: float = 0.0
     atr_col: str = "atr_14"
     # вход
     signal_source: str = "ensemble"      # ensemble | cb | nn | meta | rule | impulse

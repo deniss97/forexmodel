@@ -20,6 +20,7 @@ import pandas as pd
 TEST_START = pd.Timestamp("2021-01-01")
 PERIODS = {"выбор": (None, TEST_START), "проверка": (TEST_START, None), "всё": (None, None)}
 CORE = ("silver", "lkoh", "gazp", "sber")
+METALS = ("silver", "gold")
 STANDARD_COLS = ["instrument", "run", "side", "open_dt", "close_dt", "open_price", "exit_price",
                  "gross_pct", "profit_pct", "exit_reason"]
 
@@ -34,6 +35,10 @@ def standardize(t: pd.DataFrame, instrument: str, run: str) -> pd.DataFrame:
         "gross_pct": t.get("gross_unit_pct", t["gross_pct"]).astype(float), "profit_pct": t["profit_pct"].astype(float),
         "exit_reason": t["exit_reason"].astype(str),
     })
+    # необязательные: ATR на входе (для линий стопа на графике), размер, свопы и число переносов
+    for col in ("atr_at_entry", "size", "swap_pct", "rollovers"):
+        if col in t:
+            out[col] = t[col].astype(float).to_numpy()
     return out
 
 
@@ -99,6 +104,8 @@ def scopes(instruments: Iterable[str]) -> Dict[str, list]:
     out = {"все": inst}
     if all(i in inst for i in CORE) and len(inst) > len(CORE):
         out["портфель 4"] = list(CORE)
+    if all(i in inst for i in METALS) and len(inst) > len(METALS):
+        out["металлы"] = list(METALS)          # то, что можно торговать через CFD при свопах брокера
     for i in inst:
         out[i] = [i]
     return out

@@ -1,0 +1,46 @@
+# База для сравнения экспериментов (B01, неделя 12.10.2026): всё, без чего результат завышен.
+#   * комиссия 0.04% за круг (как во всех прогонах);
+#   * проскальзывание 0.05% цены на входе и на выходе (договорённость с Тимуром: 0.1% — перебор);
+#   * свопы за перенос позиции через ночь — по условиям Альфа-Форекс на 06.10.2026 (alfaforex.yaml),
+#     других реальных условий у нас нет. Серебро — с шагом 0.001 (осторожный вариант, шаг не уточнён).
+# Издержки за круг = commission_pct + 2 × slippage_pct; свопы, моменты переноса и тройной перенос — как
+# у брокера. Дивиденды акций и стоп по гэпу учтены в самих прогонах (*_costs, *_b1).
+broker: база B01
+date: 2026-10-12
+instruments:
+  silver:
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    point: 0.001
+    ref_price: 75.238
+    swap_long_points: -55
+    swap_short_points: -15
+    triple_weekday: 2
+    rollover_hour: 17
+  gold:
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    point: 0.01
+    ref_price: 4539.998
+    swap_long_points: -50
+    swap_short_points: 0
+    triple_weekday: 2
+    rollover_hour: 17
+  lkoh: &ru_stock
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    swap_long_pct: -0.068
+    swap_short_pct: -0.068
+    triple_weekday: 3
+    rollover_hour: 0
+  gazp: *ru_stock
+  sber: *ru_stock
+  moex: *ru_stock
+  mtss: *ru_stock
+  eth:
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    swap_long_pct: -0.042
+    swap_short_pct: -0.042
+    triple_weekday: 4
+    rollover_hour: 21

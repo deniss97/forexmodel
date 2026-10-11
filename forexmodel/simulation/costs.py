@@ -41,12 +41,19 @@ def rollover_count(open_dt, close_dt, hour: int = 0, triple_weekday: Optional[in
     return n
 
 
-def profile_entry(path: str | Path, instrument: str) -> dict:
-    """Условия брокера по инструменту, переведённые в % цены."""
+def profile_entry(path: str | Path, instrument: str, overrides: Optional[dict] = None) -> dict:
+    """Условия брокера по инструменту, переведённые в % цены.
+
+    Вместо спреда можно задать `commission_pct` и `slippage_pct` (на каждую сторону): издержки за круг
+    = комиссия + 2 × проскальзывание. `overrides` заменяют поля профиля (напр. {"slippage_pct": 0.1}).
+    """
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if instrument not in data["instruments"]:
         raise KeyError(f"в профиле {path} нет инструмента {instrument!r}")
     e = dict(data["instruments"][instrument])
+    e.update(overrides or {})
+    if "commission_pct" in e and "spread_pct" not in e:
+        e["spread_pct"] = float(e["commission_pct"]) + 2 * float(e.get("slippage_pct", 0.0))
     if "point" in e:
         k = e["point"] / e["ref_price"] * 100.0                   # 1 пункт в % цены
         e.setdefault("spread_pct", e.get("spread_points", 0.0) * k)

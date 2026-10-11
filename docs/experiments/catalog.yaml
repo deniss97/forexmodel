@@ -10,6 +10,15 @@ families:
   strategy: стратегия без ML (импульс)
   model: модель CatBoost
 
+# Выход по умолчанию — для линий стопа и трейлинга на графике сделок (в ATR на входе): стоп sl, трейлинг
+# trail от лучшей цены, включается после хода act; не дольше hours часов. У эксперимента — поле exit.
+exit_defaults:
+  strategy:
+    all: {sl: 6, trail: 6, act: 3, hours: 240}
+  model:
+    silver: {sl: 2, trail: 1.5, act: 1, hours: 10}
+    lkoh: {sl: 1, trail: 1.5, act: 1, hours: 10}
+
 experiments:
   # ---------------- импульсная стратегия ----------------
   - id: S01
@@ -62,164 +71,202 @@ experiments:
   - id: S04
     family: strategy
     title: Проскальзывание 0.05% на входе и выходе
-    change: исполнение хуже на 0.05% цены при входе и при выходе по стопу
-    baseline: S02
-    verdict: проверка запаса
+    change: исполнение хуже на 0.05% цены при входе и при выходе — по сделкам S03 (0.1% — перебор, договорённость 11.10)
+    baseline: S03
+    verdict: учтено в базе
     doc: results/audit.md
-    sources:
-      silver: [silver_robust__impulse_6_3_slip0.05_xslip0.05]
-      lkoh: [lkoh_robust__impulse_6_3_slip0.05_xslip0.05]
-      gazp: [gazp_robust__impulse_6_3_slip0.05_xslip0.05]
-      sber: [sber_robust__impulse_6_3_slip0.05_xslip0.05]
+    dividends: true
+    costs: {profile: base, set: {swap_long_pct: 0, swap_short_pct: 0}}
+    sources: *s03
+  - id: B01
+    family: strategy
+    title: База — все неизбежные издержки
+    change: S03 (дивиденды, стоп по гэпу, комиссия 0.04%) + проскальзывание 0.05% на сторону + свопы за перенос по условиям Альфа-Форекс (серебро с шагом 0.001); с ней сравниваются все эксперименты
+    hypothesis: H02
+    baseline: S04
+    verdict: база
+    doc: results/costs.md
+    dividends: true
+    costs: &base_costs {profile: base}
+    sources: *s03
   - id: S05
     family: strategy
-    title: Проскальзывание 0.1% на входе и выходе
-    change: рабочий порог издержек
-    baseline: S02
-    verdict: проверка запаса
+    title: Проскальзывание 0.1% вместо 0.05%
+    change: исполнение хуже на 0.1% цены на входе и на выходе — запас прочности базы
+    baseline: B01
+    verdict: "запаса нет: портфель в минусе, металлы +16%"
     doc: results/audit.md
-    sources:
-      silver: [silver_robust__impulse_6_3_slip0.1_xslip0.1]
-      lkoh: [lkoh_robust__impulse_6_3_slip0.1_xslip0.1]
-      gazp: [gazp_robust__impulse_6_3_slip0.1_xslip0.1]
-      sber: [sber_robust__impulse_6_3_slip0.1_xslip0.1]
+    dividends: true
+    costs: {profile: base, set: {slippage_pct: 0.1}}
+    sources: *s03
   - id: S06
     family: strategy
-    title: Проскальзывание 0.15% на входе и выходе
+    title: Проскальзывание 0.15% вместо 0.05%
     change: ""
-    baseline: S02
-    verdict: проверка запаса
+    baseline: B01
+    verdict: "убыточно (безубыток металлов ≈ 0.13%)"
     doc: results/audit.md
-    sources:
-      silver: [silver_robust__impulse_6_3_slip0.15_xslip0.15]
-      lkoh: [lkoh_robust__impulse_6_3_slip0.15_xslip0.15]
-      gazp: [gazp_robust__impulse_6_3_slip0.15_xslip0.15]
-      sber: [sber_robust__impulse_6_3_slip0.15_xslip0.15]
+    dividends: true
+    costs: {profile: base, set: {slippage_pct: 0.15}}
+    sources: *s03
   - id: S07
     family: strategy
-    title: Проскальзывание 0.2% на входе и выходе
+    title: Проскальзывание 0.2% вместо 0.05%
     change: ""
-    baseline: S02
-    verdict: проверка запаса
+    baseline: B01
+    verdict: "убыточно"
     doc: results/audit.md
-    sources:
-      silver: [silver_robust__impulse_6_3_slip0.2_xslip0.2]
-      lkoh: [lkoh_robust__impulse_6_3_slip0.2_xslip0.2]
-      gazp: [gazp_robust__impulse_6_3_slip0.2_xslip0.2]
-      sber: [sber_robust__impulse_6_3_slip0.2_xslip0.2]
+    dividends: true
+    costs: {profile: base, set: {slippage_pct: 0.2}}
+    sources: *s03
   - id: S08
     family: strategy
-    title: Проскальзывание 0.3% на входе и выходе
-    change: за точкой безубытка (≈ 0.25%)
-    baseline: S02
-    verdict: проверка запаса
+    title: Проскальзывание 0.3% вместо 0.05%
+    change: ""
+    baseline: B01
+    verdict: "убыточно"
     doc: results/audit.md
-    sources:
-      silver: [silver_robust__impulse_6_3_slip0.3_xslip0.3]
-      lkoh: [lkoh_robust__impulse_6_3_slip0.3_xslip0.3]
-      gazp: [gazp_robust__impulse_6_3_slip0.3_xslip0.3]
-      sber: [sber_robust__impulse_6_3_slip0.3_xslip0.3]
-  - id: S09
-    family: strategy
-    title: Проскальзывание 0.1% только на входе
-    change: исполнение входа хуже на 0.1% цены
-    baseline: S01
-    verdict: проверка запаса
-    doc: results/patterns.md
-    sources:
-      silver: [silver_exit_240h6__impulse_6_3_slip0.1]
-      gold: [gold_exit_240h6__impulse_6_3_slip0.1]
-      lkoh: [lkoh_exit_240h6__impulse_6_3_slip0.1]
-      gazp: [gazp_exit_240h6__impulse_6_3_slip0.1]
-      sber: [sber_exit_240h6__impulse_6_3_slip0.1]
-      moex: [moex_exit_240h6__impulse_6_3_slip0.1]
-      mtss: [mtss_exit_240h6__impulse_6_3_slip0.1]
-      eth: [eth_exit_240h6__impulse_6_3_slip0.1]
+    dividends: true
+    costs: {profile: base, set: {slippage_pct: 0.3}}
+    sources: *s03
   - id: S10
     family: strategy
     title: Выход при развороте тренд-фильтра
     change: сделка закрывается, когда гейт C разворачивается против неё
-    baseline: S01
-    verdict: не помогло
+    baseline: B01
+    verdict: "хуже базы"
     doc: results/trend_filter_ema.md
+    dividends: true
+    costs: *base_costs
     sources:
-      silver: [silver_exit_240h6_flipC__impulse_6_3]
-      lkoh: [lkoh_exit_240h6_flipC__impulse_6_3]
-      gazp: [gazp_exit_240h6_flipC__impulse_6_3]
-      sber: [sber_exit_240h6_flipC__impulse_6_3]
+      silver: [silver_b1flip__impulse_6_3]
+      gold: [gold_b1flip__impulse_6_3]
+      lkoh: [lkoh_b1flip__impulse_6_3]
+      gazp: [gazp_b1flip__impulse_6_3]
+      sber: [sber_b1flip__impulse_6_3]
+      moex: [moex_b1flip__impulse_6_3]
+      mtss: [mtss_b1flip__impulse_6_3]
+      eth: [eth_b1flip__impulse_6_3]
   - id: S11
     family: strategy
-    title: Узкий трейлинг 3 ATR
-    change: стоп и трейлинг 3 ATR вместо 6
-    baseline: S01
-    verdict: не помогло (хрупко к проскальзыванию)
+    title: Узкий стоп и трейлинг 3 ATR
+    change: стоп и трейлинг 3 ATR вместо 6 (трейлинг включается после +1.5 ATR), выход ≤ 240 ч
+    exit: {sl: 3, trail: 3, act: 1.5, hours: 240}
+    baseline: B01
+    verdict: "хуже базы"
     doc: results/patterns.md
+    dividends: true
+    costs: *base_costs
     sources:
-      silver: [silver_exit_240h3__impulse_6_3]
-      gold: [gold_exit_240h3__impulse_6_3]
-      lkoh: [lkoh_exit_240h3__impulse_6_3]
+      silver: [silver_costs__impulse_6_3_h240_tr3]
+      gold: [gold_costs__impulse_6_3_h240_tr3]
+      lkoh: [lkoh_costs__impulse_6_3_h240_tr3]
+      gazp: [gazp_costs__impulse_6_3_h240_tr3]
+      sber: [sber_costs__impulse_6_3_h240_tr3]
+      moex: [moex_costs__impulse_6_3_h240_tr3]
+      mtss: [mtss_costs__impulse_6_3_h240_tr3]
+      eth: [eth_costs__impulse_6_3_h240_tr3]
   - id: S12
     family: strategy
     title: Выход не позже 120 ч (стоп 6, трейлинг 6, активация 3)
-    change: первая версия стратегии в пайплайне
-    baseline: S01
-    verdict: хуже 240 ч
-    doc: results/patterns.md
+    change: удержание вдвое короче — меньше свопов
+    hypothesis: H03
+    exit: {sl: 6, trail: 6, act: 3, hours: 120}
+    baseline: B01
+    verdict: "не подтверждено (выбор лучше, проверка хуже)"
+    doc: results/costs.md
+    dividends: true
+    costs: *base_costs
     sources:
-      silver: [silver_imp_120h__impulse_6_3]
-      gold: [gold_imp_120h__impulse_6_3]
-      lkoh: [lkoh_imp_120h__impulse_6_3]
+      silver: [silver_costs__impulse_6_3_h120_tr6]
+      gold: [gold_costs__impulse_6_3_h120_tr6]
+      lkoh: [lkoh_costs__impulse_6_3_h120_tr6]
+      gazp: [gazp_costs__impulse_6_3_h120_tr6]
+      sber: [sber_costs__impulse_6_3_h120_tr6]
+      moex: [moex_costs__impulse_6_3_h120_tr6]
+      mtss: [mtss_costs__impulse_6_3_h120_tr6]
+      eth: [eth_costs__impulse_6_3_h120_tr6]
   - id: S13
     family: strategy
     title: Выход не позже 48 ч (стоп 4, трейлинг 4, активация 2)
     change: короткое удержание
-    baseline: S01
-    verdict: хуже 240 ч
-    doc: results/patterns.md
+    hypothesis: H03
+    exit: {sl: 4, trail: 4, act: 2, hours: 48}
+    baseline: B01
+    verdict: "хуже базы"
+    doc: results/costs.md
+    dividends: true
+    costs: *base_costs
     sources:
-      silver: [silver_imp_48h__impulse_6_3]
-      gold: [gold_imp_48h__impulse_6_3]
-      lkoh: [lkoh_imp_48h__impulse_6_3]
+      silver: [silver_costs__impulse_6_3_h48_tr4]
+      gold: [gold_costs__impulse_6_3_h48_tr4]
+      lkoh: [lkoh_costs__impulse_6_3_h48_tr4]
+      gazp: [gazp_costs__impulse_6_3_h48_tr4]
+      sber: [sber_costs__impulse_6_3_h48_tr4]
+      moex: [moex_costs__impulse_6_3_h48_tr4]
+      mtss: [mtss_costs__impulse_6_3_h48_tr4]
+      eth: [eth_costs__impulse_6_3_h48_tr4]
   - id: S14
     family: strategy
-    title: Без тренд-фильтра (выход 120 ч)
+    title: Без тренд-фильтра
     change: импульс в обе стороны без гейта C
-    baseline: S12
-    verdict: хуже
+    baseline: B01
+    verdict: "хуже базы"
     doc: results/patterns.md
+    dividends: true
+    costs: *base_costs
     sources:
-      silver: [silver_imp_120h__impulse_6_3_notrend]
-      gold: [gold_imp_120h__impulse_6_3_notrend]
-      lkoh: [lkoh_imp_120h__impulse_6_3_notrend]
+      silver: [silver_b1__impulse_6_3_notrend]
+      gold: [gold_b1__impulse_6_3_notrend]
+      lkoh: [lkoh_b1__impulse_6_3_notrend]
+      gazp: [gazp_b1__impulse_6_3_notrend]
+      sber: [sber_b1__impulse_6_3_notrend]
+      moex: [moex_b1__impulse_6_3_notrend]
+      mtss: [mtss_b1__impulse_6_3_notrend]
+      eth: [eth_b1__impulse_6_3_notrend]
   - id: S15
     family: strategy
-    title: Только при высокой волатильности (выход 120 ч)
+    title: Только при высокой волатильности
     change: входить, только если ATR не ниже медианы прошлого
-    baseline: S12
-    verdict: не универсально
+    baseline: B01
+    verdict: "не подтверждено (выбор лучше, проверка как база)"
     doc: results/patterns.md
+    dividends: true
+    costs: *base_costs
     sources:
-      silver: [silver_imp_120h__impulse_6_3_vol]
-      gold: [gold_imp_120h__impulse_6_3_vol]
-      lkoh: [lkoh_imp_120h__impulse_6_3_vol]
+      silver: [silver_b1__impulse_6_3_vol]
+      gold: [gold_b1__impulse_6_3_vol]
+      lkoh: [lkoh_b1__impulse_6_3_vol]
+      gazp: [gazp_b1__impulse_6_3_vol]
+      sber: [sber_b1__impulse_6_3_vol]
+      moex: [moex_b1__impulse_6_3_vol]
+      mtss: [mtss_b1__impulse_6_3_vol]
+      eth: [eth_b1__impulse_6_3_vol]
   - id: S16
     family: strategy
-    title: Импульс 8 ч / 3.5 ATR (выход 120 ч)
+    title: Импульс 8 ч / 3.5 ATR
     change: более длинное окно и порог импульса
-    baseline: S12
-    verdict: без улучшения
+    baseline: B01
+    verdict: "хуже базы"
     doc: results/patterns.md
+    dividends: true
+    costs: *base_costs
     sources:
-      silver: [silver_imp_120h__impulse_8_3.5]
-      gold: [gold_imp_120h__impulse_8_3.5]
-      lkoh: [lkoh_imp_120h__impulse_8_3.5]
+      silver: [silver_b1__impulse_8_3.5]
+      gold: [gold_b1__impulse_8_3.5]
+      lkoh: [lkoh_b1__impulse_8_3.5]
+      gazp: [gazp_b1__impulse_8_3.5]
+      sber: [sber_b1__impulse_8_3.5]
+      moex: [moex_b1__impulse_8_3.5]
+      mtss: [mtss_b1__impulse_8_3.5]
+      eth: [eth_b1__impulse_8_3.5]
   - id: S17
     family: strategy
     title: Издержки Альфа-Форекс (CFD), серебро с шагом 0.001
-    change: спред брокера вместо комиссии и свопы за каждый перенос через ночь (условия на 06.10.2026)
+    change: спред брокера вместо комиссии и проскальзывания (свопы те же, что в базе; условия на 06.10.2026)
     hypothesis: H02
-    baseline: S03
-    verdict: акции через CFD убыточны
+    baseline: B01
+    verdict: "как база; металлы лучше (+61%)"
     doc: results/costs.md
     dividends: true
     costs: {profile: alfaforex}
@@ -227,10 +274,10 @@ experiments:
   - id: S18
     family: strategy
     title: Издержки Альфа-Форекс, серебро с шагом 0.0001
-    change: то же, если серебро котируется с 4 знаками
+    change: то же, если серебро котируется с 4 знаками (спред и свопы серебра в 10 раз меньше)
     hypothesis: H19
-    baseline: S03
-    verdict: зависит от шага цены серебра
+    baseline: B01
+    verdict: "зависит от шага цены серебра"
     doc: results/costs.md
     dividends: true
     costs: {profile: alfaforex, override: {silver: silver_4dp}}
@@ -240,6 +287,7 @@ experiments:
     title: Альфа-Форекс + выход 168 ч / 4 ATR
     change: короче удержание, чтобы платить меньше свопов (лучший вариант сетки по 2016–2020)
     hypothesis: H03
+    exit: {sl: 4, trail: 4, act: 2, hours: 168}
     baseline: S17
     verdict: не помогло
     doc: results/costs.md
@@ -259,6 +307,7 @@ experiments:
     title: Альфа-Форекс + выход 120 ч / 6 ATR
     change: ""
     hypothesis: H03
+    exit: {sl: 6, trail: 6, act: 3, hours: 120}
     baseline: S17
     verdict: не помогло
     doc: results/costs.md
@@ -278,6 +327,7 @@ experiments:
     title: Альфа-Форекс + выход 72 ч / 3 ATR
     change: ""
     hypothesis: H03
+    exit: {sl: 3, trail: 3, act: 1.5, hours: 72}
     baseline: S17
     verdict: не помогло
     doc: results/costs.md
@@ -294,36 +344,62 @@ experiments:
       eth: [eth_costs__impulse_6_3_h72_tr3]
   - id: S22
     family: strategy
-    title: Выход 168 ч / 4 ATR при прежних издержках
-    change: тот же вариант выхода без свопов — для сравнения с S19
-    baseline: S03
-    verdict: без улучшения
+    title: Выход 168 ч / 4 ATR
+    change: тот же вариант выхода, что в S19, при издержках базы
+    hypothesis: H03
+    exit: {sl: 4, trail: 4, act: 2, hours: 168}
+    baseline: B01
+    verdict: "не помогло (в пределах шума)"
     doc: results/costs.md
     dividends: true
+    costs: *base_costs
     sources: *h168tr4
+  - id: S23
+    family: strategy
+    title: Ранний стоп 3 ATR первые 12 часов
+    change: пока трейлинг не включился, первые 12 ч после входа стоп 3 ATR вместо 6; лучший вариант сетки 2–4 ATR × 12–48 ч по выбору 2016–2020
+    hypothesis: H32
+    exit: {sl: 6, trail: 6, act: 3, hours: 240, es: 3, eh: 12}
+    baseline: B01
+    verdict: "не помогло (на выборе хуже базы, металлы хуже и на проверке)"
+    doc: results/strategy_week_1012.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_es__impulse_6_3_es3_eh12]
+      gold: [gold_es__impulse_6_3_es3_eh12]
+      lkoh: [lkoh_es__impulse_6_3_es3_eh12]
+      gazp: [gazp_es__impulse_6_3_es3_eh12]
+      sber: [sber_es__impulse_6_3_es3_eh12]
+      moex: [moex_es__impulse_6_3_es3_eh12]
+      mtss: [mtss_es__impulse_6_3_es3_eh12]
+      eth: [eth_es__impulse_6_3_es3_eh12]
 
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01
     family: model
+    costs: *base_costs
     title: CatBoost серебра, базовая (3 seed)
     change: 81 признак, разметка на 3 класса (+1.5 ATR раньше −0.75 ATR за 10 ч и наоборот), сделки по тренд-фильтру; годовой walk-forward 2019–2026
     hypothesis: H20
     baseline: null
-    verdict: база (преимущество ≈ комиссии)
+    verdict: "база (преимущество ≈ комиссии, при издержках базы в минусе)"
     doc: results/model_changelog.md
     sources:
       silver: [silver_base, silver_base_s7, silver_base_s1]
   - id: M02
     family: model
+    costs: *base_costs
     title: Обучение только внутри тренд-гейта
     change: модель учится только на барах, где гейт разрешает вход
     baseline: M01
-    verdict: на проверке 2021–26 лучше базы (t 1.8 против 1.2), но базы разных прогонов (M01 и M09) расходятся так же — перепроверить
+    verdict: "лучше базы, но базы разных прогонов (M01 и M09) расходятся так же — перепроверить"
     doc: results/model_changelog.md
     sources:
       silver: [silver_base_gateonly, silver_base_gateonly_s1, silver_base_gateonly_s2, silver_base_gateonly_s7]
   - id: M03
     family: model
+    costs: *base_costs
     title: Разметка по направлению (h4 / 0.3 ATR)
     change: класс — знак хода за 4 часа, если он больше 0.3 ATR
     baseline: M01
@@ -333,6 +409,7 @@ experiments:
       silver: [silver_h4_d030]
   - id: M04
     family: model
+    costs: *base_costs
     title: Регрессия величины хода вместо классов
     change: модель предсказывает ход в ATR через 4 часа
     baseline: M01
@@ -342,6 +419,7 @@ experiments:
       silver: [silver_reg_h4]
   - id: M05
     family: model
+    costs: *base_costs
     title: Сильнее регуляризованная модель
     change: lr 0.02, глубина 4, l2 10, до 3000 деревьев
     baseline: M01
@@ -351,6 +429,7 @@ experiments:
       silver: [silver_reg_s42, silver_reg_s7, silver_reg_s1]
   - id: M06
     family: model
+    costs: *base_costs
     title: Ансамбль 3 моделей с разными seed
     change: вероятности трёх моделей усредняются
     baseline: M01
@@ -360,6 +439,7 @@ experiments:
       silver: [silver_ens3_s42, silver_ens3_s7, silver_ens3_s1]
   - id: M07
     family: model
+    costs: *base_costs
     title: CatBoost (прогон для мета-модели, seed 42)
     change: тот же прогон без мета-фильтра — база для M08
     baseline: null
@@ -369,6 +449,7 @@ experiments:
       silver: [silver_metactx_s42__cb]
   - id: M08
     family: model
+    costs: *base_costs
     title: Мета-модель с контекстом, порог 0.50
     change: вторая модель решает, брать ли сделку (контекст, класс входа, недавние сделки)
     baseline: M07
@@ -378,6 +459,7 @@ experiments:
       silver: [silver_metactx_s42__meta_0.50]
   - id: M09
     family: model
+    costs: *base_costs
     title: CatBoost (прогон для размера позиции, 3 seed)
     change: тот же прогон без размера — база для M10–M12
     baseline: null
@@ -387,6 +469,7 @@ experiments:
       silver: [silver_vol_s42__cb, silver_vol_s7__cb, silver_vol_s1__cb]
   - id: M10
     family: model
+    costs: *base_costs
     title: Размер позиции пропорционален ATR
     change: размер = ATR / медиана ATR (меньше в спокойном рынке)
     baseline: M09
@@ -396,6 +479,7 @@ experiments:
       silver: [silver_vol_s42__volatr_0_1, silver_vol_s7__volatr_0_1, silver_vol_s1__volatr_0_1]
   - id: M11
     family: model
+    costs: *base_costs
     title: Торговать только при ATR ≥ медианы
     change: при низкой волатильности сделок нет
     baseline: M09
@@ -405,6 +489,7 @@ experiments:
       silver: [silver_vol_s42__volatr_1_0, silver_vol_s7__volatr_1_0, silver_vol_s1__volatr_1_0]
   - id: M12
     family: model
+    costs: *base_costs
     title: Размер по прогнозу волатильности моделью
     change: прогноз волатильности CatBoost вместо текущего ATR
     baseline: M09
@@ -414,6 +499,7 @@ experiments:
       silver: [silver_vol_s42__vol_0_1, silver_vol_s7__vol_0_1, silver_vol_s1__vol_0_1]
   - id: M13
     family: model
+    costs: *base_costs
     title: CatBoost (прогон вариантов тренд-гейта, 3 seed)
     change: тот же прогон с гейтом C — база для M14–M17
     baseline: null
@@ -423,6 +509,7 @@ experiments:
       silver: [silver_gatevar_s42__cb, silver_gatevar_s7__cb, silver_gatevar_s1__cb]
   - id: M14
     family: model
+    costs: *base_costs
     title: Сброс тренда по EMA5 4-часовых свечей
     change: тренд не «вверх», пока цена закрывается ниже EMA5 (идея из ноутбука)
     baseline: M13
@@ -432,6 +519,7 @@ experiments:
       silver: [silver_gatevar_s42__gate_ema4h, silver_gatevar_s7__gate_ema4h, silver_gatevar_s1__gate_ema4h]
   - id: M15
     family: model
+    costs: *base_costs
     title: Сброс тренда по EMA5 часовых свечей
     change: ""
     baseline: M13
@@ -441,6 +529,7 @@ experiments:
       silver: [silver_gatevar_s42__gate_ema1h, silver_gatevar_s7__gate_ema1h, silver_gatevar_s1__gate_ema1h]
   - id: M16
     family: model
+    costs: *base_costs
     title: Тренд-фильтр «плато» из нового подбора
     change: лучший по следованию тренду набор параметров
     baseline: M13
@@ -450,6 +539,7 @@ experiments:
       silver: [silver_gatevar_s42__gate_tuned, silver_gatevar_s7__gate_tuned, silver_gatevar_s1__gate_tuned]
   - id: M17
     family: model
+    costs: *base_costs
     title: Признаки «слабой зоны» по EMA5
     change: расстояние до EMA5 и сторона закрытия как признаки модели
     baseline: M13
@@ -461,6 +551,7 @@ experiments:
   # ---------------- модель CatBoost: LKOH ----------------
   - id: L01
     family: model
+    costs: *base_costs
     title: CatBoost LKOH без ленты (2024–2026, 3 seed)
     change: квартальный walk-forward 2024Q3–2026Q1, без фильтров
     baseline: null
@@ -470,6 +561,7 @@ experiments:
       lkoh: [lkoh_base24_s42, lkoh_base24_s7, lkoh_base24_s1]
   - id: L02
     family: model
+    costs: *base_costs
     title: CatBoost LKOH с признаками ленты сделок
     change: признаки обезличенных сделок ALGOPACK
     baseline: L01
@@ -479,6 +571,7 @@ experiments:
       lkoh: [lkoh_of_s42, lkoh_of_s7, lkoh_of_s1]
   - id: L03
     family: model
+    costs: *base_costs
     title: Лента + история с 2016 года
     change: обучение на всей истории, признаки ленты там, где она есть
     baseline: L01
@@ -488,6 +581,7 @@ experiments:
       lkoh: [lkoh_of_full_s42, lkoh_of_full_s7, lkoh_of_full_s1]
   - id: L04
     family: model
+    costs: *base_costs
     title: Правило ленты без модели (z_6 ≥ 1.5)
     change: вход по нетто-дельте крупных сделок за 6 ч
     baseline: L01
@@ -497,6 +591,7 @@ experiments:
       lkoh: [lkoh_rule__rule_of_large_delta_z_6_1.5]
   - id: L05
     family: model
+    costs: *base_costs
     title: CatBoost LKOH (прогон для размера позиции, 3 seed)
     change: база для L06
     baseline: null
@@ -506,6 +601,7 @@ experiments:
       lkoh: [lkoh_vol_s42__cb, lkoh_vol_s7__cb, lkoh_vol_s1__cb]
   - id: L06
     family: model
+    costs: *base_costs
     title: LKOH — торговать только при ATR ≥ медианы
     change: ""
     baseline: L05
@@ -515,6 +611,7 @@ experiments:
       lkoh: [lkoh_vol_s42__volatr_1_0, lkoh_vol_s7__volatr_1_0, lkoh_vol_s1__volatr_1_0]
   - id: L07
     family: model
+    costs: *base_costs
     title: LKOH годовой walk-forward с гейтом C
     change: годы 2018–2026
     baseline: null
@@ -524,6 +621,7 @@ experiments:
       lkoh: [lkoh_gate]
   - id: L08
     family: model
+    costs: *base_costs
     title: LKOH — обучение только внутри гейта
     change: ""
     baseline: L07
@@ -554,3 +652,5 @@ no_log:
   - {title: "Лента сделок: дельта за окна и «поглощение»", result: "знак эффекта меняется между 2024 и 2025–26", doc: results/lkoh_features_orderflow.md}
   - {title: "Возврат к среднему внутри дня на LKOH", result: "до комиссии до +0.13%, после — не значим", doc: results/model_changelog.md}
   - {title: "Фильтры входа CatBoost: против свечи, пауза после стопа, растяжение", result: "не работают на обоих инструментах", doc: results/silver_1h_cb/trade_review.md}
+  - {title: "Выход из «застывших» сделок импульса (H34): через K часов трейлинг не включился и цена ближе Y ATR от входа — закрыть", result: "быстрый расчёт по часовым свечам поверх сделок B01, издержки базы: выбор 72 ч / 1 ATR по 2016–2020; на проверке хуже базы — металлы +41% → +22%, портфель 4 −2% → −14%", doc: results/strategy_week_1012.md}
+  - {title: "Вход против уже ушедшей цены (H33): ход за 72 / 120 ч до сигнала против сделки", result: "разведка на сделках B01, только выбор 2016–2020: монотонной связи с результатом нет, правила для фильтра нет — проверку не трогали", doc: results/strategy_week_1012.md}

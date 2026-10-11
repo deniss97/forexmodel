@@ -47,7 +47,8 @@ reports/walk_forward/<name>_trades.csv.
 (docs/results/patterns.md): ход за N баров >= x ATR в сторону хода, по тренд-гейту;
 `vol` — только при ATR >= медианы хвоста train; `slip0.05` / `slipatr0.25` —
 проскальзывание на входе. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr
-или токенами варианта `h<часов>` (горизонт) и `tr<ATR>` (стоп = трейлинг, активация на половине).
+или токенами варианта `h<часов>` (горизонт) и `tr<ATR>` (стоп = трейлинг, активация на половине);
+`es<ATR>:eh<часов>` — ранний стоп: ближе обычного первые часы после входа, пока трейлинг не включился.
 
 `--costs configs/costs/alfaforex.yaml:silver` — издержки брокера: спред вместо комиссии и свопы за
 перенос позиции (forexmodel/simulation/costs.py). Дивиденды акций — `--set data.dividends_path=...`.
@@ -158,6 +159,11 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
                 c.simulation.activate_atr = float(x[2:]) / 2
             elif re.fullmatch(r"act[\d.]+", x):
                 c.simulation.activate_atr = float(x[3:])
+            # ранний стоп: es<ATR> — ближний стоп первые eh<часов> часов, пока трейлинг не включился
+            elif re.fullmatch(r"es[\d.]+", x):
+                c.simulation.early_stop_atr = float(x[2:])
+            elif re.fullmatch(r"eh[\d.]+", x):
+                c.simulation.early_stop_hours = float(x[2:])
     else:
         c.simulation.signal_source = "rule"
         c.simulation.rule_feature = parts[1]

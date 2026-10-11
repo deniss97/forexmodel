@@ -160,15 +160,20 @@ def simulate_trades(
             if np.isfinite(atr):
                 entry_price += d * sim.entry_slippage_atr * atr
 
+        # ранний стоп: сколько минутных баров приходится на первые early_stop_hours часов после входа
+        early_bars = 0
+        if sim.early_stop_atr and sim.early_stop_hours:
+            limit = p_time[open_idx] + np.timedelta64(int(sim.early_stop_hours * 60), "m")
+            early_bars = int(np.searchsorted(p_time, limit, side="left")) - open_idx
         exit_rel, exit_price, exit_reason = _resolve_exit(
-            sim, side, entry_price, atr, p_high[win], p_low[win], p_close[win]
+            sim, side, entry_price, atr, p_high[win], p_low[win], p_close[win], early_bars
         )
-        if sim.stop_fill == "gap" and exit_reason in ("stop_loss", "trailing_stop"):
+        if sim.stop_fill == "gap" and exit_reason in ("stop_loss", "trailing_stop", "early_stop"):
             # минута открылась уже за стопом — исполнение по open, а не по уровню
             o = float(p_open[win][exit_rel])
             if (o - exit_price) * (1.0 if side == "buy" else -1.0) < 0:
                 exit_price = o
-        if sim.exit_slippage_pct and exit_reason in ("stop_loss", "trailing_stop"):
+        if sim.exit_slippage_pct and exit_reason in ("stop_loss", "trailing_stop", "early_stop"):
             exit_price *= 1 - (1.0 if side == "buy" else -1.0) * sim.exit_slippage_pct / 100.0
 
         if trend_minutes is not None:
@@ -239,11 +244,12 @@ def _column_or_nan(df: pd.DataFrame, col: str) -> np.ndarray:
     return pd.to_numeric(df[col], errors="coerce").to_numpy(dtype=float)
 
 
-def _resolve_exit(sim, side, entry_price, atr, high, low, close):
+def _resolve_exit(sim, side, entry_price, atr, high, low, close, early_bars=0):
     """Выбор правила выхода. Барьеры — ВСЕГДА от сырой цены входа."""
     if sim.exit_mode == "trailing":
         return trailing_exit(
-            high, low, close, side, entry_price, atr, sim.sl_atr, sim.trail_atr, sim.activate_atr
+            high, low, close, side, entry_price, atr, sim.sl_atr, sim.trail_atr, sim.activate_atr,
+            sim.early_stop_atr, early_bars,
         )
 
     if sim.exit_mode == "atr":

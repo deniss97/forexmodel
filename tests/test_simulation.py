@@ -102,6 +102,21 @@ def test_trailing_exit_locks_profit_after_activation():
     assert idx == 3
 
 
+def test_trailing_exit_early_stop_only_in_first_bars():
+    """Ранний стоп 2 ATR действует первые 3 бара; после них — обычный стоп 6 ATR."""
+    low = np.array([99.5, 99.0, 98.5, 97.5, 97.0])     # −2.5 ATR только на 4-м баре
+    high = low + 0.5
+    close = low + 0.2
+    args = dict(side="buy", entry_price=100.0, atr=1.0, sl_atr=6.0, trail_atr=6.0, activate_atr=3.0)
+
+    idx, price, reason = trailing_exit(high, low, close, early_sl_atr=2.0, early_bars=3, **args)
+    assert reason == "timeout"                          # к 4-му бару ранний стоп уже снят
+
+    idx, price, reason = trailing_exit(high, low, close, early_sl_atr=2.0, early_bars=4, **args)
+    assert (idx, reason) == (3, "early_stop")
+    assert price == pytest.approx(98.0)
+
+
 def test_trailing_exit_cuts_false_breakout():
     high = np.array([100.5, 100.2, 99.5])
     low = np.array([100.0, 99.5, 98.5])

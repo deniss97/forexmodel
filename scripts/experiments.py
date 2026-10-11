@@ -41,10 +41,12 @@ DOC = ROOT / "docs" / "experiments"
 SITE = DOC / "site" / "data"
 GH = "https://github.com/deniss97/forexmodel/blob/main/docs/"
 NAMES = {"silver": "серебро", "gold": "золото", "lkoh": "LKOH", "gazp": "GAZP", "sber": "SBER", "moex": "MOEX",
-         "mtss": "MTSS", "eth": "ETH", "все": "все инструменты", "портфель 4": "портфель 4"}
+         "mtss": "MTSS", "eth": "ETH", "все": "все инструменты", "портфель 4": "портфель 4",
+         "металлы": "металлы (серебро + золото)"}
 STOCK_FILES = {"lkoh": "LKOH_1m_15-26", "gazp": "GAZP_1m_15-26_upd", "sber": "SBER_1m_15-26",
                "moex": "MOEX_1m_15-26", "mtss": "MTSS_1m_15-26"}
-REASON = {"stop_loss": "стоп", "trailing_stop": "трейлинг", "timeout": "время", "take_profit": "тейк", "trend_flip": "разворот"}
+REASON = {"stop_loss": "стоп", "trailing_stop": "трейлинг", "timeout": "время", "take_profit": "тейк", "trend_flip": "разворот",
+          "early_stop": "ранний стоп"}
 METRIC_COLS = ["сделок", "итог", "выигрышей", "ожидание", "ср_выигрыш", "ср_проигрыш", "PF", "без_2_лучших",
                "просадка", "t", "лет_в_плюсе", "с", "по"]
 BG, INK, INK2, GRID, BLUE, GRAY = "#f6f4ef", "#15233b", "#4a5568", "#dcd7cc", "#2459b3", "#9aa3ae"
@@ -65,7 +67,7 @@ def load_trades(exp: dict) -> pd.DataFrame:
                 t["gross_unit_pct"] = t["gross_pct"] / t["size"]
             if costs:
                 name = (costs.get("override") or {}).get(inst, inst)
-                t = recost(t, profile_entry(ROOT / "configs" / "costs" / f"{costs['profile']}.yaml", name))
+                t = recost(t, profile_entry(ROOT / "configs" / "costs" / f"{costs['profile']}.yaml", name, costs.get("set")))
             parts.append(standardize(t, inst, run))
     return pd.concat(parts, ignore_index=True)
 
@@ -85,10 +87,19 @@ def raw_prices(t: pd.DataFrame) -> pd.DataFrame:
             _factor_cache[inst] = (m["time"].to_numpy(), adjustment_factors(m, divs))
         tt, f = _factor_cache[inst]
         sel = t["instrument"] == inst
-        for col, tcol in (("open_price", "open_dt"), ("exit_price", "close_dt")):
+        cols = [("open_price", "open_dt"), ("exit_price", "close_dt")]
+        if "atr_at_entry" in t:
+            cols.append(("atr_at_entry", "open_dt"))
+        for col, tcol in cols:
             i = np.clip(np.searchsorted(tt, t.loc[sel, tcol].to_numpy(), "left"), 0, len(f) - 1)
             t.loc[sel, col] = t.loc[sel, col].to_numpy() / f[i]
     return t
+
+
+def exit_params(cat: dict, exp: dict, inst: str) -> dict:
+    """Параметры выхода для линий стопа на графике: стоп, трейлинг, активация (в ATR на входе), часы."""
+    fam = (cat.get("exit_defaults") or {}).get(exp["family"], {})
+    return {**fam.get("all", {}), **fam.get(inst, {}), **(exp.get("exit") or {})}
 
 
 def fmt(v, k):
@@ -201,15 +212,20 @@ def main(argv=None) -> int:
         cards.append((exp, res, main_scope))
         # данные страницы: сделки в сыром масштабе цен (для графика со свечами)
         raw = raw_prices(t) if exp.get("dividends") else t
-        runs = {r: k for k, r in enumerate(sorted(raw["run"].unique()))}
-        payload = {}
+        payload, runs_by = {}, {}
+        num = lambda g, c, k: [round(float(x), k) if np.isfinite(x) else None for x in g[c]] if c in g else [None] * len(g)  # noqa: E731
         for ins, g in raw.groupby("instrument"):
             g = g.sort_values("open_dt")
+            runs = {r: k for k, r in enumerate(sorted(g["run"].unique()))}   # прогоны (seed) — внутри инструмента
+            runs_by[ins] = len(runs)
+            # [вход, выход, сторона, цена входа, цена выхода, результат %, причина, прогон, ATR на входе, своп %]
             payload[ins] = [[int(a.timestamp()), int(c.timestamp()), int(s), round(float(op), 6), round(float(ep), 6),
-                             round(float(p), 4), REASON.get(r, r), runs[rn]]
-                            for a, c, s, op, ep, p, r, rn in zip(g["open_dt"], g["close_dt"], g["side"], g["open_price"],
-                                                                 g["exit_price"], g["profit_pct"], g["exit_reason"], g["run"])]
-        (SITE / "exp" / f"{i}.json").write_text(json.dumps({"id": i, "runs": len(runs), "trades": payload},
+                             round(float(p), 4), REASON.get(r, r), runs[rn], atr, sw]
+                            for a, c, s, op, ep, p, r, rn, atr, sw in zip(g["open_dt"], g["close_dt"], g["side"], g["open_price"],
+                                                                          g["exit_price"], g["profit_pct"], g["exit_reason"], g["run"],
+                                                                          num(g, "atr_at_entry", 6), num(g, "swap_pct", 4))]
+        (SITE / "exp" / f"{i}.json").write_text(json.dumps({"id": i, "runs": max(runs_by.values()), "runs_by": runs_by, "trades": payload,
+                                                            "exit": {ins: exit_params(cat, exp, ins) for ins in payload}},
                                                            ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     if argv:
         print("частичная сборка: registry, README и страница не перезаписаны")
@@ -220,6 +236,8 @@ def main(argv=None) -> int:
     lines = ["# Журнал экспериментов", "",
              "Все эксперименты посчитаны одинаково: **проверка — сделки, открытые с 1 января 2021 года** (параметры выбирались "
              "раньше), метрики после издержек эксперимента. Портфель — инструменты поровну; база — на тех же инструментах. "
+             "С 11.10 эксперименты сравниваются с базой **B01** — все неизбежные издержки: дивиденды, стоп по гэпу, комиссия 0.04%, "
+             "проскальзывание 0.05% на сторону, свопы за перенос (configs/costs/base.yaml). "
              "Интерактивная версия с журналом сделок на графике — https://claude.ai/artifact/E4teCbCVvojCf96CJy9UQU. Каталог — [catalog.yaml](catalog.yaml), сборка — `scripts/experiments.py`.", ""]
     for fam, fam_name in cat["families"].items():
         lines += [f"## {fam_name}", "",
