@@ -388,15 +388,22 @@ experiments:
   - id: S25
     family: strategy
     title: Акции на бирже, только лонг
-    change: то же, но по акциям только лонги — шорт не открывается (дорог или недоступен); металлы и эфир как в базе, в обе стороны
+    change: то же, но по акциям только лонги — шортовые сигналы гасятся до симуляции (штатные прогоны *_lo, scripts/queues/long_only.sh); металлы и эфир как в базе, в обе стороны
     hypothesis: H04
     baseline: B01
-    verdict: "лучше базы: портфель 4 +54% (PF 1.32), подтверждается на выборе"
+    verdict: "лучше базы: портфель 4 +53% (PF 1.29), подтверждается на выборе и на свежих данных"
     doc: results/exchange.md
     dividends: true
     costs: {profile: exchange}
-    long_only: [lkoh, gazp, sber, moex, mtss]
-    sources: *s03
+    sources:
+      silver: [silver_costs__impulse_6_3_h240_tr6]
+      gold: [gold_costs__impulse_6_3_h240_tr6]
+      lkoh: [lkoh_lo__impulse_6_3_long]
+      gazp: [gazp_lo__impulse_6_3_long]
+      sber: [sber_lo__impulse_6_3_long]
+      moex: [moex_lo__impulse_6_3_long]
+      mtss: [mtss_lo__impulse_6_3_long]
+      eth: [eth_costs__impulse_6_3_h240_tr6]
 
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01

@@ -17,6 +17,7 @@ last_with (утро следующего дня, праздничная или �
 
     python scripts/fetch_dividends.py            # скачать страницы и пересобрать таблицу
     python scripts/fetch_dividends.py --offline  # только из сохранённых страниц reports/_cache/dividends
+    python scripts/fetch_dividends.py --live     # и свежие отсечки по data/raw/live (scripts/fetch_moex_iss.py)
 """
 
 from __future__ import annotations
@@ -105,6 +106,7 @@ def ex_moment(last_with: pd.Timestamp, t: np.ndarray, o: np.ndarray, c: np.ndarr
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--offline", action="store_true")
+    ap.add_argument("--live", action="store_true", help="минуты из data/raw/live/<TICKER>_1m_live.csv, где он есть (свежие отсечки)")
     args = ap.parse_args(argv)
     pd.set_option("display.width", 250)
     rows = []
@@ -112,7 +114,13 @@ def main(argv=None) -> int:
         if not args.offline:
             download(ticker)
         dohod, sl = parse(ticker)
-        m = pd.read_pickle(ROOT / "reports" / "_cache" / f"{fname}_1m.pkl").sort_values("time")
+        live = ROOT / "data" / "raw" / "live" / f"{ticker}_1m_live.csv"
+        if args.live and live.exists():
+            from forexmodel.data.loader import load_minute_compact
+
+            m = load_minute_compact(live, "begin", ROOT / "reports" / "_cache").sort_values("time")
+        else:
+            m = pd.read_pickle(ROOT / "reports" / "_cache" / f"{fname}_1m.pkl").sort_values("time")
         t = m["time"].to_numpy()
         bdays = business_days(m)
         o, c = m["open"].to_numpy(dtype=float), m["close"].to_numpy(dtype=float)

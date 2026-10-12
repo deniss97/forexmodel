@@ -48,7 +48,8 @@ reports/walk_forward/<name>_trades.csv.
 `vol` — только при ATR >= медианы хвоста train; `slip0.05` / `slipatr0.25` —
 проскальзывание на входе. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr
 или токенами варианта `h<часов>` (горизонт) и `tr<ATR>` (стоп = трейлинг, активация на половине);
-`es<ATR>:eh<часов>` — ранний стоп: ближе обычного первые часы после входа, пока трейлинг не включился.
+`es<ATR>:eh<часов>` — ранний стоп: ближе обычного первые часы после входа, пока трейлинг не включился;
+`long` — только лонговые сигналы (шорт гасится до симуляции).
 
 `--costs configs/costs/alfaforex.yaml:silver` — издержки брокера: спред вместо комиссии и свопы за
 перенос позиции (forexmodel/simulation/costs.py). Дивиденды акций — `--set data.dividends_path=...`.
@@ -171,6 +172,9 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
         c.simulation.use_trend_filter = len(parts) > 3 and parts[3] == "trend"
         use_vol = False
     signals = build_signal_column(ds.test.copy(), c)
+    if parts[0] == "impulse" and "long" in parts[3:]:
+        # только лонг (шорт дорог или недоступен): шортовые сигналы гасятся до симуляции и не занимают время
+        signals.loc[pd.to_numeric(signals["final_class"], errors="coerce") == 0, "final_class"] = 1
     c.volatility.enabled = use_vol
     if use_vol:
         from forexmodel.models.volatility import position_sizes, predict_volatility, train_volatility_model
