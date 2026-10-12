@@ -1,0 +1,26 @@
+# Что и как торгует импульсная стратегия в реальном времени (scripts/live_signals.py).
+# Правило — как у базы B01 и S25: ход за 6 ч ≥ 3 ATR по тренд-гейту C, стоп и трейлинг 6 ATR (активация +3),
+# выход не позже 240 ч, стоп по гэпу. Металлы — через CFD в обе стороны; акции — на бирже, только лонг.
+# csv — минутные свечи до текущего момента: акции докачивает scripts/fetch_moex_iss.py; для металлов
+# источника в реальном времени пока нет (выгрузка из терминала брокера) — стоит история.
+rule:
+  variant: impulse:6:3
+  set:
+    simulation.horizon_minutes: 14400
+    simulation.sl_atr: 6
+    simulation.trail_atr: 6
+    simulation.activate_atr: 3
+    simulation.stop_fill: gap
+stock_set:                    # тренд-гейт C для акций (как в прогонах *_costs / *_b1)
+  trend_gate.enabled: true
+  trend_gate.require_adx_rising: false
+  trend_gate.update_every_bar: true
+  trend_gate.hold_bars: 2
+  simulation.trend_col: trend_gate
+  data.dividends_path: data/dividends/moex_dividends.csv
+instruments:
+  silver: {config: configs/silver.yaml, csv: data/raw/XAGUSD_1m_full.csv, sides: both, venue: "CFD Альфа-Форекс"}
+  gold:   {config: configs/silver.yaml, csv: data/raw/XAUUSD_1m_full.csv, sides: both, venue: "CFD Альфа-Форекс"}
+  sber:   {config: configs/default.yaml, csv: data/raw/live/SBER_1m_live.csv, sides: long, ticker: SBER, venue: "Мосбиржа"}
+  gazp:   {config: configs/default.yaml, csv: data/raw/live/GAZP_1m_live.csv, sides: long, ticker: GAZP, venue: "Мосбиржа"}
+  lkoh:   {config: configs/default.yaml, csv: data/raw/live/LKOH_1m_live.csv, sides: long, ticker: LKOH, venue: "Мосбиржа"}
