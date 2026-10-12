@@ -1,0 +1,47 @@
+# Акции на Мосбирже вместо CFD (гипотеза H04, неделя 12.10); металлы и эфир — как в базе B01 (CFD Альфа-Форекс).
+#   * комиссия брокера и биржи 0.05% на сторону (0.1% за круг) — осторожная оценка розничного тарифа;
+#   * проскальзывание 0.05% на сторону, как в базе;
+#   * лонг своими деньгами: переноса нет (swap_long_pct 0);
+#   * шорт — плата брокера за непокрытую позицию, % цены за каждую календарную ночь (выходные тоже):
+#     реальная ставка зависит от брокера — 0.05% в день здесь допущение, чувствительность к ней
+#     считает scripts/exchange_costs.py. Дивиденды: лонг получает дивиденд целиком (в ценах с корректировкой),
+#     НДФЛ 13% с дивиденда не учтён.
+broker: биржа (MOEX) для акций, CFD для металлов
+date: 2026-10-12
+instruments:
+  lkoh: &moex_stock
+    commission_pct: 0.10
+    slippage_pct: 0.05
+    swap_long_pct: 0.0
+    swap_short_pct: -0.05
+    triple_weekday: null      # плата за каждую календарную ночь
+    rollover_hour: 0
+  gazp: *moex_stock
+  sber: *moex_stock
+  moex: *moex_stock
+  mtss: *moex_stock
+  silver:
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    point: 0.001
+    ref_price: 75.238
+    swap_long_points: -55
+    swap_short_points: -15
+    triple_weekday: 2
+    rollover_hour: 17
+  gold:
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    point: 0.01
+    ref_price: 4539.998
+    swap_long_points: -50
+    swap_short_points: 0
+    triple_weekday: 2
+    rollover_hour: 17
+  eth:
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    swap_long_pct: -0.042
+    swap_short_pct: -0.042
+    triple_weekday: 4
+    rollover_hour: 21

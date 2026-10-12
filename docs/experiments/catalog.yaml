@@ -374,6 +374,29 @@ experiments:
       moex: [moex_es__impulse_6_3_es3_eh12]
       mtss: [mtss_es__impulse_6_3_es3_eh12]
       eth: [eth_es__impulse_6_3_es3_eh12]
+  - id: S24
+    family: strategy
+    title: Акции на бирже, шорт 0.05% в день
+    change: акции на Мосбирже вместо CFD — лонг своими деньгами без переноса, шорт платит 0.05% за каждую ночь (допущение), комиссия 0.1% за круг; металлы и эфир как в базе
+    hypothesis: H04
+    baseline: B01
+    verdict: "лучше базы, если шорт ≤ 0.08% в день (ставку уточнить)"
+    doc: results/exchange.md
+    dividends: true
+    costs: {profile: exchange}
+    sources: *s03
+  - id: S25
+    family: strategy
+    title: Акции на бирже, только лонг
+    change: то же, но по акциям только лонги — шорт не открывается (дорог или недоступен); металлы и эфир как в базе, в обе стороны
+    hypothesis: H04
+    baseline: B01
+    verdict: "лучше базы: портфель 4 +54% (PF 1.32), подтверждается на выборе"
+    doc: results/exchange.md
+    dividends: true
+    costs: {profile: exchange}
+    long_only: [lkoh, gazp, sber, moex, mtss]
+    sources: *s03
 
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01

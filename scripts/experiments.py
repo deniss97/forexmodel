@@ -68,6 +68,9 @@ def load_trades(exp: dict) -> pd.DataFrame:
             if costs:
                 name = (costs.get("override") or {}).get(inst, inst)
                 t = recost(t, profile_entry(ROOT / "configs" / "costs" / f"{costs['profile']}.yaml", name, costs.get("set")))
+            if inst in (exp.get("long_only") or []):
+                # только лонг (шорт недоступен или дорог): шорты убираются из готовых сделок
+                t = t[t["side"].astype(str).isin(["buy", "1", "2"])]
             parts.append(standardize(t, inst, run))
     return pd.concat(parts, ignore_index=True)
 
