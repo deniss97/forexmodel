@@ -10,7 +10,8 @@
   * важность групп признаков CatBoost серебра (docs/results/feature_importance/silver_groups.csv);
   * кэш баров лаборатории паттернов (reports/_cache/pattern_bars_*.pkl) — для «импульс продолжается».
 
-    python scripts/weekly_charts.py [--out docs/results/weekly/2026-10-05]
+    python scripts/weekly_charts.py [--week 2026-10-05]
+    python scripts/weekly_charts.py --week 2026-10-12      # отчёт № 2: база B01 и разбор недели
 """
 
 from __future__ import annotations
@@ -295,13 +296,162 @@ def rule_trade(out: Path) -> dict:
             "часов": float(tr["minutes_in_trade"] / 60)}
 
 
+
+# ---------------- неделя 2026-10-05 – 2026-10-12 (отчёт № 2) ----------------
+# Источники: журнал экспериментов (docs/experiments/registry.csv, docs/experiments/B01/trades.csv.gz) и
+# разбор недели (scripts/strategy_week_1012.py → docs/results/strategy_week_1012/).
+EXP = ROOT / "docs" / "experiments"
+
+
+def _reg(i: str, per: str, sc: str):
+    r = pd.read_csv(EXP / "registry.csv")
+    x = r[(r["id"] == i) & (r["период"] == per) & (r["срез"] == sc)]
+    return x.iloc[0] if len(x) else None
+
+
+def cost_steps(out: Path) -> dict:
+    """Портфель 4 на проверке 2021–2026: как каждая учтённая издержка меняет итог (S01 → B01) + металлы B01."""
+    steps = [("S01", "комиссия\n0.04%"), ("S02", "+ стоп\nпо гэпу"), ("S03", "+ дивиденды"),
+             ("S04", "+ проскаль-\nзывание 0.05%"), ("B01", "+ свопы\n= база B01")]
+    vals = []
+    for i, _ in steps:
+        x = _reg(i, "проверка", "портфель 4")
+        vals.append(float((x if x is not None else _reg(i, "проверка", "все"))["итог"]))
+    met = float(_reg("B01", "проверка", "металлы")["итог"])
+    f, ax = figure(1600, 620)
+    style(ax)
+    k = np.arange(len(steps) + 1)
+    v = vals + [met]
+    cols = [BLUE if x > 0 else ORANGE for x in vals] + [BLUE]
+    ax.bar(k, v, 0.6, color=cols)
+    ax.bar([k[-1]], [met], 0.6, color="none", edgecolor=INK, linewidth=2, hatch="//")
+    for kk, x in zip(k, v):
+        ax.text(kk, x + (4 if x >= 0 else -4), f"{x:+.0f}%", ha="center", va="bottom" if x >= 0 else "top",
+                fontsize=FS + 2, fontweight="bold", color=INK)
+    ax.set_xticks(k)
+    ax.set_xticklabels([s for _, s in steps] + ["металлы\n(база B01)"], fontsize=FS - 1, color=INK)
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.axvline(len(steps) - 0.5, color=GRID, linewidth=2, linestyle="--")
+    ax.set_ylabel("итог 2021–2026, %", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.set_ylim(min(v) - 25, max(v) + 25)
+    f.tight_layout()
+    save(f, out, "cost_steps.png")
+    return dict(zip([i for i, _ in steps] + ["металлы"], v))
+
+
+def swaps_by_instrument(out: Path) -> pd.DataFrame:
+    """Проверка 2021–2026 по инструментам: до свопов (S04) и с ними (B01)."""
+    order = ["silver", "gold", "sber", "gazp", "eth", "mtss", "lkoh", "moex"]
+    rows = [(i, float(_reg("S04", "проверка", i)["итог"]), float(_reg("B01", "проверка", i)["итог"])) for i in order]
+    d = pd.DataFrame(rows, columns=["inst", "без свопов", "со свопами"]).set_index("inst")
+    f, ax = figure(1600, 620)
+    style(ax)
+    k = np.arange(len(d))
+    ax.bar(k - 0.2, d["без свопов"], 0.38, color=GRAY, label="без свопов (S04)")
+    ax.bar(k + 0.2, d["со свопами"], 0.38, color=[BLUE if x > 0 else ORANGE for x in d["со свопами"]], label="со свопами (база B01)")
+    for kk, x in zip(k, d["со свопами"]):
+        ax.text(kk + 0.2, x + (3 if x >= 0 else -3), f"{x:+.0f}", ha="center", va="bottom" if x >= 0 else "top",
+                fontsize=FS - 1, fontweight="bold", color=INK)
+    ax.set_xticks(k)
+    ax.set_xticklabels([NAMES[i] for i in d.index], fontsize=FS, color=INK)
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_ylabel("итог 2021–2026, %", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="upper right")
+    f.tight_layout()
+    save(f, out, "swaps_by_instrument.png")
+    return d
+
+
+def b01_equity(out: Path) -> dict:
+    """Накопленный итог базы B01: портфель 4 и металлы, 2016–2026."""
+    t = pd.read_csv(EXP / "B01" / "trades.csv.gz", parse_dates=["open_dt", "close_dt"])
+    f, ax = figure(1600, 560)
+    style(ax)
+    res = {}
+    for name, mem, color in (("портфель 4", ["silver", "lkoh", "gazp", "sber"], ORANGE), ("металлы", ["silver", "gold"], BLUE)):
+        x = t[t["instrument"].isin(mem)].sort_values("close_dt")
+        y = (x["profit_pct"] / len(mem)).cumsum()
+        ax.plot(x["close_dt"], y, color=color, linewidth=3, label=name)
+        ax.text(x["close_dt"].iloc[-1], y.iloc[-1], f"  {name} {y.iloc[-1]:+.0f}%", va="center", fontsize=FS, color=INK)
+        res[name] = float(y.iloc[-1])
+    ax.axvspan(pd.Timestamp("2021-01-01"), t["close_dt"].max(), color=BLUE, alpha=0.06, lw=0)
+    ax.text(pd.Timestamp("2021-02-01"), ax.get_ylim()[1], "проверка →", va="top", fontsize=FS - 1, color=BLUE)
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_ylabel("накопленный итог, %", fontsize=FS, color=INK2)
+    ax.set_xlim(right=t["close_dt"].max() + pd.Timedelta(days=700))
+    ax.set_xticks([pd.Timestamp(f"{y}-01-01") for y in range(2016, 2027, 2)])
+    ax.set_xticklabels([str(y) for y in range(2016, 2027, 2)])
+    f.tight_layout()
+    save(f, out, "b01_equity.png")
+    return res
+
+
+def mae_and_early_stop(out: Path) -> dict:
+    """Разбор недели: результат сделки по ходу против за 24 ч и PF металлов в сетке раннего стопа."""
+    import strategy_week_1012 as sw
+
+    e, candles = sw.load_b01()
+    m = sw.mae_table(e, candles)
+    m["bin"] = pd.cut(m["mae24"], [-1, 1, 2, 3, 4, 5, 6, 99], labels=["<1", "1–2", "2–3", "3–4", "4–5", "5–6", "≥6"])
+    b = m.groupby("bin", observed=True).agg(n=("p", "size"), mean=("p", "mean"))
+    f, ax = figure(1600, 600)
+    style(ax)
+    k = np.arange(len(b))
+    ax.bar(k, b["mean"], 0.62, color=[BLUE if v > 0 else ORANGE for v in b["mean"]])
+    for kk, (v, n) in enumerate(zip(b["mean"], b["n"])):
+        ax.text(kk, v + (0.08 if v >= 0 else -0.08), f"{v:+.2f}%", ha="center", va="bottom" if v >= 0 else "top",
+                fontsize=FS, fontweight="bold", color=INK)
+    ax.set_xticks(k)
+    ax.set_xticklabels([f"{i} ATR\n{n} сделок" for i, n in zip(b.index, b["n"])], fontsize=FS - 2, color=INK2)
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_ylabel("средний результат сделки, %", fontsize=FS, color=INK2)
+    ax.set_xlabel("насколько цена ушла против позиции за первые 24 часа", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.set_ylim(b["mean"].min() - 0.6, b["mean"].max() + 0.5)
+    f.tight_layout()
+    save(f, out, "mae24.png")
+
+    g = pd.read_csv(ROOT / "docs" / "results" / "strategy_week_1012" / "early_stop_grid.csv")
+    f, axes = figure(1600, 600, ncols=2)
+    for ax, per in zip(axes, ("выбор", "проверка")):
+        x = g[(g["срез"] == "металлы") & (g["период"] == per)].set_index("вариант")["PF"]
+        base = float(x["impulse_6_3"])
+        grid = np.array([[x[f"impulse_6_3_es{a}_eh{h}"] for h in (12, 24, 48)] for a in (2, 3, 4)])
+        ax.imshow(grid - base, cmap="RdBu", vmin=-0.25, vmax=0.25, aspect="auto")
+        for (r, c), v in np.ndenumerate(grid):
+            ax.text(c, r, f"{v:.2f}", ha="center", va="center", fontsize=FS + 2, fontweight="bold", color=INK)
+        ax.set_xticks(range(3))
+        ax.set_xticklabels(["12 ч", "24 ч", "48 ч"], fontsize=FS - 1, color=INK2)
+        ax.set_yticks(range(3))
+        ax.set_yticklabels(["2 ATR", "3 ATR", "4 ATR"], fontsize=FS - 1, color=INK2)
+        ax.set_title(f"{'выбор 2016–2020' if per == 'выбор' else 'проверка 2021–2026'} · база PF {base:.2f}",
+                     fontsize=FS, color=INK, loc="left")
+        for s_ in ax.spines.values():
+            s_.set_visible(False)
+    f.tight_layout()
+    save(f, out, "early_stop.png")
+    return {"mae": b["mean"].round(2).to_dict()}
+
+
+def week2(out: Path) -> None:
+    print("издержки по шагам:", {k: round(v, 1) for k, v in cost_steps(out).items()})
+    print("по инструментам:\n", swaps_by_instrument(out).round(1).to_string())
+    print("накопленный итог B01:", {k: round(v, 1) for k, v in b01_equity(out).items()})
+    print("разбор недели:", mae_and_early_stop(out))
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--out", default=str(ROOT / "docs" / "results" / "weekly" / "2026-10-05"))
+    ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1) или 2026-10-12 (№ 2)")
+    ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
     logging.disable(logging.WARNING)
-    out = Path(args.out)
+    out = Path(args.out or ROOT / "docs" / "results" / "weekly" / args.week)
     out.mkdir(parents=True, exist_ok=True)
+    if args.week == "2026-10-12":
+        week2(out)
+        return 0
     st = equity(out)
     for k, v in st.items():
         print(k, {a: (round(b, 1) if isinstance(b, float) else b) for a, b in v.items()})
