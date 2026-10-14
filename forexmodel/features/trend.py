@@ -144,7 +144,10 @@ def add_trend_filter(df: pd.DataFrame, cfg: TrendConfig) -> pd.DataFrame:
         out["trend_4h"] = 0.0
         return out
 
-    out = add_trend_filter_early(df, cfg) if cfg.mode == "early" else add_trend_filter_confirm(df, cfg)
+    if cfg.mode in ("score", "classic"):
+        out = add_trend_filter_new(df, cfg)
+    else:
+        out = add_trend_filter_early(df, cfg) if cfg.mode == "early" else add_trend_filter_confirm(df, cfg)
     if cfg.shock_atr > 0:
         out["trend_4h"] = _apply_shock(out, cfg)
     if cfg.ema_reset_period > 0:
@@ -264,6 +267,33 @@ def trend_gate_values(df: pd.DataFrame, cfg: TrendConfig) -> np.ndarray:
     if not base["time"].reset_index(drop=True).equals(out["time"].reset_index(drop=True)):
         raise ValueError("trend_gate: ряд должен быть отсортирован по времени без дублей")
     return out["trend_4h"].to_numpy(dtype=float)
+
+
+def add_trend_filter_new(df: pd.DataFrame, cfg: TrendConfig) -> pd.DataFrame:
+    """Режимы из ТЗ 15.10 (features/trend_score.py): `score` — трёхслойный скор на рабочем ТФ
+    (старший ТФ — только режим), `classic` — индикатор `rule` на `timeframe` по закрытым бинам.
+    Колонки TREND_COLUMNS кроме trend_4h и trend_age_4h — NaN (у этих фильтров нет ADX и наклона)."""
+    from .trend_score import classic_direction, score_direction
+
+    df = df.copy()
+    df["time"] = pd.to_datetime(df["time"])
+    if cfg.mode == "score":
+        out = df.sort_values("time").reset_index(drop=True)
+        out["trend_4h"] = score_direction(out, cfg)
+    else:
+        def compute(htf: pd.DataFrame) -> pd.DataFrame:
+            htf["trend_4h"] = classic_direction(htf.reset_index(drop=True), cfg.rule)
+            return htf
+
+        out = _apply_on_grids(df, cfg, compute, ["trend_4h"])
+        out["trend_4h"] = out["trend_4h"].fillna(0.0)
+    for c in TREND_COLUMNS:
+        if c not in out.columns:
+            out[c] = np.nan
+    out["trend_age_4h"] = _trend_age(out["trend_4h"])
+    log.info("Тренд-фильтр (%s %s, %s): доля баров с трендом %.1f%%", cfg.mode, cfg.rule if cfg.mode == "classic" else "",
+             cfg.timeframe, 100 * (out["trend_4h"] != 0).mean())
+    return out
 
 
 def add_trend_filter_early(df: pd.DataFrame, cfg: TrendConfig) -> pd.DataFrame:

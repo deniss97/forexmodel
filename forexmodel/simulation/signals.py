@@ -129,6 +129,10 @@ def build_signal_column(df: pd.DataFrame, cfg: Config, signal_col: str = "final_
         signal = _rule_signal(out, sim.rule_feature, sim.rule_threshold, sim.rule_invert)
     elif source == "impulse":
         signal = _impulse_signal(out, sim.impulse_bars, sim.impulse_atr, sim.atr_col)
+    elif source == "pattern":
+        from .patterns import pattern_signal
+
+        signal = pattern_signal(out, sim.pattern, sim.atr_col)
     else:
         raise ValueError(f"Неизвестный signal_source: {source}")
 

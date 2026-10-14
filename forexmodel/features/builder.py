@@ -53,6 +53,42 @@ def add_ema_zone_features(df: pd.DataFrame, cfg: Config) -> pd.DataFrame:
     return df
 
 
+def add_trend_score_features(df: pd.DataFrame, cfg: Config) -> pd.DataFrame:
+    """Признаки ТЗ 15.10 (config.use_trend_score_features): компоненты трёхслойного фильтра и уровни.
+
+    Дневные уровни — по прошлым календарным дням (максимум текущего дня не входит); часы с экстремума —
+    по часовым барам за 20·24 бара, включая текущий (его high/low известны на закрытии). Только прошлое.
+    """
+    import numpy as np
+
+    from .trend_score import trend_score_components
+
+    df = df.copy()
+    comp = trend_score_components(df.reset_index(drop=True), cfg.trend)
+    for c in comp.columns:
+        df[c] = comp[c].to_numpy()
+    close = df["close"].to_numpy(dtype=float)
+    atr = df[cfg.atr_col].replace(0, np.nan).to_numpy(dtype=float)
+    day = df["time"].dt.floor("D").to_numpy()
+    d = df.groupby(day).agg(high=("high", "max"), low=("low", "min"))
+    rng = d["high"] - d["low"]
+    hi20 = d["high"].rolling(20).max().shift(1).reindex(day).to_numpy()
+    lo20 = d["low"].rolling(20).min().shift(1).reindex(day).to_numpy()
+    df["lvl_dist_hi20_atr"] = (hi20 - close) / atr
+    df["lvl_dist_lo20_atr"] = (close - lo20) / atr
+    df["lvl_pos20"] = (close - lo20) / np.where(hi20 - lo20 > 0, hi20 - lo20, np.nan)
+    df["lvl_brk_prevday_hi_atr"] = (close - d["high"].shift(1).reindex(day).to_numpy()) / atr
+    df["lvl_brk_prevday_lo_atr"] = (d["low"].shift(1).reindex(day).to_numpy() - close) / atr
+    df["lvl_prev_nr7"] = (rng <= rng.rolling(7).min()).astype(float).shift(1).reindex(day).to_numpy()
+    df["lvl_prev_ib"] = ((d["high"] < d["high"].shift(1)) & (d["low"] > d["low"].shift(1))).astype(float) \
+        .shift(1).reindex(day).to_numpy()
+    n = 20 * 24
+    df["lvl_hours_since_hi"] = df["high"].rolling(n).apply(lambda x: n - 1 - x.argmax(), raw=True)
+    df["lvl_hours_since_lo"] = df["low"].rolling(n).apply(lambda x: n - 1 - x.argmin(), raw=True)
+    log.info("Признаки тренд-скора и уровней: %d колонок", len(comp.columns) + 9)
+    return df
+
+
 def build_features(df_tf: pd.DataFrame, cfg: Config) -> pd.DataFrame:
     """Полный набор признаков для рабочего ТФ (непрерывный ряд целиком)."""
     df = df_tf.copy()
@@ -85,6 +121,8 @@ def build_features(df_tf: pd.DataFrame, cfg: Config) -> pd.DataFrame:
         log.info("Гейт входа trend_gate: доля баров с трендом %.1f%%", 100 * (df["trend_gate"] != 0).mean())
     if cfg.features.use_ema_zone_features:
         df = add_ema_zone_features(df, cfg)
+    if cfg.features.use_trend_score_features:
+        df = add_trend_score_features(df, cfg)
     if cfg.trend_gate.enabled:
         for name in cfg.trend_gate.variants:
             col = f"trend_gate__{name}"

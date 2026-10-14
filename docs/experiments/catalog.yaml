@@ -405,6 +405,201 @@ experiments:
       mtss: [mtss_lo__impulse_6_3_long]
       eth: [eth_costs__impulse_6_3_h240_tr6]
 
+  # ---------------- ТЗ 15.10: тренд-фильтры и паттерны входа ----------------
+  - id: S26
+    family: strategy
+    title: "Трёхслойный тренд-фильтр по ТЗ"
+    change: "вместо гейта C — фильтр ТЗ 15.10 как есть: режим по EMA200, скор пар EMA 8/32, 16/64, 32/128 в волатильностях, шок при |z| > 2.8, гистерезис 0.3 / 0"
+    hypothesis: H44
+    baseline: B01
+    verdict: "хуже базы"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tz__impulse_6_3_gatetz]
+      gold: [gold_tz__impulse_6_3_gatetz]
+      lkoh: [lkoh_tz__impulse_6_3_gatetz]
+      gazp: [gazp_tz__impulse_6_3_gatetz]
+      sber: [sber_tz__impulse_6_3_gatetz]
+      moex: [moex_tz__impulse_6_3_gatetz]
+      mtss: [mtss_tz__impulse_6_3_gatetz]
+      eth: [eth_tz__impulse_6_3_gatetz]
+  - id: S27
+    family: strategy
+    title: "Трёхслойный фильтр, лучший на выборе"
+    change: "вариант трёхслойного фильтра, лучший по 2016–2020 из 14 (пары EMA ×4: 32/128, 64/256, 128/512)"
+    hypothesis: H44
+    baseline: B01
+    verdict: "хуже базы (выбор не переносится на проверку)"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tz__impulse_6_3_gatex4]
+      gold: [gold_tz__impulse_6_3_gatex4]
+      lkoh: [lkoh_tz__impulse_6_3_gatex4]
+      gazp: [gazp_tz__impulse_6_3_gatex4]
+      sber: [sber_tz__impulse_6_3_gatex4]
+      moex: [moex_tz__impulse_6_3_gatex4]
+      mtss: [mtss_tz__impulse_6_3_gatex4]
+      eth: [eth_tz__impulse_6_3_gatex4]
+  - id: S28
+    family: strategy
+    title: "Тренд-фильтр Дончиан 55/20 на 4 ч"
+    change: "классический фильтр, лучший по 2016–2020 из 111 (EMA, MACD, Supertrend, Дончиан, Кельтнер, Боллинджер, ADX, KAMA на 1 ч / 4 ч / днях): пробой 55 4-часовых свечей — тренд, выход при пробое 20 в обратную сторону"
+    hypothesis: H45
+    baseline: B01
+    verdict: "хуже базы (выбор не переносится на проверку)"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tz__impulse_6_3_gatedon55]
+      gold: [gold_tz__impulse_6_3_gatedon55]
+      lkoh: [lkoh_tz__impulse_6_3_gatedon55]
+      gazp: [gazp_tz__impulse_6_3_gatedon55]
+      sber: [sber_tz__impulse_6_3_gatedon55]
+      moex: [moex_tz__impulse_6_3_gatedon55]
+      mtss: [mtss_tz__impulse_6_3_gatedon55]
+      eth: [eth_tz__impulse_6_3_gatedon55]
+  - id: S29
+    family: strategy
+    title: "Импульс без фильтра направления, только лонг"
+    change: "эталон перебора «всегда лонг»: гейт C снят, шортовые сигналы гасятся до симуляции на всех рынках"
+    hypothesis: H45
+    baseline: B01
+    verdict: "хуже базы на металлах, на портфеле 4 как база"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tz__impulse_6_3_notrend_long]
+      gold: [gold_tz__impulse_6_3_notrend_long]
+      lkoh: [lkoh_tz__impulse_6_3_notrend_long]
+      gazp: [gazp_tz__impulse_6_3_notrend_long]
+      sber: [sber_tz__impulse_6_3_notrend_long]
+      moex: [moex_tz__impulse_6_3_notrend_long]
+      mtss: [mtss_tz__impulse_6_3_notrend_long]
+      eth: [eth_tz__impulse_6_3_notrend_long]
+  - id: S30
+    family: strategy
+    title: "Вход по сжатию: NR7 + inside bar"
+    change: "вход вместо импульса: вчерашний день — самый узкий за 7 и внутри позавчерашнего; первое закрытие часа за его границей, по гейту C; выход как у базы"
+    hypothesis: H46
+    baseline: B01
+    verdict: "хуже базы"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tz__pattern_nr7ib]
+      gold: [gold_tz__pattern_nr7ib]
+      lkoh: [lkoh_tz__pattern_nr7ib]
+      gazp: [gazp_tz__pattern_nr7ib]
+      sber: [sber_tz__pattern_nr7ib]
+      moex: [moex_tz__pattern_nr7ib]
+      mtss: [mtss_tz__pattern_nr7ib]
+      eth: [eth_tz__pattern_nr7ib]
+  - id: S31
+    family: strategy
+    title: "Вход по пробою 55-дневного уровня"
+    change: "вход вместо импульса: первое закрытие часа выше максимума (ниже минимума) 55 прошлых дней, по гейту C («Черепахи», система 2); выход как у базы"
+    hypothesis: H47
+    baseline: B01
+    verdict: "в пределах шума: портфель 4 лучше, металлы хуже базы"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tz__pattern_donch_55]
+      gold: [gold_tz__pattern_donch_55]
+      lkoh: [lkoh_tz__pattern_donch_55]
+      gazp: [gazp_tz__pattern_donch_55]
+      sber: [sber_tz__pattern_donch_55]
+      moex: [moex_tz__pattern_donch_55]
+      mtss: [mtss_tz__pattern_donch_55]
+      eth: [eth_tz__pattern_donch_55]
+  - id: S32
+    family: strategy
+    title: "Вход по ложному пробою 20-дневного уровня"
+    change: "Turtle Soup: час вышел за 20-дневный максимум, но закрылся под ним — шорт (зеркально — лонг), по гейту C; выход как у базы"
+    hypothesis: H47
+    baseline: B01
+    verdict: "хуже базы"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tz__pattern_soup_20]
+      gold: [gold_tz__pattern_soup_20]
+      lkoh: [lkoh_tz__pattern_soup_20]
+      gazp: [gazp_tz__pattern_soup_20]
+      sber: [sber_tz__pattern_soup_20]
+      moex: [moex_tz__pattern_soup_20]
+      mtss: [mtss_tz__pattern_soup_20]
+      eth: [eth_tz__pattern_soup_20]
+  - id: S33
+    family: strategy
+    title: "Выход по времени через 20 ч"
+    change: "вход как у базы, выход не позже 20 ч (стоп и трейлинг 6 ATR как у базы); лучший по 2016–2020 из 13 выходов ТЗ: по времени 10 / 20 / 50 ч, Chandelier, стоп 1.5–3 × тейк 2–4 ATR"
+    hypothesis: H49
+    exit: {sl: 6, trail: 6, act: 3, hours: 20}
+    baseline: B01
+    verdict: "хуже базы на металлах (−29% против +41%); на акциях меньше свопов"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tzx__impulse_6_3_h20]
+      gold: [gold_tzx__impulse_6_3_h20]
+      lkoh: [lkoh_tzx__impulse_6_3_h20]
+      gazp: [gazp_tzx__impulse_6_3_h20]
+      sber: [sber_tzx__impulse_6_3_h20]
+      moex: [moex_tzx__impulse_6_3_h20]
+      mtss: [mtss_tzx__impulse_6_3_h20]
+      eth: [eth_tzx__impulse_6_3_h20]
+  - id: S34
+    family: strategy
+    title: "Chandelier: трейлинг 3 ATR с первой минуты"
+    change: "стоп 3 ATR, трейлинг 3 ATR от лучшей цены сразу после входа (аналог «максимум 22 бара − 3 ATR»), выход ≤ 240 ч"
+    hypothesis: H49
+    exit: {sl: 3, trail: 3, act: 0, hours: 240}
+    baseline: B01
+    verdict: "хуже базы"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tzx__impulse_6_3_tr3_act0]
+      gold: [gold_tzx__impulse_6_3_tr3_act0]
+      lkoh: [lkoh_tzx__impulse_6_3_tr3_act0]
+      gazp: [gazp_tzx__impulse_6_3_tr3_act0]
+      sber: [sber_tzx__impulse_6_3_tr3_act0]
+      moex: [moex_tzx__impulse_6_3_tr3_act0]
+      mtss: [mtss_tzx__impulse_6_3_tr3_act0]
+      eth: [eth_tzx__impulse_6_3_tr3_act0]
+  - id: S35
+    family: strategy
+    title: "Фиксированные стоп 3 ATR и тейк 4 ATR"
+    change: "без трейлинга: стоп 3 ATR, тейк 4 ATR, выход ≤ 240 ч; лучший по выбору из 9 пар стоп 1.5 / 2 / 3 × тейк 2 / 3 / 4 ATR (на графике линия тейка не показана)"
+    hypothesis: H49
+    exit: {sl: 3, trail: 3, act: 99, hours: 240}
+    baseline: B01
+    verdict: "хуже базы на металлах"
+    doc: results/trend_filter_tz.md
+    dividends: true
+    costs: *base_costs
+    sources:
+      silver: [silver_tzx__impulse_6_3_sl3_tp4]
+      gold: [gold_tzx__impulse_6_3_sl3_tp4]
+      lkoh: [lkoh_tzx__impulse_6_3_sl3_tp4]
+      gazp: [gazp_tzx__impulse_6_3_sl3_tp4]
+      sber: [sber_tzx__impulse_6_3_sl3_tp4]
+      moex: [moex_tzx__impulse_6_3_sl3_tp4]
+      mtss: [mtss_tzx__impulse_6_3_sl3_tp4]
+      eth: [eth_tzx__impulse_6_3_sl3_tp4]
+
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01
     family: model
@@ -577,6 +772,17 @@ experiments:
     doc: results/trend_filter_ema.md
     sources:
       silver: [silver_emazone_s42__cb, silver_emazone_s7__cb, silver_emazone_s1__cb]
+  - id: M18
+    family: model
+    costs: *base_costs
+    title: "Признаки трёхслойного фильтра и уровней"
+    change: "14 признаков ТЗ 15.10: быстрый скор, режим, шок, ER, итоговый скор; расстояние до 20-дневных максимума и минимума в ATR, положение в диапазоне, часов с экстремума, пробой вчерашнего дня, вчера NR7 / inside bar"
+    hypothesis: H48
+    baseline: M13
+    verdict: "хуже базы на всех 3 seed"
+    doc: results/trend_filter_tz.md
+    sources:
+      silver: [silver_tsfeat_s42, silver_tsfeat_s7, silver_tsfeat_s1]
 
   # ---------------- модель CatBoost: LKOH ----------------
   - id: L01
@@ -683,4 +889,5 @@ no_log:
   - {title: "Возврат к среднему внутри дня на LKOH", result: "до комиссии до +0.13%, после — не значим", doc: results/model_changelog.md}
   - {title: "Фильтры входа CatBoost: против свечи, пауза после стопа, растяжение", result: "не работают на обоих инструментах", doc: results/silver_1h_cb/trade_review.md}
   - {title: "Выход из «застывших» сделок импульса (H34): через K часов трейлинг не включился и цена ближе Y ATR от входа — закрыть", result: "быстрый расчёт по часовым свечам поверх сделок B01, издержки базы: выбор 72 ч / 1 ATR по 2016–2020; на проверке хуже базы — металлы +41% → +22%, портфель 4 −2% → −14%", doc: results/strategy_week_1012.md}
+  - {title: "Перебор 128 тренд-фильтров ТЗ 15.10 быстрым движком (H44, H45)", result: "сделки отбираются из прогона всех сигналов штатным симулятором и совпадают с B01; связь PF выбор → проверка 0.01, гейт C — 90-й на выборе и 5-й на проверке; финалисты — S26–S29", doc: results/trend_filter_tz.md}
   - {title: "Вход против уже ушедшей цены (H33): ход за 72 / 120 ч до сигнала против сделки", result: "разведка на сделках B01, только выбор 2016–2020: монотонной связи с результатом нет, правила для фильтра нет — проверку не трогали", doc: results/strategy_week_1012.md}

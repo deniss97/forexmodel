@@ -48,8 +48,12 @@ reports/walk_forward/<name>_trades.csv.
 `vol` — только при ATR >= медианы хвоста train; `slip0.05` / `slipatr0.25` —
 проскальзывание на входе. Выход задаётся через --set simulation.horizon_minutes / sl_atr / trail_atr
 или токенами варианта `h<часов>` (горизонт) и `tr<ATR>` (стоп = трейлинг, активация на половине);
+`sl<ATR>` / `tp<ATR>` — фиксированные стоп и тейк без трейлинга;
 `es<ATR>:eh<часов>` — ранний стоп: ближе обычного первые часы после входа, пока трейлинг не включился;
-`long` — только лонговые сигналы (шорт гасится до симуляции).
+`long` — только лонговые сигналы (шорт гасится до симуляции); `gate<имя>` — тренд-гейт варианта
+trend_gate.variants.<имя> вместо основного (ТЗ 15.10: `--set 'trend_gate.variants={s: {mode: score}}'`
+и `impulse:6:3:gates`). `pattern:<паттерн>[:параметры]` — вход по паттерну дневных свечей
+(forexmodel/simulation/patterns.py: nr7, nr4, ib, nr7ib, donch:N[:буфер], soup:N) с теми же токенами.
 
 `--costs configs/costs/alfaforex.yaml:silver` — издержки брокера: спред вместо комиссии и свопы за
 перенос позиции (forexmodel/simulation/costs.py). Дивиденды акций — `--set data.dividends_path=...`.
@@ -138,13 +142,27 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
     parts = variant.split(":")
     c = copy.deepcopy(cfg)
     c.simulation.use_expected_value_filter = False
-    if parts[0] == "impulse":
+    if parts[0] == "pattern":
+        # pattern:<паттерн>[:параметры][:notrend][:long][:gate<имя>] — simulation/patterns.py, выход как у импульса
+        n_spec = 2
+        while n_spec < len(parts) and re.fullmatch(r"[\d.]+", parts[n_spec]):
+            n_spec += 1
+        c.simulation.signal_source = "pattern"
+        c.simulation.pattern = ":".join(parts[1:n_spec])
+        parts = ["pattern", "", ""] + parts[n_spec:]       # дальше — общие токены с импульсом
+    if parts[0] in ("impulse", "pattern"):
         # impulse:<баров>:<ATR>[:notrend][:vol] — по тренд-гейту по умолчанию; vol — только при ATR >= медианы
-        c.simulation.signal_source = "impulse"
-        c.simulation.impulse_bars, c.simulation.impulse_atr = int(parts[1]), float(parts[2])
+        if parts[0] == "impulse":
+            c.simulation.signal_source = "impulse"
+            c.simulation.impulse_bars, c.simulation.impulse_atr = int(parts[1]), float(parts[2])
         c.simulation.use_trend_filter = "notrend" not in parts[3:]
         use_vol = "vol" in parts[3:]
         for x in parts[3:]:
+            # gate<имя> — тренд-гейт из trend_gate.variants.<имя> вместо основного (колонка trend_gate__<имя>)
+            if x.startswith("gate"):
+                c.simulation.trend_col = f"trend_gate__{x[4:]}"
+                if c.simulation.trend_col not in ds.test.columns:
+                    raise ValueError(f"{variant}: колонки {c.simulation.trend_col} нет — задайте trend_gate.variants")
             # slip<%> / slipatr<доля ATR> — проскальзывание на входе против сделки
             if x.startswith("slipatr"):
                 c.simulation.entry_slippage_atr = float(x[7:])
@@ -160,6 +178,11 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
                 c.simulation.activate_atr = float(x[2:]) / 2
             elif re.fullmatch(r"act[\d.]+", x):
                 c.simulation.activate_atr = float(x[3:])
+            # фиксированные стоп и тейк без трейлинга (ТЗ 15.10, H49): sl<ATR>, tp<ATR>
+            elif re.fullmatch(r"sl[\d.]+", x):
+                c.simulation.sl_atr = float(x[2:])
+            elif re.fullmatch(r"tp[\d.]+", x):
+                c.simulation.exit_mode, c.simulation.tp_atr = "atr", float(x[2:])
             # ранний стоп: es<ATR> — ближний стоп первые eh<часов> часов, пока трейлинг не включился
             elif re.fullmatch(r"es[\d.]+", x):
                 c.simulation.early_stop_atr = float(x[2:])
@@ -171,8 +194,13 @@ def _rule_trades(ds, cfg, variant: str) -> pd.DataFrame:
         c.simulation.rule_threshold = float(parts[2])
         c.simulation.use_trend_filter = len(parts) > 3 and parts[3] == "trend"
         use_vol = False
-    signals = build_signal_column(ds.test.copy(), c)
-    if parts[0] == "impulse" and "long" in parts[3:]:
+    if parts[0] == "pattern":
+        # паттерну нужны прошлые дни (до 55): сигналы по всему непрерывному ряду, торговля — только окно
+        full = build_signal_column(ds.full.copy(), c)
+        signals = full[full["time"].isin(ds.test["time"])].reset_index(drop=True)
+    else:
+        signals = build_signal_column(ds.test.copy(), c)
+    if parts[0] in ("impulse", "pattern") and "long" in parts[3:]:
         # только лонг (шорт дорог или недоступен): шортовые сигналы гасятся до симуляции и не занимают время
         signals.loc[pd.to_numeric(signals["final_class"], errors="coerce") == 0, "final_class"] = 1
     c.volatility.enabled = use_vol
@@ -223,7 +251,7 @@ def main(argv=None) -> int:
     wins = windows(args.years, args.quarters)
     key = "год" if args.years else "квартал"
     variants = args.variants or [None]
-    only_rules = all(v and v.startswith(("rule:", "impulse:")) for v in variants)
+    only_rules = all(v and v.startswith(("rule:", "impulse:", "pattern:")) for v in variants)
 
     def fold_cfg(label, start, end):
         cfg = copy.deepcopy(base)
@@ -252,7 +280,7 @@ def main(argv=None) -> int:
         trained = None if only_rules else run_training(cfg, dataset=ds, save=False)
         metrics = trained.metrics if trained else {}
         for v in variants:
-            if v and v.startswith(("rule:", "impulse:")):
+            if v and v.startswith(("rule:", "impulse:", "pattern:")):
                 t = _rule_trades(ds, cfg, v)
             else:
                 vcfg = copy.deepcopy(cfg)

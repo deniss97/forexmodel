@@ -147,6 +147,11 @@ class FeatureConfig:
     # EMA5 4ч в ATR и сторона закрытия относительно этих EMA в направлении тренда (гейта, если он
     # включён, иначе trend_4h): +1 — по тренду, −1 — слабая зона, 0 — тренда нет
     use_ema_zone_features: bool = False
+    # ТЗ 15.10 (H48): компоненты трёхслойного тренд-фильтра (быстрый скор, режим, шок, ER, итоговый скор —
+    # параметры score_* секции trend) и нормированные уровни: расстояние до 20-дневных максимума и минимума
+    # в ATR, положение в диапазоне, часов с 20-дневного максимума / минимума, сила пробоя вчерашнего дня,
+    # вчера NR7 / inside bar. Не жёсткий фильтр, а признаки модели
+    use_trend_score_features: bool = False
     regime_windows: List[int] = field(default_factory=lambda: [240, 720])
     use_volume_features: bool = True
     dimensionless_only: bool = True
@@ -197,7 +202,7 @@ class TrendConfig:
     длину бина), заглядывания в будущее нет ни в одном."""
 
     enabled: bool = True
-    mode: str = "early"                 # early | confirm
+    mode: str = "early"                 # early | confirm | score | classic (features/trend_score.py)
     timeframe: str = "4h"
     # early
     slope_period: int = 6
@@ -242,6 +247,25 @@ class TrendConfig:
     ema_reset_period: int = 0
     ema_reset_tf: str = "base"
     ema_reset_confirm_bars: int = 1
+    # classic (ТЗ 15.10, H45): один классический индикатор на timeframe, спецификация в trend_score.py,
+    # напр. "ema_cross:20:50", "macd:12:26:9:sig", "supertrend:10:3", "donchian:20:10"
+    rule: str = "ema_cross:20:50"
+    # score (ТЗ 15.10, H44): трёхслойный фильтр — режим (знак close − EMA на score_regime_tf), быстрый
+    # мультимасштабный скор (пары EMA в волатильностях бара) или KAMA, шок (|z| доходности или пробой
+    # Дончиана) и гистерезис (вход > enter, выход < exit, удержание не меньше min_hold баров)
+    score_spans: List[List[int]] = field(default_factory=lambda: [[8, 32], [16, 64], [32, 128]])
+    score_vol_window: int = 48
+    score_fast: str = "ewmac"           # ewmac | kama
+    score_er_period: int = 10
+    score_vol_adapt: bool = False
+    score_regime_ema: int = 200
+    score_regime_tf: str = "base"       # base — рабочий ТФ, иначе старший ТФ (4h, 24h; не 1D — у pandas сдвиг сетки для "D" не работает) по закрытым бинам
+    score_against: float = 0.5
+    score_shock_z: float = 2.8
+    score_shock_donchian: int = 0
+    score_enter: float = 0.3
+    score_exit: float = 0.0
+    score_min_hold: int = 0
 
 
 #: Параметры тренд-фильтра, которые можно переопределить в `trend_gate`.
@@ -250,11 +274,29 @@ _GATE_FIELDS = (
     "ema_period", "adx_threshold", "max_ffill_bars", "require_slope_agreement",
     "update_every_bar", "hold_bars", "hysteresis", "shock_atr", "shock_window", "shock_confirm_bars", "shock_mode",
     "ema_reset_period", "ema_reset_tf", "ema_reset_confirm_bars",
+    "rule", "score_spans", "score_vol_window", "score_fast", "score_er_period", "score_vol_adapt", "score_regime_ema",
+    "score_regime_tf", "score_against", "score_shock_z", "score_shock_donchian", "score_enter", "score_exit",
+    "score_min_hold",
 )
 
 
+TREND_MODES = {"early", "confirm", "score", "classic"}
+
+
 def validate_trend_layers(tc: TrendConfig, name: str = "trend") -> None:
-    """Проверка слоёв тренд-фильтра: гистерезис, шок-слой, сброс по EMA."""
+    """Проверка слоёв тренд-фильтра: гистерезис, шок-слой, сброс по EMA; режимы score и classic."""
+    if tc.mode not in TREND_MODES:
+        raise ValueError(f"{name}.mode: ожидалось early|confirm|score|classic, получено {tc.mode!r}")
+    if tc.mode == "classic":
+        from .features.trend_score import CLASSIC_RULES
+
+        if tc.rule.split(":")[0] not in CLASSIC_RULES:
+            raise ValueError(f"{name}.rule: неизвестный индикатор {tc.rule!r} (ожидалось одно из {CLASSIC_RULES})")
+    if tc.mode == "score":
+        if tc.score_fast not in {"ewmac", "kama"}:
+            raise ValueError(f"{name}.score_fast: ожидалось ewmac|kama, получено {tc.score_fast!r}")
+        if tc.score_exit > tc.score_enter or tc.score_min_hold < 0 or tc.score_vol_window < 2:
+            raise ValueError(f"{name}.score_*: нужно score_exit <= score_enter, score_min_hold >= 0, score_vol_window >= 2")
     if tc.ema_reset_period < 0:
         raise ValueError(f"{name}.ema_reset_period не может быть отрицательным (0 — выключен)")
     if tc.ema_reset_tf not in {"base", "htf"}:
@@ -302,6 +344,20 @@ class TrendGateConfig:
     ema_reset_period: Optional[int] = None
     ema_reset_tf: Optional[str] = None
     ema_reset_confirm_bars: Optional[int] = None
+    rule: Optional[str] = None
+    score_spans: Optional[List[List[int]]] = None
+    score_vol_window: Optional[int] = None
+    score_fast: Optional[str] = None
+    score_er_period: Optional[int] = None
+    score_vol_adapt: Optional[bool] = None
+    score_regime_ema: Optional[int] = None
+    score_regime_tf: Optional[str] = None
+    score_against: Optional[float] = None
+    score_shock_z: Optional[float] = None
+    score_shock_donchian: Optional[int] = None
+    score_enter: Optional[float] = None
+    score_exit: Optional[float] = None
+    score_min_hold: Optional[int] = None
     # дополнительные варианты гейта: имя -> поправки поверх этого гейта. Каждый даёт колонку
     # trend_gate__<имя> (не признак модели); в walk-forward вариант gate:<имя> подставляет её
     # в simulation.trend_col — так несколько гейтов сравниваются на одной обученной модели
@@ -440,7 +496,7 @@ class SimulationConfig:
     early_stop_hours: float = 0.0
     atr_col: str = "atr_14"
     # вход
-    signal_source: str = "ensemble"      # ensemble | cb | nn | meta | rule | impulse
+    signal_source: str = "ensemble"      # ensemble | cb | nn | meta | rule | impulse | pattern
     ensemble_rule: str = "agreement"     # agreement | cb_priority | nn_priority | confidence
     # signal_source=rule: вход напрямую по признаку, без модели — чтобы проверить
     # гипотезу («крупные покупают -> вверх», «бар >= 1% -> продолжение») в чистом
@@ -453,6 +509,10 @@ class SimulationConfig:
     # тренд-гейт симулятора (use_trend_filter)
     impulse_bars: int = 6
     impulse_atr: float = 3.0
+    # pattern (ТЗ 15.10, H46/H47): вход по паттерну дневных свечей на часовом закрытии, спецификация в
+    # simulation/patterns.py: nr7 / nr4 / ib / nr7ib — пробой границы дня сжатия на следующий день,
+    # donch:N[:буфер ATR] — пробой максимума / минимума N прошлых дней, soup:N — ложный пробой N-дневного уровня
+    pattern: str = "nr7"
     # проскальзывание на входе против сделки: доля цены (%) и доля ATR сигнального бара
     entry_slippage_pct: float = 0.0
     entry_slippage_atr: float = 0.0
@@ -622,10 +682,10 @@ def _validate(cfg: Config) -> None:
             raise ValueError("catboost.objective=regression: мета-модель строится на OOF классификатора, выключите meta.enabled")
         if cfg.catboost.reg_signal_atr <= 0:
             raise ValueError("catboost.reg_signal_atr должен быть > 0")
-    if cfg.trend.mode not in {"early", "confirm"}:
-        raise ValueError(f"trend.mode: ожидалось early|confirm, получено {cfg.trend.mode!r}")
-    if cfg.trend_gate.enabled and cfg.trend_gate.resolve(cfg.trend).mode not in {"early", "confirm"}:
-        raise ValueError(f"trend_gate.mode: ожидалось early|confirm, получено {cfg.trend_gate.mode!r}")
+    if cfg.trend.mode not in TREND_MODES:
+        raise ValueError(f"trend.mode: ожидалось early|confirm|score|classic, получено {cfg.trend.mode!r}")
+    if cfg.trend_gate.enabled and cfg.trend_gate.resolve(cfg.trend).mode not in TREND_MODES:
+        raise ValueError(f"trend_gate.mode: ожидалось early|confirm|score|classic, получено {cfg.trend_gate.mode!r}")
     if cfg.simulation.trend_col == "trend_gate" and not cfg.trend_gate.enabled:
         raise ValueError("simulation.trend_col='trend_gate', но trend_gate.enabled=false — колонки не будет")
     if cfg.trend.hold_bars < 0 or (cfg.trend_gate.hold_bars or 0) < 0:
@@ -640,9 +700,9 @@ def _validate(cfg: Config) -> None:
         raise ValueError(
             f"simulation.exit_mode: ожидалось fixed_pct|atr|trailing, получено {cfg.simulation.exit_mode!r}"
         )
-    if cfg.simulation.signal_source not in {"ensemble", "cb", "nn", "meta", "rule", "impulse"}:
+    if cfg.simulation.signal_source not in {"ensemble", "cb", "nn", "meta", "rule", "impulse", "pattern"}:
         raise ValueError(
-            f"simulation.signal_source: ожидалось ensemble|cb|nn|meta|rule|impulse, получено {cfg.simulation.signal_source!r}"
+            f"simulation.signal_source: ожидалось ensemble|cb|nn|meta|rule|impulse|pattern, получено {cfg.simulation.signal_source!r}"
         )
     if cfg.simulation.signal_source == "meta" and not cfg.meta.enabled:
         raise ValueError("simulation.signal_source='meta', но meta.enabled=False")
