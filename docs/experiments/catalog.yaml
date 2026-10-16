@@ -8,6 +8,7 @@
 
 families:
   strategy: стратегия без ML (импульс)
+  search: новые стратегии из блоков ТЗ (перебор)
   model: модель CatBoost
 
 # Выход по умолчанию — для линий стопа и трейлинга на графике сделок (в ATR на входе): стоп sl, трейлинг
@@ -600,6 +601,126 @@ experiments:
       mtss: [mtss_tzx__impulse_6_3_sl3_tp4]
       eth: [eth_tzx__impulse_6_3_sl3_tp4]
 
+  - id: S36
+    family: search
+    title: "Новая стратегия №1 перебора (металлы)"
+    change: "вход: пробой 20 дней + 0.25 ATR · фильтр: ADX 1ч > 25 + ADX 1ч > 25 · выход: Supertrend 4ч · стоп 3 · ATR10"
+    hypothesis: H50
+    exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
+    baseline: B01
+    verdict: "хуже базы: металлы −31% против +41% (на выборе +36% — подгонка)"
+    doc: results/strategy_search.md
+    dividends: true
+    costs: {profile: base}
+    sources:
+      silver: [silver_ss_s36]
+      gold: [gold_ss_s36]
+      lkoh: [lkoh_ss_s36]
+      gazp: [gazp_ss_s36]
+      sber: [sber_ss_s36]
+      moex: [moex_ss_s36]
+      mtss: [mtss_ss_s36]
+      eth: [eth_ss_s36]
+  - id: S37
+    family: search
+    title: "Новая стратегия №2 перебора (металлы)"
+    change: "вход: пробой 20 дней + 0.25 ATR · фильтр: ADX 1ч > 20 + ADX 1ч > 25 · выход: Supertrend 4ч · стоп 3 · ATR20"
+    hypothesis: H50
+    exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
+    baseline: B01
+    verdict: "хуже базы: металлы −30% против +41% (на выборе +41% — подгонка)"
+    doc: results/strategy_search.md
+    dividends: true
+    costs: {profile: base}
+    sources:
+      silver: [silver_ss_s37]
+      gold: [gold_ss_s37]
+      lkoh: [lkoh_ss_s37]
+      gazp: [gazp_ss_s37]
+      sber: [sber_ss_s37]
+      moex: [moex_ss_s37]
+      mtss: [mtss_ss_s37]
+      eth: [eth_ss_s37]
+  - id: S38
+    family: search
+    title: "Новая стратегия №3 перебора (портфель 4)"
+    change: "вход: keltner:20:10:2 @24h · фильтр: ATR14/ATR100 > 1 + только лонг · выход: трейлинг 3 · ATR10 · размер по риску"
+    hypothesis: H50
+    exit: {sl: 3.0, trail: 3.0, act: 1.5, hours: 240}
+    baseline: B01
+    verdict: "хуже базы на металлах (−5%); портфель 4 +5% против −2%, но t 0.4 — шум"
+    doc: results/strategy_search.md
+    dividends: true
+    costs: {profile: base}
+    sources:
+      silver: [silver_ss_s38]
+      gold: [gold_ss_s38]
+      lkoh: [lkoh_ss_s38]
+      gazp: [gazp_ss_s38]
+      sber: [sber_ss_s38]
+      moex: [moex_ss_s38]
+      mtss: [mtss_ss_s38]
+      eth: [eth_ss_s38]
+  - id: S39
+    family: search
+    title: "Новая стратегия №4 перебора (портфель 4)"
+    change: "вход: keltner:20:10:2 @24h · фильтр: ATR14/ATR100 > 1 + только лонг · выход: трейлинг 3 · ATR20"
+    hypothesis: H50
+    exit: {sl: 3.0, trail: 3.0, act: 1.5, hours: 240}
+    baseline: B01
+    verdict: "хуже базы: металлы −18%, портфель 4 −2% как база"
+    doc: results/strategy_search.md
+    dividends: true
+    costs: {profile: base}
+    sources:
+      silver: [silver_ss_s39]
+      gold: [gold_ss_s39]
+      lkoh: [lkoh_ss_s39]
+      gazp: [gazp_ss_s39]
+      sber: [sber_ss_s39]
+      moex: [moex_ss_s39]
+      mtss: [mtss_ss_s39]
+      eth: [eth_ss_s39]
+  - id: S40
+    family: search
+    title: "Новая стратегия №5 перебора (все)"
+    change: "вход: inside bar → пробой · фильтр: EMA200 1ч + EMA200 дни · выход: Дончиан 10 ч · стоп 3 · ATR20 · размер по риску"
+    hypothesis: H50
+    exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
+    baseline: B01
+    verdict: "хуже базы: металлы +6% против +41%"
+    doc: results/strategy_search.md
+    dividends: true
+    costs: {profile: base}
+    sources:
+      silver: [silver_ss_s40]
+      gold: [gold_ss_s40]
+      lkoh: [lkoh_ss_s40]
+      gazp: [gazp_ss_s40]
+      sber: [sber_ss_s40]
+      moex: [moex_ss_s40]
+      mtss: [mtss_ss_s40]
+      eth: [eth_ss_s40]
+  - id: S41
+    family: search
+    title: "Новая стратегия №6 перебора (все)"
+    change: "вход: inside bar → пробой · фильтр: только лонг + EMA200 дни · выход: Supertrend 4ч · стоп 3 · ATR14 · размер по риску"
+    hypothesis: H50
+    exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
+    baseline: B01
+    verdict: "хуже базы на металлах (+4%); все рынки +1% против −19% лишь за счёт меньших свопов CFD"
+    doc: results/strategy_search.md
+    dividends: true
+    costs: {profile: base}
+    sources:
+      silver: [silver_ss_s41]
+      gold: [gold_ss_s41]
+      lkoh: [lkoh_ss_s41]
+      gazp: [gazp_ss_s41]
+      sber: [sber_ss_s41]
+      moex: [moex_ss_s41]
+      mtss: [mtss_ss_s41]
+      eth: [eth_ss_s41]
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01
     family: model
