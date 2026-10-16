@@ -83,6 +83,28 @@ def rolling_png(tr: dict, path) -> None:
     plt.close(f)
 
 
+def alarm(t: pd.DataFrame, inst: list[str]) -> dict:
+    """Худшее, что было в истории (H43): от этого считаются пороги тревоги в живой торговле."""
+    pf = rolling_pf(t, inst).dropna()
+    below = (pf < 1).astype(int).to_numpy()
+    streak = run = 0
+    for b in below:
+        run = run + 1 if b else 0
+        streak = max(streak, run)
+    x = weighted(t, inst).set_index("close_dt")["wp"]
+    eq = x.cumsum()
+    peak = eq.cummax()
+    dd = eq - peak
+    end = dd.idxmin()
+    start = eq.loc[:end].idxmax()
+    rec = eq.loc[end:][eq.loc[end:] >= peak.loc[end]]
+    month = x.resample("ME").sum()
+    return {"PF12 мин": float(pf.min()), "PF12 < 1, доля месяцев": float(below.mean()), "PF12 < 1 подряд, мес": int(streak),
+            "просадка": float(dd.min()), "просадка с": start, "просадка по": end,
+            "восстановление, мес": ((rec.index[0] - start).days / 30.4) if len(rec) else np.nan,
+            "худшие 12 мес, %": float(month.rolling(12).sum().min())}
+
+
 def style(ax, ylabel: str) -> None:
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
@@ -139,6 +161,18 @@ def main() -> int:
                f"{NAMES[i]} — выбор {s[(s.instrument == i) & (s.open_dt < TEST_START)]['size'].mean():.2f}, "
                f"проверка {s[(s.instrument == i) & (s.open_dt >= TEST_START)]['size'].mean():.2f}" for i in SET) + ".", "",
            "## PF за скользящие 12 месяцев — S42", "", "![Скользящий PF](launch_set/rolling_pf.png)", ""]
+    md += ["## Пороги тревоги для живой торговли (H43, T17)", "",
+           "Худшее, что было с S42 за 2016 — июнь 2026. Живая торговля сверяется с этим: полоса хуже, чем бывало в истории, — "
+           "повод остановиться и разобраться, а не просто «плохой период». Внутри этих границ — обычная полоса, правило не трогаем.", "",
+           "| | PF за 12 мес — минимум | месяцев с PF за 12 мес < 1 | подряд < 1, месяцев | просадка | просадка: с — по | восстановление, мес | худшие 12 месяцев |",
+           "|---|---|---|---|---|---|---|---|"]
+    for label, inst in (("набор целиком", SET), ("акции в лонг (первый этап)", STOCKS), ("металлы", METALS)):
+        a = alarm(tr["S42"], inst)
+        md.append(f"| {label} | {a['PF12 мин']:.2f} | {a['PF12 < 1, доля месяцев']:.0%} | {a['PF12 < 1 подряд, мес']} | {a['просадка']:+.1f}% | "
+                  f"{a['просадка с']:%m.%Y} — {a['просадка по']:%m.%Y} | "
+                  + ("не восстановилась" if not np.isfinite(a["восстановление, мес"]) else f"{a['восстановление, мес']:.0f}")
+                  + f" | {a['худшие 12 мес, %']:+.1f}% |")
+    md.append("")
     DOC.write_text("\n".join(md), encoding="utf-8")
     print(f"→ {DOC.relative_to(ROOT)}")
     return 0

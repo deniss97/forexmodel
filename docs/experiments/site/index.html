@@ -94,6 +94,7 @@ tbody tr.exp:hover, tbody tr.exp[aria-selected="true"] { background: var(--accen
 @media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
 .chart { height: 300px; border: 1px solid var(--rule); border-radius: 8px; position: relative; }
 .chart.big { height: 540px; }
+.chart.small { height: 200px; }
 @media (max-width: 700px) { .chart.big { height: 440px; } }
 .px-lines { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 .chk { display: inline-flex; gap: 5px; align-items: center; font-size: 13px; color: var(--ink2); cursor: pointer; }
@@ -258,6 +259,24 @@ h3 { font-size: 15px; }
     return out;
   }
 
+  function rollingPF(data, insts) {
+    const w = weightsFor(data, insts), pts = [];
+    for (const i of insts) for (const t of (data.trades[i] || [])) pts.push([t[1], t[5] * w[i]]);
+    pts.sort((a, b) => a[0] - b[0]);
+    if (!pts.length) return [];
+    const out = [], first = new Date(pts[0][0] * 1000), last = pts[pts.length - 1][0];
+    let m = new Date(Date.UTC(first.getUTCFullYear() + 1, first.getUTCMonth() + 1, 1));
+    while (m.getTime() / 1000 <= last + 31 * 86400) {
+      const end = m.getTime() / 1000;
+      const start = Date.UTC(m.getUTCFullYear() - 1, m.getUTCMonth(), 1) / 1000;
+      let pos = 0, neg = 0;
+      for (const [t, v] of pts) { if (t < start) continue; if (t >= end) break; if (v > 0) pos += v; else neg -= v; }
+      if (neg > 0) out.push({ time: end, value: Math.min(+(pos / neg).toFixed(3), 4) });
+      m = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth() + 1, 1));
+    }
+    return out;
+  }
+
   function chartOpts(el) {
     return { autoSize: true, layout: { background: { type: "solid", color: css("--panel") }, textColor: css("--ink2"), fontFamily: "IBM Plex Mono, monospace", fontSize: 11 },
              grid: { vertLines: { color: css("--rule") }, horzLines: { color: css("--rule") } },
@@ -291,7 +310,9 @@ h3 { font-size: 15px; }
       <p class="muted" style="margin:0;font-size:12.5px">Серым под значением — база на тех же инструментах.</p>
       <div class="grid2">
         <div style="display:grid;gap:6px"><h3>Накопленный итог: ${esc(name(e.main))}</h3><div class="chart" id="eq"></div>
-          <div class="legend"><span><i style="background:var(--accent)"></i>${esc(e.id)}</span>${e.baseline ? `<span><i style="background:var(--base)"></i>база ${esc(e.baseline)}</span>` : ""}<span>проверка — с 2021 года</span></div></div>
+          <div class="legend"><span><i style="background:var(--accent)"></i>${esc(e.id)}</span>${e.baseline ? `<span><i style="background:var(--base)"></i>база ${esc(e.baseline)}</span>` : ""}<span>проверка — с 2021 года</span></div>
+          <h3 style="margin-top:6px">PF за скользящие 12 месяцев</h3><div class="chart small" id="rpf"></div>
+          <div class="legend"><span>сделки, закрытые за последние 12 месяцев, на конец каждого месяца; ниже 1 — правило в этот год теряло</span></div></div>
         <div style="display:grid;gap:6px;align-content:start"><div class="bar"><h3 style="margin-right:auto">Журнал сделок</h3>
           <select id="d-inst" aria-label="Инструмент">${e.instruments.map((i) => `<option value="${i}">${esc(name(i))}</option>`).join("")}</select>
           <select id="d-run" aria-label="Прогон"></select></div>
@@ -324,6 +345,13 @@ h3 { font-size: 15px; }
     if (base && insts.every((i) => base.trades[i])) eqChart.addLineSeries({ color: css("--base"), lineWidth: 2, priceLineVisible: false, lastValueVisible: true }).setData(equitySeries(base, insts));
     eqChart.addLineSeries({ color: css("--accent"), lineWidth: 2, priceLineVisible: false, lastValueVisible: true }).setData(equitySeries(data, insts));
     eqChart.timeScale().fitContent();
+    // скользящий PF за 12 месяцев: заметно, когда правило слабеет (H43, срок жизни стратегии)
+    const rpf = LightweightCharts.createChart($("#rpf"), chartOpts());
+    if (base && insts.every((i) => base.trades[i])) rpf.addLineSeries({ color: css("--base"), lineWidth: 2, priceLineVisible: false, lastValueVisible: false }).setData(rollingPF(base, insts));
+    const rs = rpf.addLineSeries({ color: css("--accent"), lineWidth: 2, priceLineVisible: false, lastValueVisible: true });
+    rs.setData(rollingPF(data, insts));
+    rs.createPriceLine({ price: 1, color: css("--ink3"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "PF 1" });
+    rpf.timeScale().fitContent();
     fillLog(e);
   }
 
