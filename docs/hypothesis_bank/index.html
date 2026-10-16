@@ -3,8 +3,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Реестр исследования: узкая шапка с правилами, полоса «на этой неделе», затем список гипотез строками
-   (код · формулировка · оценки В×У×С · приоритет · статус); строка раскрывается в редактор. */
+/* Реестр исследования: шапка с правилами, полоса «на этой неделе», вкладки направлений (модель, импульс,
+   итератор параметров, тренд-фильтр), список гипотез строками (код · название · В×У×С · приоритет · статус);
+   строка раскрывается в редактор с описанием, файлами и экспериментами из журнала. */
 :root {
   --bg: #eef1f3;
   --panel: #fbfcfc;
@@ -55,12 +56,13 @@ body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); mar
 h1, h2, h3 { font-family: var(--cond); text-wrap: balance; margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+a { color: var(--accent); }
 
 header.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 24px; }
 .brand { display: grid; gap: 2px; min-width: 0; }
 .eyebrow { font: 600 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink3); }
 h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.01em; }
-.lede { color: var(--ink2); max-width: 68ch; margin: 2px 0 0; }
+.lede { color: var(--ink2); max-width: 72ch; margin: 2px 0 0; }
 .me { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
 .me img { width: 26px; height: 26px; border-radius: 50%; }
 
@@ -78,11 +80,19 @@ h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.01e
 .week { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 16px; display: grid; gap: 8px; }
 .week-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
 .week h2 { font-size: 18px; }
-.week .muted { color: var(--ink3); font-size: 13px; }
+.muted { color: var(--ink3); font-size: 13px; }
 .week-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .week-item { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: 6px; padding: 3px 8px; background: transparent; cursor: pointer; font-size: 13px; max-width: 100%; text-align: left; }
 .week-item .code { font: 500 12px var(--mono); color: var(--ink3); }
 .week-item span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; }
+
+/* вкладки направлений исследования */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); overflow-x: auto; scrollbar-width: thin; }
+.tab { border: 0; background: transparent; padding: 9px 14px 8px; font: 600 15px var(--cond); color: var(--ink2); cursor: pointer; white-space: nowrap; border-bottom: 3px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 7px; align-items: baseline; }
+.tab b { font: 500 12px var(--mono); color: var(--ink3); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--ink); }
+.area-note { color: var(--ink2); font-size: 14px; margin: -6px 0 0; }
 
 .bar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -96,6 +106,7 @@ h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.01e
 .btn { border: 1px solid var(--rule); background: var(--panel); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 14px; font-weight: 500; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.danger { color: var(--st-no); border-color: var(--st-no); background: transparent; }
+.btn.small { padding: 3px 10px; font-size: 13px; }
 .btn:disabled { opacity: 0.5; cursor: default; }
 
 .list { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
@@ -107,11 +118,12 @@ h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.01e
 .row[aria-expanded="true"] { background: var(--accent-soft); }
 .code { font: 600 13px var(--mono); color: var(--ink2); font-variant-numeric: tabular-nums; }
 .htext { min-width: 0; display: grid; gap: 3px; }
-.htext .t { font-weight: 500; }
-.meta { font-size: 12.5px; color: var(--ink3); display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.htext .t { font-weight: 600; }
+.htext .d { color: var(--ink2); font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.meta { font-size: 12.5px; color: var(--ink3); display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
 .type { font: 500 11.5px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink2); }
 .type.check { color: var(--warm); }
-.scale { font: 500 11.5px var(--mono); color: var(--accent); border: 1px solid var(--rule); border-radius: 4px; padding: 0 5px; }
+.tag { font: 500 11.5px var(--mono); color: var(--accent); border: 1px solid var(--rule); border-radius: 4px; padding: 0 5px; }
 .scores { display: flex; gap: 4px; }
 .sc { display: grid; place-items: center; width: 38px; border: 1px solid var(--rule); border-radius: 6px; padding: 2px 0; }
 .sc small { font: 500 10px var(--mono); color: var(--ink3); }
@@ -132,23 +144,45 @@ h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.01e
 .wk { font: 500 11px var(--mono); color: var(--accent); }
 
 .editor { border-top: 1px dashed var(--rule); padding: 14px 16px 18px; display: grid; gap: 14px; background: var(--panel); }
-.ed-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px 20px; }
+.ed-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px 20px; }
 .ed-grid > * { min-width: 0; }
+.col { display: grid; gap: 12px; align-content: start; }
 label.f { display: grid; gap: 4px; font-size: 13px; color: var(--ink2); }
 label.f input, label.f select, label.f textarea { background: var(--bg); border: 1px solid var(--rule); border-radius: 8px; padding: 7px 10px; font-size: 14px; width: 100%; }
 label.f textarea { resize: vertical; min-height: 64px; }
+label.f textarea.big { min-height: 220px; line-height: 1.55; }
+label.f input.title { font-weight: 600; font-size: 15px; }
+.hint { font-size: 12px; color: var(--ink3); }
+.block { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; }
+.block-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
+.block-head .eyebrow { color: var(--ink2); }
 .vote { display: grid; gap: 8px; }
-.vote-row { display: grid; grid-template-columns: 180px auto; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.vote-row { display: grid; grid-template-columns: 170px auto; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
 .seg { display: inline-flex; justify-self: start; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: transparent; padding: 4px 11px; font: 600 13px var(--mono); cursor: pointer; }
 .seg button + button { border-left: 1px solid var(--rule); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .voters { font-size: 12.5px; color: var(--ink3); display: grid; gap: 2px; }
 .voters span b { font: 500 12px var(--mono); color: var(--ink2); }
+
+/* эксперименты из журнала */
+.exps { display: grid; gap: 6px; }
+.exp { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 2px 10px; font-size: 13.5px; }
+.exp a.code { color: var(--accent); }
+.exp .nums { grid-column: 2; font: 500 12.5px var(--mono); color: var(--ink2); display: flex; flex-wrap: wrap; gap: 2px 14px; font-variant-numeric: tabular-nums; }
+.exp .vd { color: var(--ink3); }
+
+/* файлы */
+.files { display: grid; gap: 6px; }
+.file { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 13.5px; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+.file .sz { font: 500 12px var(--mono); color: var(--ink3); }
+.file img.thumb { width: 72px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid var(--rule); background: var(--bg); }
+.file img.thumb.broken { visibility: hidden; }
+
 .ed-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .ed-actions .left, .ed-actions .right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .confirm { font-size: 13px; color: var(--st-no); }
-.result-link a { color: var(--accent); }
 
 .empty { padding: 28px 16px; color: var(--ink2); text-align: center; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px); z-index: 10; }
@@ -177,7 +211,7 @@ label.f textarea { resize: vertical; min-height: 64px; }
     <div class="brand">
       <span class="eyebrow">forexmodel · исследование</span>
       <h1>Банк гипотез</h1>
-      <p class="lede">Всё, что стоит проверить: идеи со встреч, от Тагира, из статей и наблюдений. Каждый ставит свои оценки, раз в неделю выбираем, что берём в работу. Результаты проверок — в журнале изменений в репозитории.</p>
+      <p class="lede">Всё, что стоит проверить, по направлениям исследования. В проверку берётся только то, что описано здесь; результат проверки — эксперимент в <a href="https://claude.ai/artifact/E4teCbCVvojCf96CJy9UQU" target="_blank" rel="noopener">журнале экспериментов</a>, он виден прямо в гипотезе.</p>
     </div>
     <div class="me" id="me" hidden></div>
   </header>
@@ -185,22 +219,21 @@ label.f textarea { resize: vertical; min-height: 64px; }
   <div class="notice" id="notice" hidden></div>
 
   <details class="rules" id="rules">
-    <summary>Как оцениваем и выбираем на неделю</summary>
+    <summary>Как описываем, оцениваем и выбираем на неделю</summary>
     <div class="rules-body">
+      <div>
+        <h3>Как описать гипотезу</h3>
+        <p><b>Название</b> — коротко, чтобы узнать в списке.</p>
+        <p><b>Описание</b> — подробно: что именно проверяем и зачем; как проверяем (инструменты, параметры, как они сочетаются, периоды); что будет значить «подтвердилась». К описанию можно приложить файлы: ТЗ, скриншоты, таблицы.</p>
+        <p><b>Раздел</b> — направление исследования: модель, импульсная стратегия, итератор параметров, тренд-фильтр.</p>
+      </div>
       <div>
         <h3>Три оценки от 1 до 5</h3>
         <p><b>В — влияние:</b> насколько изменится главный результат, если гипотеза верна (1 — косметика, 5 — меняет вывод «работает / не работает»).</p>
         <p><b>У — уверенность:</b> сколько уже оснований, что она верна (1 — догадка, 5 — прямые признаки в данных).</p>
         <p><b>С — стоимость проверки:</b> 5 — дёшево, данные и код есть; 1 — нужны новые данные и недели работы.</p>
         <p class="formula">Приоритет = В × У × С (до 125)</p>
-        <p>Если оценили несколько человек, берётся среднее по каждой оценке. Пока никто не оценил — черновая оценка Дениса.</p>
-      </div>
-      <div>
-        <h3>Масштаб идеи</h3>
-        <p><b>Признак</b> — новый вход для модели или фильтр: проверка за часы–день, обычно С 4–5.</p>
-        <p><b>Правило стратегии</b> — выход, стоп, размер позиции, фильтр входа: код есть, обычно С 4–5.</p>
-        <p><b>Постановка задачи</b> — другая цель обучения или подход: разметка рыночных ситуаций и фигур, сочетание таймфреймов, перебор индикаторов. Недели работы, обычно С 1–2.</p>
-        <p><b>Источник данных</b> — подключить новые данные (лента, стакан, новости, другой рынок). Фильтр «источник данных» — это банк источников. Обычно С 1–3.</p>
+        <p>Каждый ставит свою оценку (сохраняется сразу, менять можно в любой момент), берётся среднее. Пока никто не оценил — черновая оценка Дениса.</p>
       </div>
       <div>
         <h3>Выбор на неделю</h3>
@@ -209,7 +242,7 @@ label.f textarea { resize: vertical; min-height: 64px; }
           <li>Затем 2–3 гипотезы с наибольшим приоритетом.</li>
           <li>Плюс одна «дикая карта»: большое влияние при низкой уверенности.</li>
           <li>До проверки записываем критерий вердикта: на каком периоде выбираем, на каком проверяем, какие метрики.</li>
-          <li>Сравниваем по профит-фактору и итогу без 2 лучших сделок, к каждому вердикту — график.</li>
+          <li>Проверяем ровно то, что описано. Сравниваем по профит-фактору и итогу без 2 лучших сделок; результат — эксперимент в журнале с графиком сделок.</li>
         </ol>
       </div>
     </div>
@@ -220,12 +253,14 @@ label.f textarea { resize: vertical; min-height: 64px; }
     <div class="week-list" id="week-list"><span class="muted">Загрузка…</span></div>
   </section>
 
+  <div class="tabs" id="tabs" role="tablist" aria-label="Направление исследования"></div>
+  <p class="area-note" id="area-note"></p>
+
   <div class="bar-row">
     <div class="chips" id="chips" role="group" aria-label="Статус"></div>
     <div class="tools">
-      <input type="search" id="q" placeholder="Поиск по тексту" aria-label="Поиск по тексту гипотезы">
+      <input type="search" id="q" placeholder="Поиск по тексту" aria-label="Поиск по названию, описанию и результату">
       <select id="f-type" aria-label="Тип гипотезы"></select>
-      <select id="f-scale" aria-label="Масштаб гипотезы"></select>
       <select id="sort" aria-label="Сортировка">
         <option value="prio">по приоритету</option>
         <option value="num">по номеру</option>
@@ -238,16 +273,22 @@ label.f textarea { resize: vertical; min-height: 64px; }
   <form class="add" id="add-form" hidden autocomplete="off">
     <h2>Новая гипотеза</h2>
     <div class="add-grid">
-      <label class="f wide" for="a-text">Формулировка: что именно проверяем
-        <textarea id="a-text" required maxlength="600" placeholder="Например: дельта ленты за 6 часов в сторону импульса отсеивает ложные входы"></textarea></label>
+      <label class="f wide" for="a-title">Название
+        <input id="a-title" class="title" required maxlength="160" placeholder="Например: дельта ленты как фильтр входа импульса"></label>
+      <label class="f wide" for="a-text">Описание: что проверяем, зачем и как
+        <textarea id="a-text" class="big grow" maxlength="20000" placeholder="Что проверяем и почему так думаем.&#10;Как проверяем: инструменты, параметры и как они сочетаются, периоды выбора и проверки.&#10;Что будет значить «подтвердилась»."></textarea></label>
+      <label class="f" for="a-area">Раздел
+        <select id="a-area"></select></label>
       <label class="f" for="a-type">Тип
         <select id="a-type"></select></label>
+      <label class="f" for="a-source">Откуда идея
+        <input id="a-source" maxlength="120" placeholder="встреча 16.10, Тагир, статья…"></label>
       <label class="f" for="a-scale">Масштаб
         <select id="a-scale"></select></label>
-      <label class="f" for="a-source">Откуда идея
-        <input id="a-source" maxlength="120" placeholder="встреча 12.10, Тагир, статья…"></label>
       <label class="f wide" for="a-crit">Критерий вердикта (можно позже)
-        <input id="a-crit" maxlength="300" placeholder="выбор на 2016–2020, проверка на 2021–2026, PF и итог без 2 лучших"></label>
+        <input id="a-crit" maxlength="1000" placeholder="выбор на 2016–2020, проверка на 2021–2026, PF и итог без 2 лучших против B01"></label>
+      <label class="f wide" for="a-files" id="a-files-label">Файлы (ТЗ, скриншоты, таблицы — картинки, PDF, CSV, Markdown, JSON, текст, видео; до 20 МБ)
+        <input id="a-files" type="file" multiple></label>
     </div>
     <div class="vote" id="a-vote"></div>
     <div class="ed-actions"><span class="muted" id="a-msg"></span>
@@ -264,36 +305,55 @@ label.f textarea { resize: vertical; min-height: 64px; }
 <script>
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const JOURNAL = "https://claude.ai/artifact/E4teCbCVvojCf96CJy9UQU";
+  // направления исследования (созвон 16.10): у каждого свой раздел банка
+  const AREAS = [
+    ["model", "Модель", "Модель CatBoost: признаки, постановка задачи, обучение, размер позиции."],
+    ["impulse", "Импульсная стратегия", "Действующая стратегия: правила входа и выхода, издержки и исполнение, рынки, визуализация сделок."],
+    ["search", "Итератор параметров", "Перебор параметров и самостоятельных стратегий из блоков ТЗ: что и как перебираем, как защищаемся от подгонки."],
+    ["trend", "Тренд-фильтр", "Определение направления тренда — для модели и для стратегий; метрики качества фильтра."],
+  ];
+  const AREA = Object.fromEntries(AREAS.map(([k, l]) => [k, l]));
   const TYPES = { check: "проверка достоверности", strategy: "стратегия", model: "модель", data: "данные", viz: "визуализация", process: "процесс" };
-  // масштаб идеи (встреча 11.10): от него зависит, сколько стоит проверка
+  // масштаб идеи (встреча 11.10); 16.10 решили оставить как есть, пока не ясно, чем заменить
   const SCALES = { feature: "признак", rule: "правило стратегии", approach: "постановка задачи", source: "источник данных" };
   const STATUSES = { new: "новая", work: "в работе", yes: "подтвердилась", no: "не подтвердилась", hold: "отложена", ask: "уточнить" };
   const OPEN = ["new", "work", "ask", "hold"];
   const DIMS = [["i", "В", "влияние"], ["c", "У", "уверенность"], ["e", "С", "стоимость (5 — дёшево)"]];
+  const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400 };
+  const FILE_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+    mp4: "video/mp4", webm: "video/webm", pdf: "application/pdf", csv: "text/csv", md: "text/markdown", markdown: "text/markdown",
+    json: "application/json", txt: "text/plain", log: "text/plain", yaml: "text/plain", yml: "text/plain", py: "text/plain" };
 
-  let db = null, user = null, col = null;
+  const SAVE_EXT = /\.(gif|png|jpe?g|webp|mp4|webm|txt|json|md|csv|svg|pdf)$/i;
+
+  let db = null, user = null, col = null, assets = null, downloads = null;
   let me = { id: null, name: "" };
   let canWrite = null;               // true / false / null (неизвестно — решит отказ записи)
   let docs = new Map();              // код -> данные
-  let loaded = false, ready = false;   // ready — платформа ответила, есть ли общая база
-  const view = { status: "open", type: "", scale: "", q: "", sort: "prio", open: null };
-  const draftVote = { i: null, c: null, e: null };
+  let J = { byId: {}, byHyp: {} };   // журнал экспериментов (journal.json рядом со страницей)
+  let loaded = false, ready = false, hashDone = false;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("hb-view") || "null"); } catch (e) {}
+  const view = { area: saved && (saved.area === "all" || AREA[saved.area]) ? saved.area : "all", status: "open", type: "", q: "", sort: "prio", open: null };
+  const remember = () => { try { localStorage.setItem("hb-view", JSON.stringify({ area: view.area })); } catch (e) {} };
 
   // ---------- даты недели ----------
   function mondayOf(d) {
     const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const wd = (x.getDay() + 6) % 7;
-    x.setDate(x.getDate() - wd);
+    x.setDate(x.getDate() - (x.getDay() + 6) % 7);
     return x;
   }
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const thisWeek = iso(mondayOf(new Date()));
-  const fmtDay = (s) => { const [y, m, d] = s.split("-"); return `${d}.${m}`; };
+  const fmtDay = (s) => { const [, m, d] = s.split("-"); return `${d}.${m}`; };
 
   // ---------- данные из общей базы: пишут разные люди — всё приводится к ожидаемому виду ----------
   const score = (x) => { x = Number(x); return Number.isFinite(x) && x >= 1 && x <= 5 ? Math.round(x) : null; };
   const safeId = (x) => (typeof x === "string" && /^[A-Za-z0-9_\-:.@+~]{1,200}$/.test(x) ? x : null);
   const str = (x, max = 1000) => (typeof x === "string" ? x.slice(0, max) : "");
+  const expId = (x) => (typeof x === "string" && /^[A-Za-z]{1,3}\d{1,4}$/.test(x) ? x.toUpperCase() : null);
   function clean(id, d) {
     const votes = {};
     if (d.votes && typeof d.votes === "object") {
@@ -304,51 +364,75 @@ label.f textarea { resize: vertical; min-height: 64px; }
     }
     const dr = d.draft && typeof d.draft === "object" ? { i: score(d.draft.i), c: score(d.draft.c), e: score(d.draft.e) } : null;
     const num = Number.isFinite(Number(d.num)) ? Number(d.num) : Number(String(id).replace(/\D/g, "")) || 0;
+    const files = Array.isArray(d.files) ? d.files.filter((f) => f && typeof f.id === "string" && /^[0-9a-f]{32}$/.test(f.id)).slice(0, 50)
+      .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40), by: safeId(f.by) })) : [];
+    const exps = Array.isArray(d.exps) ? [...new Set(d.exps.map(expId).filter(Boolean))].slice(0, 30) : [];
+    const text = str(d.text, LIM.text);
     return {
       code: id, num, votes, draft: dr && dr.i && dr.c && dr.e ? dr : null,
-      text: str(d.text, 600), source: str(d.source, 120), criterion: str(d.criterion, 300), result: str(d.result, 600),
-      link: str(d.link, 400), status: STATUSES[d.status] ? d.status : "new", type: TYPES[d.type] ? d.type : "process",
-      scale: SCALES[d.scale] ? d.scale : "",
+      title: str(d.title, LIM.title), text, source: str(d.source, LIM.source), criterion: str(d.criterion, LIM.criterion),
+      result: str(d.result, LIM.result), link: str(d.link, LIM.link), exps, files,
+      area: AREA[d.area] ? d.area : "",
+      status: STATUSES[d.status] ? d.status : "new", type: TYPES[d.type] ? d.type : "process", scale: SCALES[d.scale] ? d.scale : "",
       author: safeId(d.author), createdAt: str(d.createdAt, 40),
       sprint: /^\d{4}-\d{2}-\d{2}$/.test(String(d.sprint || "")) ? d.sprint : "",
     };
   }
+  // старые записи без названия: первая фраза описания
+  const titleOf = (h) => h.title || (h.text.split(/(?<=[.!?])\s|\n/)[0] || h.code).slice(0, 120);
 
   // ---------- оценки ----------
   function effective(h) {
-    const votes = h.votes && typeof h.votes === "object" ? Object.values(h.votes).filter((v) => v && v.i && v.c && v.e) : [];
+    const votes = Object.values(h.votes || {});
     if (votes.length) {
       const m = (k) => votes.reduce((a, v) => a + Number(v[k]), 0) / votes.length;
       return { i: m("i"), c: m("c"), e: m("e"), n: votes.length, draft: false };
     }
     const d = h.draft;
-    if (d && d.i && d.c && d.e) return { i: d.i, c: d.c, e: d.e, n: 0, draft: true };
+    if (d) return { i: d.i, c: d.c, e: d.e, n: 0, draft: true };
     return null;
   }
   const prio = (s) => (s ? s.i * s.c * s.e : null);
   const num1 = (x) => (Number.isInteger(x) ? String(x) : x.toFixed(1).replace(".", ","));
 
+  // ---------- журнал экспериментов ----------
+  function expsOf(h) {
+    const ids = [...(J.byHyp[h.code] || []), ...h.exps];
+    return [...new Set(ids)];
+  }
+  const pct = (x) => (x == null || !Number.isFinite(x) ? "—" : `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(Math.round(x))}%`);
+  const pf = (x) => (x == null || !Number.isFinite(x) ? "—" : x.toFixed(2).replace(".", ","));
+  function expHTML(id) {
+    const e = J.byId[id];
+    const a = `<a class="code" href="${JOURNAL}#${esc(id)}" target="_blank" rel="noopener" title="открыть в журнале экспериментов">${esc(id)}</a>`;
+    if (!e) return `<div class="exp">${a}<span class="vd">нет в журнале — проверьте номер</span></div>`;
+    const m = e.m || {}, b = e.b;
+    const vs = (f, x, y) => (b ? `${f(x)} · база ${f(y)}` : f(x));
+    return `<div class="exp">${a}<span>${esc(e.title)} <span class="vd">· ${esc(e.verdict || "без вердикта")}</span></span>
+      <span class="nums"><span>PF ${vs(pf, m.PF, b && b.PF)}</span><span>итог ${vs(pct, m["итог"], b && b["итог"])}</span><span>без 2 лучших ${vs(pct, m["без_2_лучших"], b && b["без_2_лучших"])}</span><span class="vd">${esc(e.scope)}, проверка 2021–26</span></span></div>`;
+  }
+
   // ---------- вывод ----------
   function toast(msg) {
     const t = $("#toast"); t.textContent = msg; t.hidden = false;
-    clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, 3200);
+    clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, 4200);
   }
-
   function notice(msg) { const n = $("#notice"); n.textContent = msg; n.hidden = !msg; }
-
+  const RO_MSG = "Сейчас у вас только чтение: добавлять, удалять, менять гипотезы и ставить оценки нельзя. " +
+    "Если Денис пригласил вас по почте редактором, а у страницы включён доступ по ссылке, права редактора не действуют, пока этот доступ включён — попросите Дениса выключить его в меню Share и обновите страницу.";
   function setReadOnly(reason) {
     canWrite = false;
-    notice(reason || "Читать банк можно, а добавлять и менять гипотезы — только участникам с правом редактирования. Попросите Дениса пригласить вас по почте как редактора.");
+    notice(reason || RO_MSG);
     render();
   }
 
+  function inArea(h) { return view.area === "all" || (view.area === "none" ? !h.area : h.area === view.area); }
   function filtered() {
     const q = view.q.trim().toLowerCase();
-    let a = [...docs.values()].filter((h) =>
+    const a = [...docs.values()].filter((h) => inArea(h) &&
       (view.status === "all" || (view.status === "open" ? OPEN.includes(h.status) : h.status === view.status)) &&
       (!view.type || h.type === view.type) &&
-      (!view.scale || (view.scale === "none" ? !h.scale : h.scale === view.scale)) &&
-      (!q || `${h.code} ${h.text} ${h.source || ""} ${h.result || ""}`.toLowerCase().includes(q)));
+      (!q || `${h.code} ${h.title} ${h.text} ${h.source} ${h.result} ${expsOf(h).join(" ")}`.toLowerCase().includes(q)));
     const by = {
       prio: (x, y) => (prio(effective(y)) ?? -1) - (prio(effective(x)) ?? -1) || x.num - y.num,
       num: (x, y) => x.num - y.num,
@@ -357,8 +441,18 @@ label.f textarea { resize: vertical; min-height: 64px; }
     return a.sort(by[view.sort]);
   }
 
-  function renderChips() {
+  function renderTabs() {
     const all = [...docs.values()];
+    const n = (k) => all.filter((h) => (k === "all" ? true : k === "none" ? !h.area : h.area === k)).length;
+    const items = [...AREAS.map(([k, l]) => [k, l]), ...(n("none") ? [["none", "Без раздела"]] : []), ["all", "Все"]];
+    if (view.area === "none" && !n("none")) view.area = "all";
+    $("#tabs").innerHTML = items.map(([k, l]) => `<button type="button" class="tab" role="tab" data-area="${k}" aria-selected="${view.area === k}">${esc(l)} <b>${loaded ? n(k) : ""}</b></button>`).join("");
+    const a = AREAS.find(([k]) => k === view.area);
+    $("#area-note").textContent = a ? a[2] : view.area === "none" ? "Гипотезы, которым ещё не назначен раздел." : "Все разделы вместе.";
+  }
+
+  function renderChips() {
+    const all = [...docs.values()].filter(inArea);
     const cnt = (s) => all.filter((h) => (s === "all" ? true : s === "open" ? OPEN.includes(h.status) : h.status === s)).length;
     const items = [["open", "открытые"], ...Object.entries(STATUSES), ["all", "все"]];
     $("#chips").innerHTML = items.map(([k, l]) => `<button type="button" class="chip" data-k="${k}" aria-pressed="${view.status === k}">${l} <b>${cnt(k)}</b></button>`).join("");
@@ -368,72 +462,82 @@ label.f textarea { resize: vertical; min-height: 64px; }
     $("#week-label").textContent = `неделя с ${fmtDay(thisWeek)}`;
     const w = [...docs.values()].filter((h) => h.sprint === thisWeek).sort((a, b) => a.num - b.num);
     const box = $("#week-list");
-    box.textContent = "";
     if (!loaded) { box.innerHTML = `<span class="muted">Загрузка…</span>`; return; }
     if (!w.length) { box.innerHTML = `<span class="muted">Пока ничего не взято. Откройте гипотезу и нажмите «Взять на эту неделю».</span>`; return; }
-    for (const h of w) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "week-item"; b.dataset.code = h.code;
-      b.innerHTML = `<span class="code"></span><span class="t"></span><span class="pill st-${h.status}"></span>`;
-      b.querySelector(".code").textContent = h.code;
-      b.querySelector(".t").textContent = h.text;
-      b.querySelector(".pill").textContent = STATUSES[h.status] || h.status;
-      box.appendChild(b);
-    }
+    box.innerHTML = w.map((h) => `<button type="button" class="week-item" data-code="${esc(h.code)}"><span class="code">${esc(h.code)}</span>${h.area ? `<span class="tag">${esc(AREA[h.area])}</span>` : ""}<span class="t">${esc(titleOf(h))}</span><span class="pill st-${h.status}">${STATUSES[h.status]}</span></button>`).join("");
   }
 
-  function scoreTiles(s) {
-    return DIMS.map(([k, l]) => `<span class="sc" title="${l}"><small>${l}</small><b>${s ? num1(s[k]) : "—"}</b></span>`).join("");
-  }
+  const scoreTiles = (s) => DIMS.map(([k, l]) => `<span class="sc" title="${l}"><small>${l}</small><b>${s ? num1(s[k]) : "—"}</b></span>`).join("");
 
   function rowHTML(h) {
-    const s = effective(h), p = prio(s);
+    const s = effective(h), p = prio(s), ex = expsOf(h);
     const exp = view.open === h.code;
-    return `<div class="row" role="button" tabindex="0" data-code="${h.code}" aria-expanded="${exp}">
-      <span class="code"></span>
-      <div class="htext"><span class="t"></span>
-        <span class="meta"><span class="type ${h.type === "check" ? "check" : ""}">${TYPES[h.type] || "—"}</span>${h.scale ? `<span class="scale">${SCALES[h.scale]}</span>` : ""}<span class="src"></span>${h.author ? `<span>автор: <span data-uid="${h.author}">…</span></span>` : ""}</span></div>
+    return `<div class="row" role="button" tabindex="0" data-code="${esc(h.code)}" aria-expanded="${exp}">
+      <span class="code">${esc(h.code)}</span>
+      <div class="htext"><span class="t">${esc(titleOf(h))}</span>${h.title && h.text ? `<span class="d">${esc(h.text)}</span>` : ""}
+        <span class="meta">${view.area === "all" && h.area ? `<span class="tag">${esc(AREA[h.area])}</span>` : ""}<span class="type ${h.type === "check" ? "check" : ""}">${TYPES[h.type]}</span>${h.source ? `<span>${esc(h.source)}</span>` : ""}${ex.length ? `<span>журнал: ${ex.map(esc).join(" ")}</span>` : ""}${h.files.length ? `<span>файлов: ${h.files.length}</span>` : ""}${h.author ? `<span>автор: <span data-uid="${esc(h.author)}">…</span></span>` : ""}</span></div>
       <div class="scorecell"><div class="scores">${scoreTiles(s)}</div></div>
       <div class="prio"><b>${p == null ? "—" : num1(p)}</b><div class="track"><div class="fill" style="width:${p == null ? 0 : Math.min(100, (p / 125) * 100)}%"></div></div>
         <span class="meta">${s ? (s.draft ? "черновая" : `оценок: ${s.n}`) : "нет оценок"}</span></div>
-      <div class="stcell"><span class="pill st-${h.status}">${STATUSES[h.status] || h.status}</span>${h.sprint === thisWeek ? `<span class="wk">на этой неделе</span>` : ""}</div>
+      <div class="stcell"><span class="pill st-${h.status}">${STATUSES[h.status]}</span>${h.sprint === thisWeek ? `<span class="wk">на этой неделе</span>` : ""}</div>
     </div>${exp ? editorHTML(h) : ""}`;
   }
 
   function voteHTML(prefix, vals) {
-    return DIMS.map(([k, l, title]) => `<div class="vote-row"><span>${title}</span><div class="seg" role="group" aria-label="${title}" data-dim="${k}" data-prefix="${prefix}">
-      ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-v="${n}" aria-pressed="${vals && Number(vals[k]) === n}">${n}</button>`).join("")}</div></div>`).join("");
+    return DIMS.map(([k, , title]) => `<div class="vote-row"><span>${title}</span><div class="seg" role="group" aria-label="${title}" data-dim="${k}" data-prefix="${prefix}">
+      ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-v="${n}" aria-pressed="${!!vals && Number(vals[k]) === n}">${n}</button>`).join("")}</div></div>`).join("");
+  }
+
+  const sizeTxt = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1).replace(".", ",")} МБ` : `${Math.max(1, Math.round(b / 1024))} КБ`);
+  function filesHTML(h, ro) {
+    const list = h.files.map((f) => `<div class="file">${/^image\//.test(f.type) ? `<img class="thumb" src="/_blob/${f.id}" alt="">` : ""}
+      <button type="button" class="linkbtn" data-act="getfile" data-id="${f.id}" title="скачать">${esc(f.name)}</button><span class="sz">${f.size ? sizeTxt(f.size) : ""}</span>
+      ${ro ? "" : `<button type="button" class="btn small" data-act="unfile" data-id="${f.id}">убрать</button>`}</div>`).join("");
+    const add = !ro && assets ? `<label class="btn small" style="justify-self:start">Прикрепить файл<input type="file" multiple data-attach hidden></label>` : "";
+    const why = !ro && !assets && ready ? `<span class="hint">Прикреплять файлы могут редакторы страницы.</span>` : "";
+    return `<div class="block"><div class="block-head"><span class="eyebrow">файлы</span>${add}</div>
+      ${list ? `<div class="files">${list}</div>` : `<span class="hint">Файлов нет. Сюда — ТЗ, скриншоты, таблицы: картинки, PDF, CSV, Markdown, JSON, текст, видео до 20 МБ.</span>`}${why}</div>`;
   }
 
   function editorHTML(h) {
     const ro = canWrite === false;
-    const mine = me.id && h.votes ? h.votes[me.id] : null;
-    const voters = h.votes ? Object.entries(h.votes).filter(([, v]) => v && v.i) : [];
-    const dis = ro ? "disabled" : "";
-    return `<div class="editor" data-code="${h.code}">
+    const mine = me.id ? h.votes[me.id] : null;
+    const voters = Object.entries(h.votes);
+    const r = ro ? "readonly" : "", dis = ro ? "disabled" : "";
+    const ex = expsOf(h), auto = new Set(J.byHyp[h.code] || []);
+    const opt = (obj, cur, empty) => (empty ? `<option value="" ${cur ? "" : "selected"}>${empty}</option>` : "") + Object.entries(obj).map(([k, l]) => `<option value="${k}" ${cur === k ? "selected" : ""}>${esc(l)}</option>`).join("");
+    return `<div class="editor" data-code="${esc(h.code)}">
       <div class="ed-grid">
-        <div style="display:grid;gap:12px">
-          <label class="f">Формулировка<textarea data-f="text" maxlength="600" ${dis}></textarea></label>
-          <label class="f">Критерий вердикта<input data-f="criterion" maxlength="300" ${dis} placeholder="на каком периоде выбираем, на каком проверяем, какие метрики"></label>
-          <label class="f">Результат проверки<textarea data-f="result" maxlength="600" ${dis} placeholder="что получилось, с цифрами"></textarea></label>
-          <label class="f">Ссылка на результат<input data-f="link" maxlength="400" ${dis} placeholder="https://github.com/…"></label>
-          ${h.link && /^https:\/\//.test(h.link) ? `<span class="result-link"><a target="_blank" rel="noopener"></a></span>` : ""}
+        <div class="col">
+          <label class="f">Название<input class="title" data-f="title" maxlength="${LIM.title}" ${r} value="${esc(h.title)}" placeholder="${esc(titleOf(h))}"></label>
+          <label class="f">Описание: что проверяем, зачем и как<textarea class="big grow" data-f="text" maxlength="${LIM.text}" ${r} placeholder="Что проверяем и почему. Как проверяем: инструменты, параметры, периоды. Что будет значить «подтвердилась».">${esc(h.text)}</textarea></label>
+          ${filesHTML(h, ro)}
+          <label class="f">Критерий вердикта<input data-f="criterion" maxlength="${LIM.criterion}" ${r} value="${esc(h.criterion)}" placeholder="на каком периоде выбираем, на каком проверяем, какие метрики"></label>
+          <div class="block"><div class="block-head"><span class="eyebrow">результат проверки — журнал экспериментов</span><a href="${JOURNAL}" target="_blank" rel="noopener" class="hint">открыть журнал</a></div>
+            ${ex.length ? `<div class="exps">${ex.map(expHTML).join("")}</div>` : `<span class="hint">Эксперимента в журнале пока нет.</span>`}
+            <label class="f">Эксперименты этой гипотезы${auto.size ? ` (из каталога: ${[...auto].map(esc).join(", ")}; добавьте другие)` : ""}<input data-f="exps" maxlength="300" ${r} value="${esc(h.exps.filter((x) => !auto.has(x)).join(", "))}" placeholder="номера из журнала через запятую: S12, M18"></label>
+            <label class="f">Вывод<textarea class="grow" data-f="result" maxlength="${LIM.result}" ${r} placeholder="что получилось, с цифрами">${esc(h.result)}</textarea></label>
+            <label class="f">Другая ссылка (документ, если эксперимента в журнале нет)<input data-f="link" maxlength="${LIM.link}" ${r} value="${esc(h.link)}" placeholder="https://github.com/…"></label>
+            ${/^https:\/\//.test(h.link) ? `<a href="${esc(h.link)}" target="_blank" rel="noopener" class="hint">открыть ссылку</a>` : ""}
+          </div>
         </div>
-        <div style="display:grid;gap:12px;align-content:start">
-          <label class="f">Статус<select data-f="status" ${dis}>${Object.entries(STATUSES).map(([k, l]) => `<option value="${k}" ${h.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-          <label class="f">Тип<select data-f="type" ${dis}>${Object.entries(TYPES).map(([k, l]) => `<option value="${k}" ${h.type === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-          <label class="f">Масштаб<select data-f="scale" ${dis}><option value="" ${h.scale ? "" : "selected"}>не задан</option>${Object.entries(SCALES).map(([k, l]) => `<option value="${k}" ${h.scale === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-          <label class="f">Откуда идея<input data-f="source" maxlength="120" ${dis}></label>
-          <div class="vote">
-            <span class="eyebrow">${me.id ? "ваша оценка" : "оценка"}</span>
-            ${me.id && !ro ? voteHTML("e", mine) : `<span class="meta">Оценивать могут участники, вошедшие в аккаунт.</span>`}
-            <div class="voters">${voters.length ? voters.map(([uid, v]) => `<span><span data-uid="${uid}">…</span>: <b>В ${v.i} · У ${v.c} · С ${v.e}</b></span>`).join("") : (h.draft ? `<span>черновая оценка Дениса: <b>В ${h.draft.i} · У ${h.draft.c} · С ${h.draft.e}</b></span>` : "")}</div>
+        <div class="col">
+          <label class="f">Раздел<select data-f="area" ${dis}>${opt(AREA, h.area, "не задан")}</select></label>
+          <label class="f">Статус<select data-f="status" ${dis}>${opt(STATUSES, h.status)}</select></label>
+          <label class="f">Тип<select data-f="type" ${dis}>${opt(TYPES, h.type)}</select></label>
+          <label class="f">Откуда идея<input data-f="source" maxlength="${LIM.source}" ${r} value="${esc(h.source)}"></label>
+          <label class="f">Масштаб<select data-f="scale" ${dis}>${opt(SCALES, h.scale, "не задан")}</select></label>
+          <div class="block vote">
+            <div class="block-head"><span class="eyebrow">ваша оценка</span>${mine && !ro ? `<button type="button" class="btn small" data-act="unvote">убрать мою</button>` : ""}</div>
+            ${!ro && me.id ? voteHTML("e", mine) + `<span class="hint">Сохраняется сразу, как выбраны все три. Поменять — нажать другую цифру.</span>`
+              : ro ? `<span class="hint">Оценивать можно с правом редактирования.</span>` : `<span class="hint">Оценивать могут участники, вошедшие в аккаунт.</span>`}
+            <div class="voters">${voters.length ? voters.map(([uid, v]) => `<span><span data-uid="${esc(uid)}">…</span>: <b>В ${v.i} · У ${v.c} · С ${v.e}</b></span>`).join("") : (h.draft ? `<span>черновая оценка Дениса: <b>В ${h.draft.i} · У ${h.draft.c} · С ${h.draft.e}</b> — действует, пока никто не оценил</span>` : "")}</div>
           </div>
         </div>
       </div>
       <div class="ed-actions">
         <div class="left">${ro ? "" : `<button type="button" class="btn" data-act="sprint">${h.sprint === thisWeek ? "Снять с этой недели" : "Взять на эту неделю"}</button>
-          <button type="button" class="btn danger" data-act="del">Удалить</button><span class="confirm" data-confirm hidden>Удалить безвозвратно? <button type="button" class="btn danger" data-act="del-yes">Да, удалить</button> <button type="button" class="btn" data-act="del-no">Нет</button></span>`}</div>
+          <button type="button" class="btn danger" data-act="del">Удалить</button><span class="confirm" data-confirm hidden>Удалить ${esc(h.code)} безвозвратно? <button type="button" class="btn danger" data-act="del-yes">Да, удалить</button> <button type="button" class="btn" data-act="del-no">Нет</button></span>`}</div>
         <div class="right"><button type="button" class="btn" data-act="close">Свернуть</button>${ro ? "" : `<button type="button" class="btn primary" data-act="save">Сохранить</button>`}</div>
       </div>
     </div>`;
@@ -447,13 +551,15 @@ label.f textarea { resize: vertical; min-height: 64px; }
     for (const e of els) { const p = ps[e.dataset.uid]; e.textContent = (p && p.isMe) ? "вы" : (p && p.name) || "участник"; }
   }
 
+  const grow = (t) => { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 900) + "px"; };
+
   function render() {
-    renderChips(); renderWeek();
+    renderTabs(); renderChips(); renderWeek();
     $("#add-btn").hidden = canWrite === false || !db;
     const list = $("#list");
     // несохранённые правки открытой гипотезы переживают перерисовку (чужие сохранения приходят вживую)
     const prev = list.querySelector(".editor");
-    const keep = prev ? { code: prev.dataset.code, fields: readEditor(prev), segs: {},
+    const keep = prev ? { code: prev.dataset.code, fields: readEditor(prev), segs: {}, confirm: !prev.querySelector("[data-confirm]")?.hidden,
                           focus: document.activeElement && prev.contains(document.activeElement) ? document.activeElement.dataset.f : null } : null;
     if (prev) for (const seg of prev.querySelectorAll(".seg")) {
       const on = seg.querySelector("button[aria-pressed='true']"); if (on) keep.segs[seg.dataset.dim] = on.dataset.v;
@@ -464,28 +570,22 @@ label.f textarea { resize: vertical; min-height: 64px; }
       const e = document.createElement("div"); e.className = "empty";
       e.textContent = !ready || (db && !loaded) ? "Загрузка банка…"
         : !db ? "Банк недоступен в этом просмотре. Откройте страницу на claude.ai, войдя в аккаунт."
-        : docs.size ? "Под этот фильтр ничего не подходит." : "Банк пока пуст. Добавьте первую гипотезу кнопкой «Добавить гипотезу».";
+        : docs.size ? "В этом разделе под этот фильтр ничего не подходит." : "Банк пока пуст. Добавьте первую гипотезу кнопкой «Добавить гипотезу».";
       list.appendChild(e); return;
     }
     list.insertAdjacentHTML("beforeend", items.map(rowHTML).join(""));
-    for (const h of items) {
-      const r = list.querySelector(`.row[data-code="${h.code}"]`);
-      r.querySelector(".code").textContent = h.code;
-      r.querySelector(".t").textContent = h.text;
-      r.querySelector(".src").textContent = h.source || "";
-      const ed = list.querySelector(`.editor[data-code="${h.code}"]`);
-      if (ed) {
-        for (const el of ed.querySelectorAll("[data-f]")) if (el.tagName !== "SELECT") el.value = h[el.dataset.f] || "";
-        const a = ed.querySelector(".result-link a"); if (a) { a.href = h.link; a.textContent = "открыть результат"; }
-        if (keep && keep.code === h.code) {
-          for (const el of ed.querySelectorAll("[data-f]")) if (keep.fields[el.dataset.f] !== undefined) el.value = keep.fields[el.dataset.f];
-          for (const seg of ed.querySelectorAll(".seg")) {
-            const v = keep.segs[seg.dataset.dim];
-            if (v) seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === v));
-          }
-          if (keep.focus) ed.querySelector(`[data-f="${keep.focus}"]`)?.focus();
+    const ed = list.querySelector(".editor");
+    if (ed) {
+      if (keep && keep.code === ed.dataset.code) {
+        for (const el of ed.querySelectorAll("[data-f]")) if (keep.fields[el.dataset.f] !== undefined) el.value = keep.fields[el.dataset.f];
+        for (const seg of ed.querySelectorAll(".seg")) {
+          const v = keep.segs[seg.dataset.dim];
+          if (v) seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === v));
         }
+        if (keep.confirm) { const c = ed.querySelector("[data-confirm]"); if (c) c.hidden = false; }
+        if (keep.focus) ed.querySelector(`[data-f="${keep.focus}"]`)?.focus();
       }
+      ed.querySelectorAll("textarea.grow").forEach(grow);
     }
     resolveNames(list);
   }
@@ -495,7 +595,7 @@ label.f textarea { resize: vertical; min-height: 64px; }
     try { await fn(); if (okMsg) toast(okMsg); return true; }
     catch (e) {
       const code = e && e.code;
-      if (code === "invalid_argument") setReadOnly();
+      if (code === "invalid_argument") { toast("Изменение не прошло: у вас нет права на запись."); setReadOnly(); }
       else if (code === "quota_exceeded") toast("Банк заполнен: удалите ненужные гипотезы и попробуйте снова.");
       else if (code === "revoked") setReadOnly("Доступ к банку изменился. Обновите страницу.");
       else toast("Не удалось сохранить. Проверьте соединение и попробуйте ещё раз.");
@@ -508,39 +608,92 @@ label.f textarea { resize: vertical; min-height: 64px; }
     for (const el of ed.querySelectorAll("[data-f]")) o[el.dataset.f] = el.value.trim();
     return o;
   }
+  const parseExps = (s) => [...new Set(String(s || "").split(/[\s,;]+/).map(expId).filter(Boolean))].slice(0, 30);
 
   async function saveEditor(code, ed) {
     const h = docs.get(code); if (!h) return;
     const v = readEditor(ed);
-    if (!v.text) { toast("Формулировка не может быть пустой."); return; }
+    if (!v.title && !h.title && !v.text) { toast("Нужно название или описание."); return; }
     const patch = {};
-    for (const k of ["text", "criterion", "result", "link", "status", "type", "scale", "source"]) if ((h[k] || "") !== v[k]) patch[k] = v[k];
-    const vote = {};
-    for (const seg of ed.querySelectorAll(".seg[data-prefix='e']")) {
-      const on = seg.querySelector("button[aria-pressed='true']"); if (on) vote[seg.dataset.dim] = Number(on.dataset.v);
-    }
-    const mine = me.id && h.votes ? h.votes[me.id] : null;
-    if (me.id && vote.i && vote.c && vote.e && (!mine || mine.i !== vote.i || mine.c !== vote.c || mine.e !== vote.e)) {
-      patch.votes = { [me.id]: { ...vote, at: new Date().toISOString() } };
-    } else if (me.id && Object.keys(vote).length && !(vote.i && vote.c && vote.e)) {
-      toast("Поставьте все три оценки: В, У и С."); return;
-    }
+    for (const k of ["title", "text", "criterion", "result", "link", "status", "type", "scale", "source", "area"]) if ((h[k] || "") !== v[k]) patch[k] = v[k];
+    const auto = new Set(J.byHyp[code] || []);
+    const exps = parseExps(v.exps).filter((x) => !auto.has(x));
+    if (exps.join() !== h.exps.filter((x) => !auto.has(x)).join()) patch.exps = exps;
     if (!Object.keys(patch).length) { toast("Изменений нет."); return; }
     patch.updatedAt = new Date().toISOString();
     if (me.id) patch.updatedBy = me.id;
-    await write(() => col.doc(code).update(patch), "Сохранено");
+    if (await write(() => col.doc(code).update(patch), "Сохранено") && patch.area && view.area !== "all" && patch.area !== view.area) {
+      view.area = patch.area; remember(); render();
+    }
+  }
+
+  function readVote(root) {
+    const v = {};
+    for (const seg of root.querySelectorAll(".seg")) {
+      const on = seg.querySelector("button[aria-pressed='true']"); if (on) v[seg.dataset.dim] = Number(on.dataset.v);
+    }
+    return v;
+  }
+  async function saveVote(code, v) {
+    const h = docs.get(code); if (!h || !me.id) return;
+    const mine = h.votes[me.id];
+    if (mine && mine.i === v.i && mine.c === v.c && mine.e === v.e) return;
+    await write(() => col.doc(code).update({ votes: { [me.id]: { i: v.i, c: v.c, e: v.e, at: new Date().toISOString() } }, updatedAt: new Date().toISOString() }),
+                `Ваша оценка ${code}: В ${v.i} · У ${v.c} · С ${v.e}`);
+  }
+
+  // ---------- файлы ----------
+  function typeFor(f) {
+    const ext = (f.name.split(".").pop() || "").toLowerCase();
+    const t = (f.type || "").split(";")[0].trim();
+    if (Object.values(FILE_TYPES).includes(t) && !/^text\/|json/.test(t)) return t;
+    return FILE_TYPES[ext] || null;
+  }
+  function assetError(e, name) {
+    const c = e && e.code;
+    if (c === "too_large") return `${name}: файл больше 20 МБ.`;
+    if (c === "unsupported_type") return `${name}: такой тип не принимается. Word и Excel сохраните как PDF или CSV.`;
+    if (c === "invalid_request") return `${name}: текст должен быть в UTF-8.`;
+    if (c === "quota_or_state") return "Место для файлов закончилось.";
+    if (c === "rate_limited") return "Слишком часто — попробуйте через минуту.";
+    return `${name}: не удалось загрузить.`;
+  }
+  async function uploadFiles(fileList) {
+    const out = [];
+    for (const f of fileList) {
+      const type = typeFor(f);
+      if (!type) { toast(`${f.name}: такой тип не принимается. Можно картинки, PDF, видео, CSV, Markdown, JSON, текст; Word и Excel сохраните как PDF или CSV.`); continue; }
+      if (f.size > 20 * 1048576) { toast(`${f.name}: файл больше 20 МБ.`); continue; }
+      try {
+        const r = await assets.upload(f, { type });
+        out.push({ id: r.id, name: f.name.slice(0, 200), size: r.sizeBytes, type: r.contentType, at: new Date().toISOString(), ...(me.id ? { by: me.id } : {}) });
+      } catch (e) { toast(assetError(e, f.name)); }
+    }
+    return out;
+  }
+  const fileRec = (f) => ({ id: f.id, name: f.name, size: f.size, type: f.type, at: f.at, ...(f.by ? { by: f.by } : {}) });
+  async function attach(code, fileList) {
+    if (!assets || !fileList.length) return;
+    toast("Загружаю…");
+    const added = await uploadFiles([...fileList]);
+    if (!added.length) return;
+    const cur = (docs.get(code) || { files: [] }).files.map(fileRec);
+    await write(() => col.doc(code).update({ files: [...cur, ...added], updatedAt: new Date().toISOString() }),
+                added.length === 1 ? `Прикреплён файл ${added[0].name}` : `Прикреплено файлов: ${added.length}`);
+  }
+  async function unattach(code, id) {
+    const h = docs.get(code); if (!h) return;
+    const ok = await write(() => col.doc(code).update({ files: h.files.filter((f) => f.id !== id).map(fileRec), updatedAt: new Date().toISOString() }), "Файл убран");
+    if (ok && assets) assets.delete(id).catch(() => {});   // чужой файл может не удалиться из хранилища — ссылка из гипотезы уже убрана
   }
 
   async function addHypothesis(ev) {
     ev.preventDefault();
-    const text = $("#a-text").value.trim();
-    if (!text) { $("#a-msg").textContent = "Напишите формулировку."; return; }
-    const vote = {};
-    for (const seg of document.querySelectorAll("#a-vote .seg")) {
-      const on = seg.querySelector("button[aria-pressed='true']"); if (on) vote[seg.dataset.dim] = Number(on.dataset.v);
-    }
+    const title = $("#a-title").value.trim(), text = $("#a-text").value.trim();
+    if (!title) { $("#a-msg").textContent = "Напишите название."; return; }
+    const vote = readVote($("#a-vote"));
     if (Object.keys(vote).length && !(vote.i && vote.c && vote.e)) { $("#a-msg").textContent = "Поставьте все три оценки или ни одной."; return; }
-    $("#a-save").disabled = true;
+    $("#a-save").disabled = true; $("#a-msg").textContent = "";
     // следующий свободный номер: проверяем, что документ ещё не занят
     let n = Math.max(0, ...[...docs.values()].map((h) => h.num || 0)) + 1, code = "";
     for (let tries = 0; tries < 20; tries++, n++) {
@@ -548,57 +701,125 @@ label.f textarea { resize: vertical; min-height: 64px; }
       try { const s = await col.doc(code).get(); if (!s.exists) break; } catch (e) { break; }
     }
     const now = new Date().toISOString();
-    const body = { code, num: n, text, type: $("#a-type").value, scale: $("#a-scale").value, source: $("#a-source").value.trim(), criterion: $("#a-crit").value.trim(),
-                   status: "new", result: "", link: "", author: me.id || null, createdAt: now, updatedAt: now };
+    const body = { code, num: n, title, text, area: $("#a-area").value, type: $("#a-type").value, scale: $("#a-scale").value,
+                   source: $("#a-source").value.trim(), criterion: $("#a-crit").value.trim(),
+                   status: "new", result: "", link: "", exps: [], files: [], author: me.id || null, createdAt: now, updatedAt: now };
     if (vote.i && me.id) body.votes = { [me.id]: { ...vote, at: now } };
+    const picked = $("#a-files").files ? [...$("#a-files").files] : [];
     const ok = await write(() => col.doc(code).set(body), `Добавлена гипотеза ${code}`);
     $("#a-save").disabled = false;
-    if (ok) { $("#add-form").reset(); $("#add-form").hidden = true; resetDraftVote(); view.open = code; view.status = "open"; render(); }
+    if (!ok) return;
+    $("#add-form").reset(); $("#add-form").hidden = true; resetDraftVote();
+    view.open = code; view.status = "open";
+    if (body.area && view.area !== "all" && view.area !== body.area) { view.area = body.area; remember(); }
+    render();
+    if (picked.length && assets) await attach(code, picked);
   }
 
-  function resetDraftVote() { draftVote.i = draftVote.c = draftVote.e = null; $("#a-vote").innerHTML = me.id ? `<span class="eyebrow">ваша оценка (можно позже)</span>${voteHTML("a", null)}` : ""; }
+  function resetDraftVote() { $("#a-vote").innerHTML = me.id ? `<span class="eyebrow">ваша оценка (можно позже)</span>${voteHTML("a", null)}` : ""; }
+
+  function openCode(code, scroll) {
+    const h = docs.get(code); if (!h) return;
+    view.open = code;
+    if (!inArea(h)) view.area = h.area || "all";
+    if (!filtered().some((x) => x.code === code)) { view.status = "all"; view.type = ""; view.q = ""; $("#q").value = ""; $("#f-type").value = ""; }
+    render();
+    if (scroll) document.querySelector(`.row[data-code="${code}"]`)?.scrollIntoView({ block: "start" });
+  }
+  function setHash(code) { try { history.replaceState(null, "", code ? "#" + code : location.pathname + location.search); } catch (e) {} }
 
   // ---------- события ----------
   document.addEventListener("click", async (e) => {
+    const tab = e.target.closest(".tab");
+    if (tab) {
+      view.area = tab.dataset.area; view.open = null; remember();
+      // в разделе, где открытых нет, сразу показываем все его гипотезы
+      if (view.status === "open" && ![...docs.values()].some((h) => inArea(h) && OPEN.includes(h.status))) view.status = "all";
+      render(); return;
+    }
     const chip = e.target.closest(".chip");
     if (chip) { view.status = chip.dataset.k; render(); return; }
     const segBtn = e.target.closest(".seg button");
     if (segBtn) {
       const seg = segBtn.parentElement;
       seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b === segBtn));
+      const ed = seg.closest(".editor");
+      if (ed && seg.dataset.prefix === "e") {
+        const v = readVote(ed);
+        if (v.i && v.c && v.e) await saveVote(ed.dataset.code, v);
+      }
       return;
     }
     const wk = e.target.closest(".week-item");
-    if (wk) { view.open = wk.dataset.code; view.status = "all"; render(); document.querySelector(`.row[data-code="${wk.dataset.code}"]`)?.scrollIntoView({ block: "center" }); return; }
+    if (wk) { openCode(wk.dataset.code, true); setHash(wk.dataset.code); return; }
     const act = e.target.closest("[data-act]");
     if (act) {
       const ed = act.closest(".editor"), code = ed && ed.dataset.code, h = docs.get(code);
       const k = act.dataset.act;
-      if (k === "close") { view.open = null; render(); }
+      if (k === "close") { view.open = null; setHash(null); render(); }
       else if (k === "save") await saveEditor(code, ed);
       else if (k === "sprint" && h) await write(() => col.doc(code).update({ sprint: h.sprint === thisWeek ? "" : thisWeek, updatedAt: new Date().toISOString() }),
                                                h.sprint === thisWeek ? "Снято с этой недели" : "Взято на эту неделю");
+      else if (k === "getfile" && h) {
+        const f = h.files.find((x) => x.id === act.dataset.id); if (!f) return;
+        if (!downloads) { toast("Скачивание недоступно в этом просмотре. Откройте страницу на claude.ai."); return; }
+        try {
+          const r = await fetch("/_blob/" + f.id);
+          if (!r.ok) throw { code: "missing" };
+          // скачивать можно только разрешённые расширения: прочий текст (.py, .yaml) — как .txt
+          const name = SAVE_EXT.test(f.name) ? f.name : f.name + ".txt";
+          await downloads.save({ filename: name, data: await r.blob() });
+        } catch (err) {
+          const c = err && err.code;
+          if (c === "missing") toast("Файл недоступен: возможно, он удалён или скрыт для вашего аккаунта.");
+          else if (c !== "declined") toast("Не удалось скачать файл.");
+        }
+      }
+      else if (k === "unvote" && me.id) await write(() => col.doc(code).update({ votes: { [me.id]: null }, updatedAt: new Date().toISOString() }), "Ваша оценка убрана");
+      else if (k === "unfile") {
+        if (act.dataset.sure) await unattach(code, act.dataset.id);
+        else { act.dataset.sure = "1"; act.textContent = "точно убрать?"; act.classList.add("danger"); }
+      }
       else if (k === "del") ed.querySelector("[data-confirm]").hidden = false;
       else if (k === "del-no") ed.querySelector("[data-confirm]").hidden = true;
-      else if (k === "del-yes") { if (await write(() => col.doc(code).delete(), `Гипотеза ${code} удалена`)) { view.open = null; render(); } }
+      else if (k === "del-yes") {
+        const files = h ? h.files.map((f) => f.id) : [];
+        if (await write(() => col.doc(code).delete(), `Гипотеза ${code} удалена`)) {
+          view.open = null; setHash(null); render();
+          if (assets) for (const id of files) assets.delete(id).catch(() => {});
+        }
+      }
       return;
     }
+    if (e.target.closest(".editor")) return;
     const row = e.target.closest(".row");
-    if (row) { view.open = view.open === row.dataset.code ? null : row.dataset.code; render(); }
+    if (row) {
+      view.open = view.open === row.dataset.code ? null : row.dataset.code;
+      setHash(view.open); render();
+    }
   });
+  document.addEventListener("change", (e) => {
+    const inp = e.target.closest("input[data-attach]");
+    if (inp) { const ed = inp.closest(".editor"); attach(ed.dataset.code, [...inp.files]); inp.value = ""; }
+  });
+  document.addEventListener("input", (e) => { if (e.target.matches && e.target.matches("textarea.grow")) grow(e.target); });
+  document.addEventListener("error", (e) => { if (e.target.matches && e.target.matches("img.thumb")) e.target.classList.add("broken"); }, true);
   document.addEventListener("keydown", (e) => {
     const row = e.target.closest && e.target.closest(".row");
-    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); row.click(); }
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); row.click(); }
   });
+  window.addEventListener("hashchange", () => { const c = (location.hash || "").slice(1).toUpperCase(); if (docs.has(c)) openCode(c, true); });
   $("#q").addEventListener("input", (e) => { view.q = e.target.value; render(); });
   $("#f-type").innerHTML = `<option value="">все типы</option>` + Object.entries(TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   $("#f-type").addEventListener("change", (e) => { view.type = e.target.value; render(); });
   $("#sort").addEventListener("change", (e) => { view.sort = e.target.value; render(); });
   $("#a-type").innerHTML = Object.entries(TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+  $("#a-area").innerHTML = `<option value="">не задан</option>` + AREAS.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   $("#a-scale").innerHTML = `<option value="">не задан</option>` + Object.entries(SCALES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
-  $("#f-scale").innerHTML = `<option value="">любой масштаб</option>` + Object.entries(SCALES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("") + `<option value="none">масштаб не задан</option>`;
-  $("#f-scale").addEventListener("change", (e) => { view.scale = e.target.value; render(); });
-  $("#add-btn").addEventListener("click", () => { const f = $("#add-form"); f.hidden = !f.hidden; if (!f.hidden) $("#a-text").focus(); });
+  $("#add-btn").addEventListener("click", () => {
+    const f = $("#add-form"); f.hidden = !f.hidden;
+    if (!f.hidden) { $("#a-area").value = AREA[view.area] ? view.area : ""; $("#a-files-label").hidden = !assets; $("#a-title").focus(); }
+  });
   $("#a-cancel").addEventListener("click", () => { $("#add-form").reset(); $("#add-form").hidden = true; $("#a-msg").textContent = ""; resetDraftVote(); });
   $("#add-form").addEventListener("submit", addHypothesis);
   try { if (localStorage.getItem("hb-rules-open") === "1") $("#rules").open = true; } catch (e) {}
@@ -606,11 +827,25 @@ label.f textarea { resize: vertical; min-height: 64px; }
 
   render();
 
+  // журнал экспериментов: собирается scripts/experiments.py вместе с журналом
+  fetch("journal.json").then((r) => (r.ok ? r.json() : null)).then((j) => {
+    if (!j || !Array.isArray(j.experiments)) return;
+    const byId = {}, byHyp = {};
+    for (const e of j.experiments) {
+      const id = expId(e.id); if (!id) continue;
+      byId[id] = e;
+      const hc = typeof e.hypothesis === "string" ? e.hypothesis.toUpperCase() : null;
+      if (hc && /^H\d+$/.test(hc)) (byHyp[hc] = byHyp[hc] || []).push(id);
+    }
+    J = { byId, byHyp };
+    render();
+  }).catch(() => {});
+
   // ---------- подключение к общей базе ----------
   (async () => {
     const C = window.claude;
     if (!C || !C.use) { ready = true; render(); return; }
-    [db, user] = await Promise.all([C.use("db"), C.use("user")]);
+    [db, user, assets, downloads] = await Promise.all([C.use("db"), C.use("user"), C.use("assets"), C.use("downloads")]);
     ready = true;
     if (user) {
       const v = await user.me();
@@ -619,7 +854,7 @@ label.f textarea { resize: vertical; min-height: 64px; }
       if (v.id) {
         const box = $("#me"); box.hidden = false;
         const img = document.createElement("img"); img.src = v.avatarUrl; img.alt = "";
-        const s = document.createElement("span"); s.textContent = v.name || "вы";
+        const s = document.createElement("span"); s.textContent = (v.name || "вы") + (canWrite === false ? " · только чтение" : canWrite ? " · редактор" : "");
         box.append(img, s);
       }
       if (canWrite === false) setReadOnly();
@@ -630,6 +865,11 @@ label.f textarea { resize: vertical; min-height: 64px; }
     col.onSnapshot((snap) => {
       docs = new Map(snap.docs.filter((d) => d.exists && safeId(d.id)).map((d) => [d.id, clean(d.id, d.data() || {})]));
       loaded = true;
+      if (!hashDone) {
+        hashDone = true;
+        const c = (location.hash || "").slice(1).toUpperCase();
+        if (docs.has(c)) { openCode(c, true); return; }
+      }
       render();
     }, (err) => {
       if (err && err.code === "revoked") setReadOnly("Доступ к банку изменился. Обновите страницу.");

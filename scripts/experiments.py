@@ -145,7 +145,27 @@ def equity_png(exp: dict, t: pd.DataFrame, base: pd.DataFrame | None, inst: list
     plt.close(f)
 
 
+BANK = ROOT / "docs" / "hypothesis_bank" / "journal.json"
+METRICS = ("сделок", "итог", "PF", "без_2_лучших")
+
+
+def write_bank_digest(reg: dict) -> None:
+    """Краткий реестр для банка гипотез: эксперимент → гипотеза, вердикт и метрики проверки основного среза."""
+    pick = lambda m: {k: m.get(k) for k in METRICS} if m else None  # noqa: E731
+    rows = []
+    for e in reg["experiments"]:
+        r = (e["res"].get("проверка") or {}).get(e["main"]) or {}
+        rows.append({"id": e["id"], "family": e["family"], "title": e["title"], "hypothesis": e.get("hypothesis"),
+                     "baseline": e.get("baseline"), "verdict": e.get("verdict", ""), "outcome": e.get("outcome", ""),
+                     "scope": reg["names"].get(e["main"], e["main"]), "m": pick(r.get("m")), "b": pick(r.get("b"))})
+    BANK.write_text(json.dumps({"families": reg["families"], "experiments": rows}, ensure_ascii=False, separators=(",", ":")),
+                    encoding="utf-8")
+
+
 def main(argv=None) -> int:
+    if argv and list(argv) == ["--bank"]:  # только реестр для банка гипотез из готового registry.json
+        write_bank_digest(json.loads((SITE / "registry.json").read_text(encoding="utf-8")))
+        return 0
     cat = yaml.safe_load((DOC / "catalog.yaml").read_text(encoding="utf-8"))
     exps = {e["id"]: e for e in cat["experiments"]}
     desc_path = DOC / "descriptions.yaml"
@@ -272,6 +292,7 @@ def main(argv=None) -> int:
                            for e, res, ms in cards],
            "no_log": [{**x, "doc": GH + x["doc"]} for x in cat.get("no_log", [])]}
     (SITE / "registry.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    write_bank_digest(out)
     print(f"готово: {len(cards)} экспериментов → {DOC.relative_to(ROOT)}")
     return 0
 
