@@ -146,7 +146,9 @@ def equity_png(exp: dict, t: pd.DataFrame, base: pd.DataFrame | None, inst: list
 
 
 BANK = ROOT / "docs" / "hypothesis_bank" / "journal.json"
+HYPS = ROOT / "docs" / "hypothesis_bank" / "hypotheses.json"  # снимок банка гипотез (scripts/bank_snapshot.py)
 METRICS = ("сделок", "итог", "PF", "без_2_лучших")
+KINDS = {"base": "база", "costs": "издержки и исполнение", "clean": "чистая проверка", "variation": "принятая вариация"}
 
 
 def write_bank_digest(reg: dict) -> None:
@@ -157,21 +159,58 @@ def write_bank_digest(reg: dict) -> None:
         r = (e["res"].get("проверка") or {}).get(e["main"]) or {}
         rows.append({"id": e["id"], "family": e["family"], "title": e["title"], "hypothesis": e.get("hypothesis"),
                      "baseline": e.get("baseline"), "verdict": e.get("verdict", ""), "outcome": e.get("outcome", ""),
+                     "kind": e.get("kind", "clean"), "archived": e.get("archived", ""),
                      "scope": reg["names"].get(e["main"], e["main"]), "m": pick(r.get("m")), "b": pick(r.get("b"))})
-    BANK.write_text(json.dumps({"families": reg["families"], "experiments": rows}, ensure_ascii=False, separators=(",", ":")),
-                    encoding="utf-8")
+    BANK.write_text(json.dumps({"families": reg["families"], "kinds": KINDS, "experiments": rows}, ensure_ascii=False,
+                               separators=(",", ":")), encoding="utf-8")
 
 
-def main(argv=None) -> int:
-    if argv and list(argv) == ["--bank"]:  # только реестр для банка гипотез из готового registry.json
-        write_bank_digest(json.loads((SITE / "registry.json").read_text(encoding="utf-8")))
-        return 0
+def load_catalog() -> tuple[dict, dict]:
     cat = yaml.safe_load((DOC / "catalog.yaml").read_text(encoding="utf-8"))
     exps = {e["id"]: e for e in cat["experiments"]}
     desc_path = DOC / "descriptions.yaml"
     desc = yaml.safe_load(desc_path.read_text(encoding="utf-8")) if desc_path.exists() else {}
     for k, e in exps.items():
         e.update({f: (desc.get(k) or {}).get(f, "") for f in ("what", "why", "outcome")})
+    return cat, exps
+
+
+def meta(e: dict) -> dict:
+    """Описательные поля эксперимента для страницы журнала (без метрик)."""
+    return {"id": e["id"], "family": e["family"], "title": e["title"], "change": e.get("change", ""), "what": e.get("what", ""),
+            "why": e.get("why", ""), "outcome": e.get("outcome", ""), "hypothesis": e.get("hypothesis"),
+            "baseline": e.get("baseline"), "verdict": e.get("verdict", ""), "kind": e.get("kind", "clean"),
+            "archived": e.get("archived", ""), "doc": GH + e["doc"], "card": GH + f"experiments/{e['id']}/summary.md"}
+
+
+def hypotheses_for(codes) -> dict:
+    """Название, описание и критерий гипотез из снимка банка — для карточки эксперимента."""
+    if not HYPS.exists():
+        return {}
+    bank = json.loads(HYPS.read_text(encoding="utf-8"))["hypotheses"]
+    return {c: {k: bank[c].get(k, "") for k in ("title", "text", "criterion", "status", "area")} for c in codes if c in bank}
+
+
+def refresh_meta() -> int:
+    """--meta: обновить в registry.json описания, вид, архив и гипотезы из каталога без пересчёта метрик."""
+    reg = json.loads((SITE / "registry.json").read_text(encoding="utf-8"))
+    _, exps = load_catalog()
+    reg["experiments"] = [{**e, **meta(exps[e["id"]])} for e in reg["experiments"] if e["id"] in exps]
+    reg["kinds"] = KINDS
+    reg["hypotheses"] = hypotheses_for({e["hypothesis"] for e in reg["experiments"] if e.get("hypothesis")})
+    (SITE / "registry.json").write_text(json.dumps(reg, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    write_bank_digest(reg)
+    print(f"обновлено описаний: {len(reg['experiments'])}, гипотез: {len(reg['hypotheses'])}")
+    return 0
+
+
+def main(argv=None) -> int:
+    if argv and list(argv) == ["--bank"]:  # только реестр для банка гипотез из готового registry.json
+        write_bank_digest(json.loads((SITE / "registry.json").read_text(encoding="utf-8")))
+        return 0
+    if argv and list(argv) == ["--meta"]:
+        return refresh_meta()
+    cat, exps = load_catalog()
     want = list(argv) if argv else list(exps)
     need = set(want) | {exps[i]["baseline"] for i in want if exps[i].get("baseline")}
     trades = {}
@@ -280,10 +319,9 @@ def main(argv=None) -> int:
     (DOC / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     # реестр для страницы
     clean = lambda v: None if isinstance(v, float) and not np.isfinite(v) else v  # noqa: E731
-    out = {"protocol": {"test_start": "2021-01-01", "periods": list(PERIODS)}, "families": cat["families"], "names": NAMES,
-           "experiments": [{"id": e["id"], "family": e["family"], "title": e["title"], "change": e.get("change", ""), "what": e.get("what", ""), "why": e.get("why", ""), "outcome": e.get("outcome", ""),
-                            "hypothesis": e.get("hypothesis"), "baseline": e.get("baseline"), "verdict": e.get("verdict", ""),
-                            "doc": GH + e["doc"], "card": GH + f"experiments/{e['id']}/summary.md",
+    out = {"protocol": {"test_start": "2021-01-01", "periods": list(PERIODS)}, "families": cat["families"], "names": NAMES, "kinds": KINDS,
+           "hypotheses": hypotheses_for({e["hypothesis"] for e, _, _ in cards if e.get("hypothesis")}),
+           "experiments": [{**meta(e),
                             "costs": (e.get("costs") or {}).get("profile"), "dividends": bool(e.get("dividends")),
                             "instruments": list(e["sources"]), "main": ms,
                             "res": {p: {s: {"m": {k: clean(v) for k, v in r["m"].items()},

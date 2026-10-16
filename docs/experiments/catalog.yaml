@@ -5,6 +5,12 @@
 # прогонов, например seed модели, усредняются), издержки (costs: профиль брокера пересчитывается по
 # сделкам), вердикт и ссылка на подробности. Метрики не пишутся руками — их считает скрипт по одному
 # протоколу: проверка — сделки, открытые с 1 января 2021 года.
+#
+# hypothesis — код гипотезы из банка (H..): по нему эксперимент виден в гипотезе, а описание гипотезы —
+# в карточке эксперимента. kind — вид эксперимента (созвон 16.10): base — база; costs — уточнение
+# издержек и исполнения (меняет условия, а не стратегию); clean — чистая проверка идеи против базы на тех
+# же условиях; variation — удачная вариация, принятая в стратегию. archived — причина, по которой
+# эксперимент убран в архив (в журнале скрыт по умолчанию).
 
 families:
   strategy: стратегия без ML (импульс)
@@ -25,6 +31,8 @@ experiments:
   - id: S01
     family: strategy
     title: Импульс, базовая версия
+    kind: base
+    archived: "старая база без комиссии и проскальзывания — заменена B01"
     change: ход за 6 ч ≥ 3 ATR по тренд-гейту C; стоп и трейлинг 6 ATR (активация +3), выход ≤ 240 ч; комиссия 0.04%, стоп исполняется по уровню
     hypothesis: H24
     baseline: null
@@ -42,6 +50,8 @@ experiments:
   - id: S02
     family: strategy
     title: Стоп исполняется по цене открытия при гэпе
+    kind: costs
+    hypothesis: H51
     change: если минута открылась уже за стопом (ночь, выходные), выход по её цене открытия, а не по уровню стопа
     baseline: S01
     verdict: учтено (поправка −9 п.п.)
@@ -54,6 +64,7 @@ experiments:
   - id: S03
     family: strategy
     title: Цены акций скорректированы на дивиденды
+    kind: costs
     change: обратная корректировка цен акций на 66 отсечек 2015–2026; стоп по гэпу
     hypothesis: H01
     baseline: S02
@@ -72,6 +83,8 @@ experiments:
   - id: S04
     family: strategy
     title: Проскальзывание 0.05% на входе и выходе
+    kind: costs
+    hypothesis: H51
     change: исполнение хуже на 0.05% цены при входе и при выходе — по сделкам S03 (0.1% — перебор, договорённость 11.10)
     baseline: S03
     verdict: учтено в базе
@@ -82,6 +95,7 @@ experiments:
   - id: B01
     family: strategy
     title: База — все неизбежные издержки
+    kind: base
     change: S03 (дивиденды, стоп по гэпу, комиссия 0.04%) + проскальзывание 0.05% на сторону + свопы за перенос по условиям Альфа-Форекс (серебро с шагом 0.001); с ней сравниваются все эксперименты
     hypothesis: H02
     baseline: S04
@@ -93,6 +107,8 @@ experiments:
   - id: S05
     family: strategy
     title: Проскальзывание 0.1% вместо 0.05%
+    kind: costs
+    hypothesis: H51
     change: исполнение хуже на 0.1% цены на входе и на выходе — запас прочности базы
     baseline: B01
     verdict: "запаса нет: портфель в минусе, металлы +16%"
@@ -103,6 +119,8 @@ experiments:
   - id: S06
     family: strategy
     title: Проскальзывание 0.15% вместо 0.05%
+    kind: costs
+    hypothesis: H51
     change: ""
     baseline: B01
     verdict: "убыточно (безубыток металлов ≈ 0.13%)"
@@ -113,6 +131,8 @@ experiments:
   - id: S07
     family: strategy
     title: Проскальзывание 0.2% вместо 0.05%
+    kind: costs
+    hypothesis: H51
     change: ""
     baseline: B01
     verdict: "убыточно"
@@ -123,6 +143,8 @@ experiments:
   - id: S08
     family: strategy
     title: Проскальзывание 0.3% вместо 0.05%
+    kind: costs
+    hypothesis: H51
     change: ""
     baseline: B01
     verdict: "убыточно"
@@ -133,6 +155,8 @@ experiments:
   - id: S10
     family: strategy
     title: Выход при развороте тренд-фильтра
+    kind: clean
+    hypothesis: H26
     change: сделка закрывается, когда гейт C разворачивается против неё
     baseline: B01
     verdict: "хуже базы"
@@ -151,6 +175,7 @@ experiments:
   - id: S11
     family: strategy
     title: Узкий стоп и трейлинг 3 ATR
+    kind: clean
     change: стоп и трейлинг 3 ATR вместо 6 (трейлинг включается после +1.5 ATR), выход ≤ 240 ч
     exit: {sl: 3, trail: 3, act: 1.5, hours: 240}
     baseline: B01
@@ -170,6 +195,7 @@ experiments:
   - id: S12
     family: strategy
     title: Выход не позже 120 ч (стоп 6, трейлинг 6, активация 3)
+    kind: clean
     change: удержание вдвое короче — меньше свопов
     hypothesis: H03
     exit: {sl: 6, trail: 6, act: 3, hours: 120}
@@ -190,6 +216,7 @@ experiments:
   - id: S13
     family: strategy
     title: Выход не позже 48 ч (стоп 4, трейлинг 4, активация 2)
+    kind: clean
     change: короткое удержание
     hypothesis: H03
     exit: {sl: 4, trail: 4, act: 2, hours: 48}
@@ -210,6 +237,7 @@ experiments:
   - id: S14
     family: strategy
     title: Без тренд-фильтра
+    kind: clean
     change: импульс в обе стороны без гейта C
     baseline: B01
     verdict: "хуже базы"
@@ -228,6 +256,7 @@ experiments:
   - id: S15
     family: strategy
     title: Только при высокой волатильности
+    kind: clean
     change: входить, только если ATR не ниже медианы прошлого
     baseline: B01
     verdict: "не подтверждено (выбор лучше, проверка как база)"
@@ -246,6 +275,7 @@ experiments:
   - id: S16
     family: strategy
     title: Импульс 8 ч / 3.5 ATR
+    kind: clean
     change: более длинное окно и порог импульса
     baseline: B01
     verdict: "хуже базы"
@@ -264,6 +294,7 @@ experiments:
   - id: S17
     family: strategy
     title: Издержки Альфа-Форекс (CFD), серебро с шагом 0.001
+    kind: costs
     change: спред брокера вместо комиссии и проскальзывания (свопы те же, что в базе; условия на 06.10.2026)
     hypothesis: H02
     baseline: B01
@@ -275,6 +306,7 @@ experiments:
   - id: S18
     family: strategy
     title: Издержки Альфа-Форекс, серебро с шагом 0.0001
+    kind: costs
     change: то же, если серебро котируется с 4 знаками (спред и свопы серебра в 10 раз меньше)
     hypothesis: H19
     baseline: B01
@@ -286,6 +318,7 @@ experiments:
   - id: S19
     family: strategy
     title: Альфа-Форекс + выход 168 ч / 4 ATR
+    kind: clean
     change: короче удержание, чтобы платить меньше свопов (лучший вариант сетки по 2016–2020)
     hypothesis: H03
     exit: {sl: 4, trail: 4, act: 2, hours: 168}
@@ -306,6 +339,7 @@ experiments:
   - id: S20
     family: strategy
     title: Альфа-Форекс + выход 120 ч / 6 ATR
+    kind: clean
     change: ""
     hypothesis: H03
     exit: {sl: 6, trail: 6, act: 3, hours: 120}
@@ -326,6 +360,7 @@ experiments:
   - id: S21
     family: strategy
     title: Альфа-Форекс + выход 72 ч / 3 ATR
+    kind: clean
     change: ""
     hypothesis: H03
     exit: {sl: 3, trail: 3, act: 1.5, hours: 72}
@@ -346,6 +381,7 @@ experiments:
   - id: S22
     family: strategy
     title: Выход 168 ч / 4 ATR
+    kind: clean
     change: тот же вариант выхода, что в S19, при издержках базы
     hypothesis: H03
     exit: {sl: 4, trail: 4, act: 2, hours: 168}
@@ -358,6 +394,7 @@ experiments:
   - id: S23
     family: strategy
     title: Ранний стоп 3 ATR первые 12 часов
+    kind: clean
     change: пока трейлинг не включился, первые 12 ч после входа стоп 3 ATR вместо 6; лучший вариант сетки 2–4 ATR × 12–48 ч по выбору 2016–2020
     hypothesis: H32
     exit: {sl: 6, trail: 6, act: 3, hours: 240, es: 3, eh: 12}
@@ -378,6 +415,7 @@ experiments:
   - id: S24
     family: strategy
     title: Акции на бирже, шорт 0.05% в день
+    kind: costs
     change: акции на Мосбирже вместо CFD — лонг своими деньгами без переноса, шорт платит 0.05% за каждую ночь (допущение), комиссия 0.1% за круг; металлы и эфир как в базе
     hypothesis: H04
     baseline: B01
@@ -389,6 +427,7 @@ experiments:
   - id: S25
     family: strategy
     title: Акции на бирже, только лонг
+    kind: variation
     change: то же, но по акциям только лонги — шортовые сигналы гасятся до симуляции (штатные прогоны *_lo, scripts/queues/long_only.sh); металлы и эфир как в базе, в обе стороны
     hypothesis: H04
     baseline: B01
@@ -410,6 +449,7 @@ experiments:
   - id: S26
     family: strategy
     title: "Трёхслойный тренд-фильтр по ТЗ"
+    kind: clean
     change: "вместо гейта C — фильтр ТЗ 15.10 как есть: режим по EMA200, скор пар EMA 8/32, 16/64, 32/128 в волатильностях, шок при |z| > 2.8, гистерезис 0.3 / 0"
     hypothesis: H44
     baseline: B01
@@ -429,6 +469,7 @@ experiments:
   - id: S27
     family: strategy
     title: "Трёхслойный фильтр, лучший на выборе"
+    kind: clean
     change: "вариант трёхслойного фильтра, лучший по 2016–2020 из 14 (пары EMA ×4: 32/128, 64/256, 128/512)"
     hypothesis: H44
     baseline: B01
@@ -448,6 +489,7 @@ experiments:
   - id: S28
     family: strategy
     title: "Тренд-фильтр Дончиан 55/20 на 4 ч"
+    kind: clean
     change: "классический фильтр, лучший по 2016–2020 из 111 (EMA, MACD, Supertrend, Дончиан, Кельтнер, Боллинджер, ADX, KAMA на 1 ч / 4 ч / днях): пробой 55 4-часовых свечей — тренд, выход при пробое 20 в обратную сторону"
     hypothesis: H45
     baseline: B01
@@ -467,6 +509,7 @@ experiments:
   - id: S29
     family: strategy
     title: "Импульс без фильтра направления, только лонг"
+    kind: clean
     change: "эталон перебора «всегда лонг»: гейт C снят, шортовые сигналы гасятся до симуляции на всех рынках"
     hypothesis: H45
     baseline: B01
@@ -486,6 +529,7 @@ experiments:
   - id: S30
     family: strategy
     title: "Вход по сжатию: NR7 + inside bar"
+    kind: clean
     change: "вход вместо импульса: вчерашний день — самый узкий за 7 и внутри позавчерашнего; первое закрытие часа за его границей, по гейту C; выход как у базы"
     hypothesis: H46
     baseline: B01
@@ -505,6 +549,7 @@ experiments:
   - id: S31
     family: strategy
     title: "Вход по пробою 55-дневного уровня"
+    kind: clean
     change: "вход вместо импульса: первое закрытие часа выше максимума (ниже минимума) 55 прошлых дней, по гейту C («Черепахи», система 2); выход как у базы"
     hypothesis: H47
     baseline: B01
@@ -524,6 +569,7 @@ experiments:
   - id: S32
     family: strategy
     title: "Вход по ложному пробою 20-дневного уровня"
+    kind: clean
     change: "Turtle Soup: час вышел за 20-дневный максимум, но закрылся под ним — шорт (зеркально — лонг), по гейту C; выход как у базы"
     hypothesis: H47
     baseline: B01
@@ -543,6 +589,7 @@ experiments:
   - id: S33
     family: strategy
     title: "Выход по времени через 20 ч"
+    kind: clean
     change: "вход как у базы, выход не позже 20 ч (стоп и трейлинг 6 ATR как у базы); лучший по 2016–2020 из 13 выходов ТЗ: по времени 10 / 20 / 50 ч, Chandelier, стоп 1.5–3 × тейк 2–4 ATR"
     hypothesis: H49
     exit: {sl: 6, trail: 6, act: 3, hours: 20}
@@ -563,6 +610,7 @@ experiments:
   - id: S34
     family: strategy
     title: "Chandelier: трейлинг 3 ATR с первой минуты"
+    kind: clean
     change: "стоп 3 ATR, трейлинг 3 ATR от лучшей цены сразу после входа (аналог «максимум 22 бара − 3 ATR»), выход ≤ 240 ч"
     hypothesis: H49
     exit: {sl: 3, trail: 3, act: 0, hours: 240}
@@ -583,6 +631,7 @@ experiments:
   - id: S35
     family: strategy
     title: "Фиксированные стоп 3 ATR и тейк 4 ATR"
+    kind: clean
     change: "без трейлинга: стоп 3 ATR, тейк 4 ATR, выход ≤ 240 ч; лучший по выбору из 9 пар стоп 1.5 / 2 / 3 × тейк 2 / 3 / 4 ATR (на графике линия тейка не показана)"
     hypothesis: H49
     exit: {sl: 3, trail: 3, act: 99, hours: 240}
@@ -604,6 +653,7 @@ experiments:
   - id: S36
     family: search
     title: "Новая стратегия №1 перебора (металлы)"
+    kind: clean
     change: "вход: пробой 20 дней + 0.25 ATR · фильтр: ADX 1ч > 25 + ADX 1ч > 25 · выход: Supertrend 4ч · стоп 3 · ATR10"
     hypothesis: H50
     exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
@@ -624,6 +674,7 @@ experiments:
   - id: S37
     family: search
     title: "Новая стратегия №2 перебора (металлы)"
+    kind: clean
     change: "вход: пробой 20 дней + 0.25 ATR · фильтр: ADX 1ч > 20 + ADX 1ч > 25 · выход: Supertrend 4ч · стоп 3 · ATR20"
     hypothesis: H50
     exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
@@ -644,6 +695,7 @@ experiments:
   - id: S38
     family: search
     title: "Новая стратегия №3 перебора (портфель 4)"
+    kind: clean
     change: "вход: keltner:20:10:2 @24h · фильтр: ATR14/ATR100 > 1 + только лонг · выход: трейлинг 3 · ATR10 · размер по риску"
     hypothesis: H50
     exit: {sl: 3.0, trail: 3.0, act: 1.5, hours: 240}
@@ -664,6 +716,7 @@ experiments:
   - id: S39
     family: search
     title: "Новая стратегия №4 перебора (портфель 4)"
+    kind: clean
     change: "вход: keltner:20:10:2 @24h · фильтр: ATR14/ATR100 > 1 + только лонг · выход: трейлинг 3 · ATR20"
     hypothesis: H50
     exit: {sl: 3.0, trail: 3.0, act: 1.5, hours: 240}
@@ -684,6 +737,7 @@ experiments:
   - id: S40
     family: search
     title: "Новая стратегия №5 перебора (все)"
+    kind: clean
     change: "вход: inside bar → пробой · фильтр: EMA200 1ч + EMA200 дни · выход: Дончиан 10 ч · стоп 3 · ATR20 · размер по риску"
     hypothesis: H50
     exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
@@ -704,6 +758,7 @@ experiments:
   - id: S41
     family: search
     title: "Новая стратегия №6 перебора (все)"
+    kind: clean
     change: "вход: inside bar → пробой · фильтр: только лонг + EMA200 дни · выход: Supertrend 4ч · стоп 3 · ATR14 · размер по риску"
     hypothesis: H50
     exit: {sl: 3.0, trail: 3.0, act: 99, hours: 240}
@@ -726,6 +781,7 @@ experiments:
     family: model
     costs: *base_costs
     title: CatBoost серебра, базовая (3 seed)
+    kind: base
     change: 81 признак, разметка на 3 класса (+1.5 ATR раньше −0.75 ATR за 10 ч и наоборот), сделки по тренд-фильтру; годовой walk-forward 2019–2026
     hypothesis: H20
     baseline: null
@@ -737,6 +793,8 @@ experiments:
     family: model
     costs: *base_costs
     title: Обучение только внутри тренд-гейта
+    kind: clean
+    hypothesis: H31
     change: модель учится только на барах, где гейт разрешает вход
     baseline: M01
     verdict: "лучше базы, но базы разных прогонов (M01 и M09) расходятся так же — перепроверить"
@@ -747,6 +805,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Разметка по направлению (h4 / 0.3 ATR)
+    kind: clean
     change: класс — знак хода за 4 часа, если он больше 0.3 ATR
     baseline: M01
     verdict: не помогло
@@ -757,6 +816,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Регрессия величины хода вместо классов
+    kind: clean
     change: модель предсказывает ход в ATR через 4 часа
     baseline: M01
     verdict: не помогло
@@ -767,6 +827,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Сильнее регуляризованная модель
+    kind: clean
     change: lr 0.02, глубина 4, l2 10, до 3000 деревьев
     baseline: M01
     verdict: стабильнее, но хуже
@@ -777,6 +838,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Ансамбль 3 моделей с разными seed
+    kind: clean
     change: вероятности трёх моделей усредняются
     baseline: M01
     verdict: не помогло
@@ -787,6 +849,7 @@ experiments:
     family: model
     costs: *base_costs
     title: CatBoost (прогон для мета-модели, seed 42)
+    kind: base
     change: тот же прогон без мета-фильтра — база для M08
     baseline: null
     verdict: база
@@ -797,6 +860,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Мета-модель с контекстом, порог 0.50
+    kind: clean
     change: вторая модель решает, брать ли сделку (контекст, класс входа, недавние сделки)
     baseline: M07
     verdict: не помогло (AUC ≈ 0.5)
@@ -807,6 +871,7 @@ experiments:
     family: model
     costs: *base_costs
     title: CatBoost (прогон для размера позиции, 3 seed)
+    kind: base
     change: тот же прогон без размера — база для M10–M12
     baseline: null
     verdict: база
@@ -817,6 +882,8 @@ experiments:
     family: model
     costs: *base_costs
     title: Размер позиции пропорционален ATR
+    kind: clean
+    hypothesis: H21
     change: размер = ATR / медиана ATR (меньше в спокойном рынке)
     baseline: M09
     verdict: слабый плюс (итог в % выше и за счёт большего среднего размера — сравнивать по t и PF)
@@ -827,6 +894,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Торговать только при ATR ≥ медианы
+    kind: clean
     change: при низкой волатильности сделок нет
     baseline: M09
     verdict: слабый плюс
@@ -837,6 +905,8 @@ experiments:
     family: model
     costs: *base_costs
     title: Размер по прогнозу волатильности моделью
+    kind: clean
+    hypothesis: H21
     change: прогноз волатильности CatBoost вместо текущего ATR
     baseline: M09
     verdict: хуже наивного ATR (итог в % завышен размером позиции)
@@ -847,6 +917,7 @@ experiments:
     family: model
     costs: *base_costs
     title: CatBoost (прогон вариантов тренд-гейта, 3 seed)
+    kind: base
     change: тот же прогон с гейтом C — база для M14–M17
     baseline: null
     verdict: база
@@ -857,6 +928,8 @@ experiments:
     family: model
     costs: *base_costs
     title: Сброс тренда по EMA5 4-часовых свечей
+    kind: clean
+    hypothesis: H29
     change: тренд не «вверх», пока цена закрывается ниже EMA5 (идея из ноутбука)
     baseline: M13
     verdict: не помогло
@@ -867,6 +940,8 @@ experiments:
     family: model
     costs: *base_costs
     title: Сброс тренда по EMA5 часовых свечей
+    kind: clean
+    hypothesis: H29
     change: ""
     baseline: M13
     verdict: не помогло
@@ -877,6 +952,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Тренд-фильтр «плато» из нового подбора
+    kind: clean
     change: лучший по следованию тренду набор параметров
     baseline: M13
     verdict: хуже как гейт входа
@@ -887,6 +963,8 @@ experiments:
     family: model
     costs: *base_costs
     title: Признаки «слабой зоны» по EMA5
+    kind: clean
+    hypothesis: H29
     change: расстояние до EMA5 и сторона закрытия как признаки модели
     baseline: M13
     verdict: не помогло
@@ -897,6 +975,7 @@ experiments:
     family: model
     costs: *base_costs
     title: "Признаки трёхслойного фильтра и уровней"
+    kind: clean
     change: "14 признаков ТЗ 15.10: быстрый скор, режим, шок, ER, итоговый скор; расстояние до 20-дневных максимума и минимума в ATR, положение в диапазоне, часов с экстремума, пробой вчерашнего дня, вчера NR7 / inside bar"
     hypothesis: H48
     baseline: M13
@@ -910,6 +989,7 @@ experiments:
     family: model
     costs: *base_costs
     title: CatBoost LKOH без ленты (2024–2026, 3 seed)
+    kind: base
     change: квартальный walk-forward 2024Q3–2026Q1, без фильтров
     baseline: null
     verdict: база (в минусе после комиссии)
@@ -920,6 +1000,7 @@ experiments:
     family: model
     costs: *base_costs
     title: CatBoost LKOH с признаками ленты сделок
+    kind: clean
     change: признаки обезличенных сделок ALGOPACK
     baseline: L01
     verdict: не помогло
@@ -930,6 +1011,7 @@ experiments:
     family: model
     costs: *base_costs
     title: Лента + история с 2016 года
+    kind: clean
     change: обучение на всей истории, признаки ленты там, где она есть
     baseline: L01
     verdict: не помогло
@@ -940,6 +1022,8 @@ experiments:
     family: model
     costs: *base_costs
     title: Правило ленты без модели (z_6 ≥ 1.5)
+    kind: clean
+    hypothesis: H15
     change: вход по нетто-дельте крупных сделок за 6 ч
     baseline: L01
     verdict: не помогло (−17% на 9 кварталах)
@@ -950,6 +1034,7 @@ experiments:
     family: model
     costs: *base_costs
     title: CatBoost LKOH (прогон для размера позиции, 3 seed)
+    kind: base
     change: база для L06
     baseline: null
     verdict: база
@@ -960,6 +1045,7 @@ experiments:
     family: model
     costs: *base_costs
     title: LKOH — торговать только при ATR ≥ медианы
+    kind: clean
     change: ""
     baseline: L05
     verdict: слабый плюс
@@ -970,6 +1056,7 @@ experiments:
     family: model
     costs: *base_costs
     title: LKOH годовой walk-forward с гейтом C
+    kind: base
     change: годы 2018–2026
     baseline: null
     verdict: база
@@ -980,6 +1067,8 @@ experiments:
     family: model
     costs: *base_costs
     title: LKOH — обучение только внутри гейта
+    kind: clean
+    hypothesis: H31
     change: ""
     baseline: L07
     verdict: кандидат, не подтверждён
