@@ -1,0 +1,18 @@
+#!/bin/bash
+# Живой контур, первый этап запуска (T16): акции GAZP, SBER, LKOH на Мосбирже только в лонг.
+# Раз в час, в первые минуты после закрытия часа: докачать свежие минуты с ISS и посчитать решения
+# (reports/live/<время>.md и строка в reports/live/journal.csv). Раз в день — здоровье стратегии
+# против порогов тревоги H43 (reports/live/health.md).
+#
+# cron (время сервера — Москва; основная и вечерняя сессии, будни):
+#   2 10-23 * * 1-5  /home/dev/forexmodel/scripts/queues/live_hourly.sh
+cd /home/dev/forexmodel || exit 1
+LOG=reports/live/logs; mkdir -p $LOG
+exec 9> reports/live/.hourly.lock
+flock -n 9 || exit 0                                  # предыдущий запуск ещё идёт
+{
+  date
+  .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
+  .venv/bin/python scripts/live_signals.py --only sber gazp lkoh
+  if [ "$(date +%H)" = "23" ]; then .venv/bin/python scripts/live_health.py; fi
+} >> $LOG/$(date +%Y-%m-%d).log 2>&1
