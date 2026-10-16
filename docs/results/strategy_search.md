@@ -59,7 +59,7 @@ HOURS=24 TOP=3 setsid nohup scripts/queues/strategy_search.sh > /dev/null 2>&1 &
 
 Одна проба — около 0.16 с; за 12 ч в трёх процессах — сотни тысяч стратегий.
 
-Сверка на 6 разных стратегиях × 8 рынков (`strategy_search.py check`, `reports/strategy_search/check.txt`):
+Сверка на 6 разных стратегиях × 8 рынков (`strategy_search.py check`, [strategy_search/check.txt](strategy_search/check.txt)):
 
 | стратегия | сделок: движок / симулятор | итог: движок / симулятор |
 |---|---|---|
@@ -92,7 +92,7 @@ HOURS=24 TOP=3 setsid nohup scripts/queues/strategy_search.sh > /dev/null 2>&1 &
 ## Результаты (16.10)
 
 Перебор шёл 10.5 ч из 12: машина перезагрузилась в 13:33. Проверено **1 122 041 стратегия**. Отчёт и
-финалисты досчитаны после перезагрузки. Полный отчёт — `reports/strategy_search/report.md`.
+финалисты досчитаны после перезагрузки. Полный отчёт — [strategy_search/report.md](strategy_search/report.md) (копия `reports/strategy_search/report.md`), финалисты — [strategy_search/finalists.md](strategy_search/finalists.md).
 
 **Главное: ни одна стратегия из блоков ТЗ не лучше базы на металлах, а поиск по прошлому не переносится
 на будущее.**

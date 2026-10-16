@@ -196,6 +196,6 @@
 
 * Код: `forexmodel/features/trend_score.py` (режимы score / classic), `forexmodel/simulation/patterns.py`
   (паттерны входа), токены walk-forward `gate<имя>`, `pattern:…`, `sl<ATR>` / `tp<ATR>`.
-* Перебор: `scripts/trend_grid.py` (candidates → grid → quality), результаты `reports/trend_grid/`.
+* Перебор: `scripts/trend_grid.py` (candidates → grid → quality), результаты `reports/trend_grid/` (копии таблиц — [trend_tz/grid/](trend_tz/grid/): все 128 фильтров, метрики ТЗ).
 * Прогоны: `scripts/queues/tz_1015.sh`, `tz_features.sh`, `tz_exits.sh`; графики — `scripts/trend_tz_charts.py`.
 * Журнал экспериментов: S26–S32 и далее, [страница](https://claude.ai/artifact/E4teCbCVvojCf96CJy9UQU).
