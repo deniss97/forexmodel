@@ -650,6 +650,57 @@ experiments:
       mtss: [mtss_tzx__impulse_6_3_sl3_tp4]
       eth: [eth_tzx__impulse_6_3_sl3_tp4]
 
+  # ---------------- набор для запуска (17.10, задача T15) ----------------
+  - id: S42
+    family: strategy
+    title: Набор для запуска — металлы через CFD, акции на бирже в лонг
+    kind: clean
+    main: все
+    hypothesis: H52
+    change: серебро и золото через CFD в обе стороны (как B01), GAZP, SBER, LKOH на Мосбирже только в лонг (как S25); пять инструментов поровну, без MOEX, MTSS и ETH
+    baseline: B01
+    verdict: 'подтвердилась: PF 1.26 на проверке и 1.19 на выборе, без 2 лучших в плюсе; держится на акциях в лонг — металлы прибыльны только на проверке'
+    doc: results/launch_set.md
+    dividends: true
+    costs: {profile: exchange}
+    sources: &launch
+      silver: [silver_costs__impulse_6_3_h240_tr6]
+      gold: [gold_costs__impulse_6_3_h240_tr6]
+      lkoh: [lkoh_lo__impulse_6_3_long]
+      gazp: [gazp_lo__impulse_6_3_long]
+      sber: [sber_lo__impulse_6_3_long]
+  - id: S43
+    family: strategy
+    title: Набор для запуска, серебро с шагом 0.0001
+    kind: costs
+    main: все
+    hypothesis: H52
+    change: то же, что S42, если серебро у брокера котируется с 4 знаками — свопы серебра в 10 раз меньше (уточнение T01)
+    baseline: S42
+    verdict: 'лучше S42 на 12 п.п. на проверке — если серебро котируется с шагом 0.0001 (уточнить, T01)'
+    doc: results/launch_set.md
+    dividends: true
+    costs: {profile: exchange, override: {silver: silver_4dp}}
+    sources: *launch
+  - id: S44
+    family: strategy
+    title: Набор для запуска, размер позиции по волатильности
+    kind: clean
+    main: все
+    hypothesis: H07
+    change: размер сделки = медиана ATR% инструмента на выборе / ATR% на входе, в пределах 0.5–2 (одинаковый риск на сделку; scripts/vol_sizing.py); правило и сделки те же, что S42
+    baseline: S42
+    verdict: 'не помогло: на проверке как S42 (PF 1.26, t 2.15 против 2.20), на выборе хуже (PF 1.14 против 1.19, просадка −14 против −11)'
+    doc: results/launch_set.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      silver: [silver_costs__impulse_6_3_h240_tr6__vs]
+      gold: [gold_costs__impulse_6_3_h240_tr6__vs]
+      lkoh: [lkoh_lo__impulse_6_3_long__vs]
+      gazp: [gazp_lo__impulse_6_3_long__vs]
+      sber: [sber_lo__impulse_6_3_long__vs]
+
   - id: S36
     family: search
     title: "Новая стратегия №1 перебора (металлы)"

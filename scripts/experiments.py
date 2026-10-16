@@ -240,7 +240,7 @@ def main(argv=None) -> int:
         d.mkdir(parents=True, exist_ok=True)
         std = t.copy()
         std.to_csv(d / "trades.csv.gz", index=False, compression="gzip")
-        main_scope = "портфель 4" if "портфель 4" in res["проверка"] else "все"
+        main_scope = exp.get("main") or ("портфель 4" if "портфель 4" in res["проверка"] else "все")
         equity_png(exp, t, b, scopes(inst)[main_scope], d / "equity.png")
         lines = [f"# {i}. {exp['title']}", "",
                  f"**Семейство:** {cat['families'][exp['family']]} · **база:** {exp.get('baseline') or '—'} · "

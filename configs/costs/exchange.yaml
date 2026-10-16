@@ -29,6 +29,15 @@ instruments:
     swap_short_points: -15
     triple_weekday: 2
     rollover_hour: 17
+  silver_4dp:               # то же, если серебро котируется с 4 знаками (уточнение T01): свопы в пунктах в 10 раз меньше
+    commission_pct: 0.04
+    slippage_pct: 0.05
+    point: 0.0001
+    ref_price: 75.238
+    swap_long_points: -55
+    swap_short_points: -15
+    triple_weekday: 2
+    rollover_hour: 17
   gold:
     commission_pct: 0.04
     slippage_pct: 0.05
