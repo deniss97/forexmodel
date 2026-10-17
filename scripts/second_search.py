@@ -197,39 +197,66 @@ def search(hours: float, seed: int, procs: int) -> int:
 
 # ---------------------------------------------------------------- отчёт
 
-def load_all(con) -> tuple[pd.DataFrame, np.ndarray, list]:
-    rows = con.execute("SELECT params, years, m, score, robust, sel_pf, sel_n, corr, pt_sel, test_pf, test_n, test_net, pt_test, how "
-                       "FROM trials").fetchall()
-    df = pd.DataFrame(rows, columns=["params", "years", "m", "score", "robust", "sel_pf", "sel_n", "corr", "pt_sel", "test_pf",
-                                     "test_n", "test_net", "pt_test", "how"])
-    M = np.frombuffer(b"".join(df["m"]), dtype=np.float32).reshape(len(df), len(MONTHS))
-    years = [json.loads(y) for y in df["years"]]
-    return df.drop(columns="m"), M, years
+WF_YEARS = list(range(2021, 2027))
 
 
-def walk_forward(df: pd.DataFrame, M: np.ndarray, years: list, ref: np.ndarray) -> pd.DataFrame:
+def walk_forward(con, ref: np.ndarray) -> pd.DataFrame:
     """На год Y — лучшая по PF за годы до Y среди прошедших отбор (сделок ≥ 10 в год, связь с S42 < 0.3 по месяцам
-    до Y); торгует год Y. Честная оценка того, что дал бы сам поиск."""
+    до Y); торгует год Y. Честная оценка того, что дал бы сам поиск. Один проход по базе (1 млн проб не помещаются
+    в память машины целиком): на каждый год хранится только текущая лучшая."""
+    cut = {Y: int(MONTHS.get_loc(pd.Period(f"{Y}-01", "M"))) for Y in WF_YEARS}
+    yr = {Y: MONTHS.year == Y for Y in WF_YEARS}
+    best = {Y: (-1.0, None, 0.0) for Y in WF_YEARS}
+    rc = {Y: ref[:cut[Y]] - ref[:cut[Y]].mean() for Y in WF_YEARS}
+    for n_row, (params, years, blob) in enumerate(con.execute("SELECT params, years, m FROM trials"), 1):
+        y = json.loads(years)
+        m = np.frombuffer(blob, dtype=np.float32).astype(np.float64)
+        for Y in WF_YEARS:
+            ks = [str(k) for k in range(2016, Y) if str(k) in y]
+            pos = sum(y[k][1] for k in ks)
+            neg = sum(y[k][2] for k in ks)
+            n = sum(y[k][3] for k in ks)
+            if n < 10 * (Y - 2016) or neg <= 0 or pos / neg <= best[Y][0]:
+                continue
+            mb = m[:cut[Y]] - m[:cut[Y]].mean()
+            den = np.sqrt((mb ** 2).sum() * (rc[Y] ** 2).sum())
+            if den > 0 and (mb @ rc[Y]) / den < MAX_CORR:
+                best[Y] = (pos / neg, params, float(m[yr[Y]].sum()))
+        if n_row % 200_000 == 0:
+            print(f"walk-forward: {n_row} проб", flush=True)
     out = []
-    for Y in range(2021, 2027):
-        ys = [str(y) for y in range(2016, Y)]
-        pos = np.array([sum(y.get(k, [0, 0, 0, 0])[1] for k in ys) for y in years])
-        neg = np.array([sum(y.get(k, [0, 0, 0, 0])[2] for k in ys) for y in years])
-        n = np.array([sum(y.get(k, [0, 0, 0, 0])[3] for k in ys) for y in years])
-        before = MONTHS < pd.Period(f"{Y}-01", "M")
-        Mb, rb = M[:, before], ref[before]
-        Mc, rc = Mb - Mb.mean(axis=1, keepdims=True), rb - rb.mean()
-        corr = (Mc @ rc) / (np.sqrt((Mc ** 2).sum(axis=1)) * np.sqrt((rc ** 2).sum()) + 1e-12)
-        pf = np.where(neg > 0, pos / np.maximum(neg, 1e-12), 0)
-        ok = (n >= 10 * len(ys)) & (corr < MAX_CORR)
-        if not ok.any():
+    for Y, (pfv, params, net) in best.items():
+        if params is None:
             continue
-        k = int(np.argmax(np.where(ok, pf, -1)))
-        yr = MONTHS.year == Y
-        out.append({"год": Y, "стратегия": ss.describe(json.loads(df["params"].iat[k])), "PF до года": float(pf[k]),
-                    "итог года": float(M[k, yr].sum()), "S42 за год": float(ref[yr].sum()),
-                    "портфель пополам": float(0.5 * M[k, yr].sum() + 0.5 * ref[yr].sum())})
+        r = float(ref[yr[Y]].sum())
+        out.append({"год": Y, "стратегия": ss.describe(json.loads(params)), "PF до года": pfv, "итог года": net,
+                    "S42 за год": r, "портфель пополам": 0.5 * net + 0.5 * r})
     return pd.DataFrame(out)
+
+
+def wf_png(wf: pd.DataFrame, path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from experiments import BG, BLUE, GRAY, GRID, INK, INK2
+
+    fig, ax = plt.subplots(figsize=(9, 3.6), facecolor=BG)
+    ax.set_facecolor(BG)
+    x, w = np.arange(len(wf)), 0.38
+    ax.bar(x - w / 2, wf["S42 за год"], width=w, color=GRAY, label=f"S42 один: {wf['S42 за год'].sum():+.1f}% за 2021–2026")
+    ax.bar(x + w / 2, wf["итог года"], width=w, color=BLUE, label=f"стратегия, выбранная поиском по прошлым годам: {wf['итог года'].sum():+.1f}%")
+    ax.axhline(0, color=INK2, linewidth=0.8)
+    ax.set_xticks(x, wf["год"].astype(str))
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    ax.grid(True, axis="y", color=GRID)
+    ax.tick_params(colors=INK2, labelsize=9)
+    ax.set_ylabel("итог года, % (5 рынков поровну)", color=INK2, fontsize=9)
+    ax.legend(frameon=False, fontsize=9, labelcolor=INK, loc="upper left")
+    fig.tight_layout()
+    fig.savefig(path, dpi=110, facecolor=BG)
+    plt.close(fig)
 
 
 def finalists_minute(picks: list[dict]) -> pd.DataFrame:
@@ -256,17 +283,35 @@ def report(top_n: int) -> int:
     from experiments import load_catalog, load_trades
 
     con = db()
-    df, M, years = load_all(con)
-    con.close()
     ref = s42_monthly()
-    passed = df[(df["score"] > 0) & (df["robust"] >= ROBUST_MIN)].sort_values("pt_sel", ascending=False)
-    picks = [json.loads(p) for p in passed["params"].head(top_n)]
-    wf = walk_forward(df, M, years, ref)
+    cols = ["params", "score", "robust", "sel_pf", "sel_n", "corr", "pt_sel", "test_pf", "test_n", "test_net", "pt_test"]
+    passed = pd.DataFrame(con.execute(f"SELECT {', '.join(cols)} FROM trials WHERE score > 0 AND robust >= ? ORDER BY pt_sel DESC",
+                                      (ROBUST_MIN,)).fetchall(), columns=cols)
+    stats = dict(zip(["всего", "случайных", "прошли"], con.execute(
+        "SELECT COUNT(*), SUM(how = 'разведка'), SUM(score > 1) FROM trials").fetchone()))
+    # финалисты: без перестановок фильтров и не больше одного на вход — иначе верхушка — одна стратегия в разных обличьях
+    picks, seen_entry = [], set()
+    for p in passed["params"]:
+        prm = json.loads(p)
+        if prm["entry"] not in seen_entry:
+            seen_entry.add(prm["entry"])
+            picks.append(prm)
+        if len(picks) >= top_n:
+            break
+    # правило отбора целиком: что все прошедшие показали на проверке (оценка правила, а не удачной верхушки)
+    rule = {"прошедших": len(passed), "PF проверки, медиана": float(passed["test_pf"].median()) if len(passed) else np.nan,
+            "PF проверки > 1.1": float((passed["test_pf"] > 1.1).mean()) if len(passed) else np.nan,
+            "t портфеля на проверке, медиана": float(passed["pt_test"].median()) if len(passed) else np.nan,
+            "t портфеля на проверке выше S42": float((passed["pt_test"] > tstat(ref[~SEL])).mean()) if len(passed) else np.nan,
+            "связь выбор → проверка": float(passed[["sel_pf", "test_pf"]].corr(method="spearman").iat[0, 1]) if len(passed) > 2 else np.nan,
+            "S42 t выбор": tstat(ref[SEL]), "S42 t проверка": tstat(ref[~SEL])}
+    wf = walk_forward(con, ref)
+    con.close()
+    print(f"отбор: {stats}, устойчивых {len(passed)}; walk-forward готов", flush=True)
     mt = finalists_minute(picks) if picks else pd.DataFrame()
     _, exps = load_catalog()
     s42 = load_trades(exps["S42"])
     alone = pf.combine({"S42": s42}, SET)
-    rnd = df[df["how"] == "разведка"]
     lines = []
     for k, prm in enumerate(picks):
         x = mt[mt["k"] == k].assign(run="m")
@@ -284,6 +329,8 @@ def report(top_n: int) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     L.to_csv(OUT / "finalists.csv", index=False)
     wf.to_csv(OUT / "walk_forward.csv", index=False)
+    (DOC.parent / "second_strategy").mkdir(parents=True, exist_ok=True)
+    wf_png(wf, DOC.parent / "second_strategy" / "walk_forward.png")
 
     old = DOC.read_text(encoding="utf-8") if DOC.exists() else ""
     a, b = old.find(MARK[0]), old.find(MARK[1])
@@ -295,10 +342,18 @@ def report(top_n: int) -> int:
           f"S42 ниже {MAX_CORR}, цель — PF, устойчивая оценка (медиана PF пробы и 6 соседей) не ниже {ROBUST_MIN}; финалисты — по "
           "приросту t месяцев портфеля «S42 + стратегия» на выборе. Проверка 2021–2026 — один раз, финалисты — штатным минутным "
           "симулятором. Расчёт — `scripts/second_search.py`.", "",
-          f"Проб: **{len(df):,}** (случайных {len(rnd):,}); прошли отбор на выборе (сделки, связь с S42, PF > 1): "
-          f"{int(((df['score'] > 1)).sum()):,}; устойчивых (оценка ≥ {ROBUST_MIN}): {len(passed):,}.".replace(",", " "), "",
-          verdict, "", "## Walk-forward самого поиска — честная оценка", "",
+          f"Проб: **{stats['всего']:,}** (случайных {stats['случайных']:,}); прошли отбор на выборе (сделки, связь с S42, PF > 1): "
+          f"{stats['прошли']:,}; устойчивых (оценка ≥ {ROBUST_MIN}): {len(passed):,}.".replace(",", " "), "",
+          verdict, "", "## Правило отбора целиком — что прошедшие показали на проверке", "",
+          f"Все {rule['прошедших']} устойчивых проб, отобранных только по 2016–2020. Это оценка самого правила отбора, а не "
+          "удачной верхушки.", "",
+          "| PF проверки, медиана | доля с PF проверки > 1.1 | t портфеля с S42 на проверке, медиана | доля, где портфель лучше S42 по t | связь PF выбор → проверка | S42 один: t выбор / проверка |",
+          "|---|---|---|---|---|---|",
+          f"| {rule['PF проверки, медиана']:.2f} | {rule['PF проверки > 1.1']:.0%} | {rule['t портфеля на проверке, медиана']:.2f} | "
+          f"{rule['t портфеля на проверке выше S42']:.0%} | {rule['связь выбор → проверка']:.2f} | {rule['S42 t выбор']:.2f} / {rule['S42 t проверка']:.2f} |", "",
+          "## Walk-forward самого поиска — честная оценка", "",
           "На каждый год берётся лучшая стратегия по годам до него (среди прошедших отбор) и торгует этот год.", "",
+          "![Walk-forward поиска против S42](second_strategy/walk_forward.png)", "",
           "| год | выбранная стратегия | PF до года | итог года, % | S42 за год, % | портфель пополам, % |", "|---|---|---|---|---|---|"]
     md += [f"| {r['год']} | {r['стратегия']} | {r['PF до года']:.2f} | {r['итог года']:+.1f} | {r['S42 за год']:+.1f} | {r['портфель пополам']:+.1f} |"
            for _, r in wf.iterrows()]
