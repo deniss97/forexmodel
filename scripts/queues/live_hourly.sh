@@ -12,7 +12,12 @@ exec 9> reports/live/.hourly.lock
 flock -n 9 || exit 0                                  # предыдущий запуск ещё идёт
 {
   date
-  .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
+  # минутки: Т-Инвестиции без задержки, если есть токен (созвон 18.10); иначе бесплатный ISS Мосбиржи
+  if [ -n "$TINVEST_TOKEN" ] || [ -f "$HOME/.config/forexmodel/tinvest_token" ]; then
+    .venv/bin/python scripts/fetch_tinvest.py SBER GAZP LKOH || .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
+  else
+    .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
+  fi
   .venv/bin/python scripts/live_signals.py --only sber gazp lkoh
   if [ "$(date +%H)" = "23" ]; then .venv/bin/python scripts/live_health.py; fi
 } >> $LOG/$(date +%Y-%m-%d).log 2>&1
