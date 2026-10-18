@@ -195,6 +195,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 .ed-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .ed-actions .left, .ed-actions .right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .confirm { font-size: 13px; color: var(--st-no); }
+.confirm.move { color: var(--ink2); }
+.confirm select { background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 2px 6px; font-size: 13px; }
 
 .empty { padding: 28px 16px; color: var(--ink2); text-align: center; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px); z-index: 10; }
@@ -598,7 +600,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       </div>
       <div class="ed-actions">
         <div class="left">${ro ? "" : `<button type="button" class="btn" data-act="sprint">${h.sprint === thisWeek ? "Снять с этой недели" : "Взять на эту неделю"}</button>
-          <button type="button" class="btn danger" data-act="del">Удалить</button><span class="confirm" data-confirm hidden>Удалить ${esc(h.code)} безвозвратно? <button type="button" class="btn danger" data-act="del-yes">Да, удалить</button> <button type="button" class="btn" data-act="del-no">Нет</button></span>`}</div>
+          <button type="button" class="btn danger" data-act="del">Удалить</button><span class="confirm" data-confirm hidden>Удалить ${esc(h.code)} безвозвратно? <button type="button" class="btn danger" data-act="del-yes">Да, удалить</button> <button type="button" class="btn" data-act="del-no">Нет</button></span>
+          <button type="button" class="btn" data-act="to-note" title="не гипотеза — перенести во вкладку «Техдолг и уточнения»">В техдолг</button><span class="confirm move" data-move hidden>Перенести ${esc(h.code)} в техдолг как <select data-move-kind aria-label="вид записи"><option value="debt">техдолг</option><option value="clarify">уточнение</option><option value="task">задача</option></select>? <button type="button" class="btn primary" data-act="to-note-yes">Перенести</button> <button type="button" class="btn" data-act="to-note-no">Нет</button></span>`}</div>
         <div class="right"><button type="button" class="btn" data-act="close">Свернуть</button>${ro ? "" : `<button type="button" class="btn primary" data-act="save">Сохранить</button>`}</div>
       </div>
     </div>`;
@@ -780,7 +783,10 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   function resetDraftVote() { $("#a-vote").innerHTML = me.id ? `<span class="eyebrow">ваша оценка (можно позже)</span>${voteHTML("a", null)}` : ""; }
 
   function openCode(code, scroll) {
-    const h = docs.get(code); if (!h) return;
+    const h = docs.get(code);
+    if (!h) {   // гипотеза ещё не пришла со снимком (только что перенесена) — откроется с ним
+      view.page = "hyp"; view.area = "all"; view.status = "all"; view.open = code; remember(); render(); return;
+    }
     view.open = code;
     if (!inArea(h)) view.area = h.area || "all";
     if (view.page !== "hyp") { view.page = "hyp"; remember(); }
@@ -815,6 +821,9 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       kind: NKINDS[d.kind] ? d.kind : "task", status: NSTAT[d.status] ? d.status : "open",
       who: WHO.includes(d.who) ? d.who : "", due: str(d.due, 60), source: str(d.source, 120),
       hyps: Array.isArray(d.hyps) ? hypCodes(d.hyps.join(" ")) : [], createdAt: str(d.createdAt, 40),
+      // файлы гипотезы, перенесённой в техдолг: хранятся, чтобы вернуться с ней обратно
+      files: Array.isArray(d.files) ? d.files.filter((f) => f && typeof f.id === "string" && /^[0-9a-f]{32}$/.test(f.id)).slice(0, 50)
+        .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40) })) : [],
     };
   }
   function nfiltered() {
@@ -857,7 +866,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
         </div>
       </div>
       <div class="ed-actions">
-        <div class="left">${ro ? "" : `<button type="button" class="btn danger" data-act="n-del">Удалить</button><span class="confirm" data-confirm hidden>Удалить ${esc(n.code)} безвозвратно? <button type="button" class="btn danger" data-act="n-del-yes">Да, удалить</button> <button type="button" class="btn" data-act="n-del-no">Нет</button></span>`}</div>
+        <div class="left">${ro ? "" : `<button type="button" class="btn danger" data-act="n-del">Удалить</button><span class="confirm" data-confirm hidden>Удалить ${esc(n.code)} безвозвратно? <button type="button" class="btn danger" data-act="n-del-yes">Да, удалить</button> <button type="button" class="btn" data-act="n-del-no">Нет</button></span>
+          <button type="button" class="btn" data-act="n-to-hyp" title="это гипотеза — перенести в банк гипотез">Сделать гипотезой</button><span class="confirm move" data-move hidden>Перенести ${esc(n.code)} в банк гипотез? <button type="button" class="btn primary" data-act="n-to-hyp-yes">Перенести</button> <button type="button" class="btn" data-act="n-to-hyp-no">Нет</button></span>`}</div>
         <div class="right"><button type="button" class="btn" data-act="n-close">Свернуть</button>${ro ? "" : `<button type="button" class="btn primary" data-act="n-save">Сохранить</button>`}</div>
       </div>
     </div>`;
@@ -926,9 +936,39 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     $("#n-save").disabled = false;
     if (ok) { $("#n-form").reset(); $("#n-form").hidden = true; nview.open = code; nview.status = "active"; renderNotes(); }
   }
+  async function nextCode(c, map, prefix) {
+    let n = Math.max(0, ...[...map.values()].map((x) => x.num || 0)) + 1, code = "";
+    for (let tries = 0; tries < 20; tries++, n++) {
+      code = prefix + String(n).padStart(2, "0");
+      try { const s = await c.doc(code).get(); if (!s.exists) break; } catch (e) { break; }
+    }
+    return { code, num: n };
+  }
+  const today = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  // перенос между банком и техдолгом (созвон 18.10, чистка банка): новая запись создаётся первой, старая удаляется
+  // только после неё; файлы переезжают вместе с записью и из хранилища не удаляются
+  async function moveToNote(h, kind) {
+    const { code, num } = await nextCode(ncol, notes, "T");
+    const now = new Date().toISOString();
+    const body = { code, num, title: titleOf(h), text: [h.text, h.criterion ? `Критерий: ${h.criterion}` : ""].filter(Boolean).join("\n\n"),
+                   answer: h.result || "", kind: NKINDS[kind] ? kind : "debt", status: "open", who: "", due: "", hyps: [],
+                   source: [h.source, `перенесено из ${h.code} ${today()}`].filter(Boolean).join("; "), files: h.files.map(fileRec),
+                   from: h.code, author: me.id || null, createdAt: now, updatedAt: now };
+    if (!await write(() => ncol.doc(code).set(body))) return;
+    if (await write(() => col.doc(h.code).delete(), `${h.code} перенесена в техдолг как ${code}`)) { view.open = null; openNote(code); setHash(code); }
+  }
+  async function moveToHyp(n) {
+    const { code, num } = await nextCode(col, docs, "H");
+    const now = new Date().toISOString();
+    const body = { code, num, title: n.title, text: n.text, area: "", kind: "", status: "new", result: n.answer || "", criterion: "", link: "",
+                   exps: [], files: n.files || [], source: [n.source, `перенесено из ${n.code} ${today()}`].filter(Boolean).join("; "),
+                   from: n.code, author: me.id || null, createdAt: now, updatedAt: now };
+    if (!await write(() => col.doc(code).set(body))) return;
+    if (await write(() => ncol.doc(n.code).delete(), `${n.code} перенесена в банк гипотез как ${code}`)) { nview.open = null; openCode(code, true); setHash(code); }
+  }
   function openNote(code) {
-    if (!notes.has(code)) return;
     view.page = "notes"; remember(); nview.open = code;
+    if (!notes.has(code)) { nview.status = "all"; renderPages(); renderNotes(); return; }   // запись ещё не пришла — откроется со снимком
     if (!nfiltered().some((x) => x.code === code)) { nview.status = "all"; nview.kind = nview.who = nview.q = ""; $("#n-q").value = ""; $("#n-kind").value = ""; $("#n-who").value = ""; }
     renderPages(); renderNotes();
     document.querySelector(`.row[data-note="${code}"]`)?.scrollIntoView({ block: "start" });
@@ -950,6 +990,9 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       else if (k === "n-del") ned.querySelector("[data-confirm]").hidden = false;
       else if (k === "n-del-no") ned.querySelector("[data-confirm]").hidden = true;
       else if (k === "n-del-yes" && await write(() => ncol.doc(code).delete(), `Запись ${code} удалена`)) { nview.open = null; setHash(null); renderNotes(); }
+      else if (k === "n-to-hyp") ned.querySelector("[data-move]").hidden = false;
+      else if (k === "n-to-hyp-no") ned.querySelector("[data-move]").hidden = true;
+      else if (k === "n-to-hyp-yes" && notes.has(code)) { nact.disabled = true; await moveToHyp(notes.get(code)); }
       return;
     }
     const nrow = e.target.closest(".nrow");
@@ -1007,6 +1050,9 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       }
       else if (k === "del") ed.querySelector("[data-confirm]").hidden = false;
       else if (k === "del-no") ed.querySelector("[data-confirm]").hidden = true;
+      else if (k === "to-note") ed.querySelector("[data-move]").hidden = false;
+      else if (k === "to-note-no") ed.querySelector("[data-move]").hidden = true;
+      else if (k === "to-note-yes" && h) { act.disabled = true; await moveToNote(h, ed.querySelector("[data-move-kind]").value); }
       else if (k === "del-yes") {
         const files = h ? h.files.map((f) => f.id) : [];
         if (await write(() => col.doc(code).delete(), `Гипотеза ${code} удалена`)) {
