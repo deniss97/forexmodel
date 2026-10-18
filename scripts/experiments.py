@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import _bootstrap  # noqa: F401
@@ -151,6 +152,10 @@ METRICS = ("сделок", "итог", "PF", "без_2_лучших")
 KINDS = {"base": "база", "costs": "издержки и исполнение", "clean": "чистая проверка", "variation": "принятая вариация"}
 
 
+def now_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def write_bank_digest(reg: dict) -> None:
     """Краткий реестр для банка гипотез: эксперимент → гипотеза, вердикт и метрики проверки основного среза."""
     pick = lambda m: {k: m.get(k) for k in METRICS} if m else None  # noqa: E731
@@ -161,7 +166,7 @@ def write_bank_digest(reg: dict) -> None:
                      "baseline": e.get("baseline"), "verdict": e.get("verdict", ""), "outcome": e.get("outcome", ""),
                      "kind": e.get("kind", "clean"), "archived": e.get("archived", ""),
                      "scope": reg["names"].get(e["main"], e["main"]), "m": pick(r.get("m")), "b": pick(r.get("b"))})
-    BANK.write_text(json.dumps({"families": reg["families"], "kinds": KINDS, "experiments": rows}, ensure_ascii=False,
+    BANK.write_text(json.dumps({"updated": reg.get("updated") or now_utc(), "families": reg["families"], "kinds": KINDS, "experiments": rows}, ensure_ascii=False,
                                separators=(",", ":")), encoding="utf-8")
 
 
@@ -197,6 +202,7 @@ def refresh_meta() -> int:
     _, exps = load_catalog()
     reg["experiments"] = [{**e, **meta(exps[e["id"]])} for e in reg["experiments"] if e["id"] in exps]
     reg["kinds"] = KINDS
+    reg["updated"] = now_utc()
     reg["hypotheses"] = hypotheses_for({e["hypothesis"] for e in reg["experiments"] if e.get("hypothesis")})
     (SITE / "registry.json").write_text(json.dumps(reg, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     write_bank_digest(reg)
@@ -290,7 +296,8 @@ def main(argv=None) -> int:
                                                             "exit": {ins: exit_params(cat, exp, ins) for ins in payload}},
                                                            ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     clean = lambda v: None if isinstance(v, float) and not np.isfinite(v) else v  # noqa: E731
-    fresh = {e["id"]: {**meta(e),
+    stamp = now_utc()
+    fresh = {e["id"]: {**meta(e), "built": stamp,
                        "costs": (e.get("costs") or {}).get("profile"), "dividends": bool(e.get("dividends")),
                        "instruments": list(e["sources"]), "main": ms,
                        "res": {p: {s: {"m": {k: clean(v) for k, v in r["m"].items()},
@@ -332,7 +339,7 @@ def main(argv=None) -> int:
     lines += [f"| {x['title']} | {x['result']} | [{x['doc']}](../{x['doc']}) |" for x in cat.get("no_log", [])]
     (DOC / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     # реестр для страницы
-    out = {"protocol": {"test_start": "2021-01-01", "periods": list(PERIODS)}, "families": cat["families"], "names": NAMES, "kinds": KINDS,
+    out = {"updated": stamp, "protocol": {"test_start": "2021-01-01", "periods": list(PERIODS)}, "families": cat["families"], "names": NAMES, "kinds": KINDS,
            "hypotheses": hypotheses_for({e["hypothesis"] for e in entries if e.get("hypothesis")}),
            "experiments": entries,
            "no_log": [{**x, "doc": GH + x["doc"]} for x in cat.get("no_log", [])]}

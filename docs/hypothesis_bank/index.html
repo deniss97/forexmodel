@@ -199,6 +199,27 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 .confirm select { background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 2px 6px; font-size: 13px; }
 
 .empty { padding: 28px 16px; color: var(--ink2); text-align: center; }
+.stamp { font-size: 13px; color: var(--ink3); margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.stamp .linkbtn { font-size: inherit; }
+.dates { display: block; }
+
+/* просмотр ноутбука Jupyter */
+.nb-wrap { position: fixed; inset: 0; background: rgba(10, 14, 22, 0.45); z-index: 20; display: grid; place-items: center; padding: 16px; }
+.nb-wrap[hidden] { display: none; }
+.nb-panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; width: min(1000px, 100%); max-height: calc(100vh - 32px); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.nb-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+.nb-head b { overflow-wrap: anywhere; }
+.nb-head .hint { margin-left: 6px; }
+.nb-body { overflow: auto; padding: 12px 14px 18px; display: grid; gap: 12px; align-content: start; }
+.nb-cell { display: grid; gap: 6px; min-width: 0; }
+.nb-n { font: 500 11.5px var(--mono); color: var(--ink3); }
+.nb-code { margin: 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; font: 12.5px/1.45 var(--mono); overflow-x: auto; white-space: pre; }
+.nb-out { margin: 0; padding: 2px 10px; font: 12.5px/1.45 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink2); max-height: 420px; overflow: auto; }
+.nb-out.err { color: var(--st-no); }
+.nb-plot { width: 100%; min-height: 320px; background: #fff; border-radius: 6px; overflow: hidden; }
+.nb-img { max-width: 100%; height: auto; border-radius: 4px; background: #fff; justify-self: start; }
+.nb-md { white-space: pre-wrap; font-size: 14px; overflow-wrap: anywhere; }
+.nb-md .h { font-weight: 650; font-size: 16px; margin: 4px 0 2px; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px); z-index: 10; }
 
 .add { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 12px; }
@@ -222,12 +243,20 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 </style>
 
+<div class="nb-wrap" id="nb" hidden role="dialog" aria-modal="true" aria-labelledby="nb-title">
+  <div class="nb-panel">
+    <div class="nb-head"><div><b id="nb-title"></b><span class="hint" id="nb-sub"></span></div><button type="button" class="btn small" id="nb-close">Закрыть</button></div>
+    <div class="nb-body" id="nb-body"></div>
+  </div>
+</div>
+
 <div class="wrap">
   <header class="top">
     <div class="brand">
       <span class="eyebrow">forexmodel · исследование</span>
       <h1>Банк гипотез</h1>
       <p class="lede">Всё, что стоит проверить, по направлениям исследования. В проверку берётся только то, что описано здесь; результат проверки — эксперимент в <a href="https://claude.ai/artifact/E4teCbCVvojCf96CJy9UQU" target="_blank" rel="noopener">журнале экспериментов</a>, он виден прямо в гипотезе.</p>
+      <p class="stamp" id="updated" hidden></p>
     </div>
     <div class="me" id="me" hidden></div>
   </header>
@@ -311,7 +340,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
         <input id="a-source" maxlength="120" placeholder="встреча 16.10, Тагир, статья…"></label>
       <label class="f wide" for="a-crit">Критерий вердикта (можно позже)
         <input id="a-crit" maxlength="1000" placeholder="выбор на 2016–2020, проверка на 2021–2026, PF и итог без 2 лучших против B01"></label>
-      <label class="f wide" for="a-files" id="a-files-label">Файлы (ТЗ, скриншоты, таблицы — картинки, PDF, CSV, Markdown, JSON, текст, видео; до 20 МБ)
+      <label class="f wide" for="a-files" id="a-files-label">Файлы (ТЗ, скриншоты, таблицы, ноутбуки Jupyter — картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео; до 20 МБ)
         <input id="a-files" type="file" multiple></label>
     </div>
     <div class="vote" id="a-vote"></div>
@@ -386,9 +415,10 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400 };
   const FILE_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
     mp4: "video/mp4", webm: "video/webm", pdf: "application/pdf", csv: "text/csv", md: "text/markdown", markdown: "text/markdown",
-    json: "application/json", txt: "text/plain", log: "text/plain", yaml: "text/plain", yml: "text/plain", py: "text/plain" };
+    json: "application/json", ipynb: "application/json", txt: "text/plain", log: "text/plain", yaml: "text/plain", yml: "text/plain", py: "text/plain" };
 
-  const SAVE_EXT = /\.(gif|png|jpe?g|webp|mp4|webm|txt|json|md|csv|svg|pdf)$/i;
+  const SAVE_EXT = /\.(gif|png|jpe?g|webp|mp4|webm|txt|json|md|csv|svg|pdf|html|docx|pptx|xlsx|zip)$/i;
+  const isNotebook = (f) => /\.ipynb$/i.test(f.name);
 
   let db = null, user = null, col = null, assets = null, downloads = null;
   let me = { id: null, name: "" };
@@ -437,7 +467,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       result: str(d.result, LIM.result), link: str(d.link, LIM.link), exps, files,
       area: AREA[d.area] ? d.area : "",
       status: STATUSES[d.status] ? d.status : "new", kind: KINDS[d.kind] ? d.kind : OLD_TYPE[d.type] || "",
-      author: safeId(d.author), createdAt: str(d.createdAt, 40),
+      author: safeId(d.author), createdAt: str(d.createdAt, 40), updatedAt: str(d.updatedAt, 40),
       sprint: /^\d{4}-\d{2}-\d{2}$/.test(String(d.sprint || "")) ? d.sprint : "",
     };
   }
@@ -555,11 +585,12 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   function filesHTML(h, ro) {
     const list = h.files.map((f) => `<div class="file">${/^image\//.test(f.type) ? `<img class="thumb" src="/_blob/${f.id}" alt="">` : ""}
       <button type="button" class="linkbtn" data-act="getfile" data-id="${f.id}" title="скачать">${esc(f.name)}</button><span class="sz">${f.size ? sizeTxt(f.size) : ""}</span>
+      ${isNotebook(f) ? `<button type="button" class="btn small" data-act="nbview" data-id="${f.id}" title="посмотреть ноутбук прямо здесь">открыть</button>` : ""}
       ${ro ? "" : `<button type="button" class="btn small" data-act="unfile" data-id="${f.id}">убрать</button>`}</div>`).join("");
     const add = !ro && assets ? `<label class="btn small" style="justify-self:start">Прикрепить файл<input type="file" multiple data-attach hidden></label>` : "";
     const why = !ro && !assets && ready ? `<span class="hint">Прикреплять файлы могут редакторы страницы.</span>` : "";
     return `<div class="block"><div class="block-head"><span class="eyebrow">файлы</span>${add}</div>
-      ${list ? `<div class="files">${list}</div>` : `<span class="hint">Файлов нет. Сюда — ТЗ, скриншоты, таблицы: картинки, PDF, CSV, Markdown, JSON, текст, видео до 20 МБ.</span>`}${why}</div>`;
+      ${list ? `<div class="files">${list}</div>` : `<span class="hint">Файлов нет. Сюда — ТЗ, скриншоты, таблицы, ноутбуки Jupyter: картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео до 20 МБ.</span>`}${why}</div>`;
   }
 
   function editorHTML(h) {
@@ -590,6 +621,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
           <label class="f">Статус<select data-f="status" ${dis}>${opt(STATUSES, h.status)}</select></label>
           <label class="f">Вид идеи — что меняем<select data-f="kind" ${dis}>${opt(KINDS, h.kind, "не задан")}</select></label>
           <label class="f">Откуда идея<input data-f="source" maxlength="${LIM.source}" ${r} value="${esc(h.source)}"></label>
+          ${datesHTML(h)}
           <div class="block vote">
             <div class="block-head"><span class="eyebrow">ваша оценка</span>${mine && !ro ? `<button type="button" class="btn small" data-act="unvote">убрать мою</button>` : ""}</div>
             ${!ro && me.id ? voteHTML("e", mine) + `<span class="hint">Сохраняется сразу, как выбраны все три. Поменять — нажать другую цифру.</span>`
@@ -706,6 +738,160 @@ label.f input.title { font-weight: 600; font-size: 15px; }
                 `Ваша оценка ${code}: В ${v.i} · У ${v.c} · С ${v.e}`);
   }
 
+  // ---------- даты ----------
+  const FMT_T = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const FMT_D = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  function when(iso, withTime = true) {
+    const t = Date.parse(iso || "");
+    return Number.isFinite(t) ? (withTime ? FMT_T : FMT_D).format(new Date(t)) : "";
+  }
+  function datesHTML(h) {
+    const c = when(h.createdAt, false), u = when(h.updatedAt);
+    if (!c && !u) return "";
+    return `<span class="hint dates">${c ? `создана ${esc(c)}` : ""}${c && u ? " · " : ""}${u ? `изменена ${esc(u)}` : ""}</span>`;
+  }
+  // последнее изменение в банке — по времени записей (updatedAt пишет страница при каждом сохранении)
+  function updateStamp() {
+    const box = $("#updated"); if (!box) return;
+    const lim = Date.now() + 10 * 60000;          // время из будущего (ошибка в записи) не считаем
+    let best = null;
+    for (const map of [docs, notes]) for (const x of map.values()) {
+      const t = Date.parse(x.updatedAt || x.createdAt || "");
+      if (Number.isFinite(t) && t <= lim && (!best || t > best.t)) best = { t, code: x.code };
+    }
+    box.textContent = "";
+    if (best) {
+      const s = document.createElement("span");
+      s.append(`Последнее изменение в банке: ${FMT_T.format(new Date(best.t))} — `);
+      const b = document.createElement("button"); b.type = "button"; b.className = "linkbtn"; b.dataset.stampCode = best.code; b.textContent = best.code;
+      s.append(b); box.append(s);
+    }
+    if (J.updated && when(J.updated)) {
+      const s = document.createElement("span"); s.textContent = `Журнал экспериментов собран: ${when(J.updated)}`; box.append(s);
+    }
+    box.hidden = !box.childNodes.length;
+  }
+
+  // ---------- zip из одного файла (downloads не сохраняет .ipynb, .py, .yaml напрямую) ----------
+  const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zipOne(name, data) {
+    const fn = new TextEncoder().encode(name), crc = crc32(data), n = data.length, d = new Date();
+    const tm = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const dt = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const loc = new DataView(new ArrayBuffer(30)), cen = new DataView(new ArrayBuffer(46)), end = new DataView(new ArrayBuffer(22));
+    // локальный заголовок: без сжатия (stored), имя в UTF-8 (флаг 0x0800)
+    [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, tm, 2], [12, dt, 2], [14, crc, 4], [18, n, 4], [22, n, 4], [26, fn.length, 2], [28, 0, 2]]
+      .forEach(([o, v, w]) => (w === 4 ? loc.setUint32(o, v, true) : loc.setUint16(o, v, true)));
+    [[0, 0x02014b50, 4], [4, 0x031e, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, tm, 2], [14, dt, 2], [16, crc, 4], [20, n, 4], [24, n, 4], [28, fn.length, 2],
+     [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0o100644 * 65536, 4], [42, 0, 4]]
+      .forEach(([o, v, w]) => (w === 4 ? cen.setUint32(o, v, true) : cen.setUint16(o, v, true)));
+    [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, 1, 2], [10, 1, 2], [12, 46 + fn.length, 4], [16, 30 + fn.length + n, 4], [20, 0, 2]]
+      .forEach(([o, v, w]) => (w === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true)));
+    return new Blob([loc, fn, data, cen, fn, end], { type: "application/zip" });
+  }
+
+  // ---------- просмотр ноутбука Jupyter ----------
+  // Показываются код, текстовые выводы, картинки и графики Plotly (как данные фигуры). HTML и JavaScript из ноутбука
+  // в страницу не вставляются и не выполняются.
+  const nbText = (v) => (Array.isArray(v) ? v.join("") : typeof v === "string" ? v : "");
+  const ANSI = /\u001b\[[0-9;]*[A-Za-z]/g;
+  const LIMIT = 20000;
+  function mk(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  // графики Plotly — данные фигуры; plotly.js грузится, только если в ноутбуке есть такой вывод
+  const PLOTLY = "https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.34.0/plotly.min.js";
+  let plotlyP = null;
+  function loadPlotly() {
+    if (window.Plotly) return Promise.resolve(window.Plotly);
+    if (!plotlyP) plotlyP = new Promise((ok, bad) => {
+      const sc = document.createElement("script"); sc.src = PLOTLY; sc.async = true;
+      sc.onload = () => (window.Plotly ? ok(window.Plotly) : bad(new Error("plotly")));
+      sc.onerror = () => { plotlyP = null; bad(new Error("plotly")); };
+      document.head.append(sc);
+    });
+    return plotlyP;
+  }
+  function nbOutputs(outs, cell, plots) {
+    for (const o of Array.isArray(outs) ? outs.slice(0, 200) : []) {
+      if (!o || typeof o !== "object") continue;
+      if (o.output_type === "stream") { cell.append(mk("pre", "nb-out" + (o.name === "stderr" ? " err" : ""), nbText(o.text).replace(ANSI, "").slice(0, LIMIT))); continue; }
+      if (o.output_type === "error") {
+        const tb = Array.isArray(o.traceback) ? o.traceback.join("\n") : "";
+        cell.append(mk("pre", "nb-out err", (`${o.ename || "Error"}: ${o.evalue || ""}\n` + tb).replace(ANSI, "").slice(0, LIMIT))); continue;
+      }
+      const d = o.data && typeof o.data === "object" ? o.data : {};
+      const fig = d["application/vnd.plotly.v1+json"];
+      if (fig && typeof fig === "object" && Array.isArray(fig.data)) { const div = mk("div", "nb-plot"); cell.append(div); plots.push([div, fig]); continue; }
+      const svg = nbText(d["image/svg+xml"]);
+      if (svg) { const i = mk("img", "nb-img"); i.alt = "картинка из ноутбука"; i.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); cell.append(i); continue; }
+      const img = ["image/png", "image/jpeg", "image/gif"].find((k) => nbText(d[k]));
+      if (img) { const i = mk("img", "nb-img"); i.alt = "картинка из ноутбука"; i.loading = "lazy"; i.src = `data:${img};base64,` + nbText(d[img]).replace(/\s+/g, ""); cell.append(i); continue; }
+      const t = nbText(d["text/plain"]);
+      if (t) cell.append(mk("pre", "nb-out", t.slice(0, LIMIT)));
+      else if (d["text/html"] || d["application/javascript"]) cell.append(mk("p", "hint", "Вывод в HTML — здесь не показывается; он есть в скачанном ноутбуке."));
+    }
+  }
+  function nbMarkdown(src) {
+    const box = mk("div", "nb-md");
+    let para = [];
+    const flush = () => { if (para.length) { box.append(mk("div", "", para.join("\n"))); para = []; } };
+    for (const line of src.split("\n")) {
+      const m = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (m) { flush(); box.append(mk("div", "h", m[2])); } else para.push(line);
+    }
+    flush();
+    return box;
+  }
+  async function openNotebook(f) {
+    const wrap = $("#nb"), body = $("#nb-body");
+    $("#nb-title").textContent = f.name; $("#nb-sub").textContent = f.size ? sizeTxt(f.size) : "";
+    body.textContent = ""; body.append(mk("p", "hint", "Загружаю ноутбук…"));
+    wrap.hidden = false; $("#nb-close").focus();
+    let nb = null;
+    try {
+      const r = await fetch("/_blob/" + f.id);
+      if (!r.ok) throw new Error("missing");
+      nb = JSON.parse(await r.text());
+    } catch (e) {
+      body.textContent = ""; body.append(mk("p", "hint", "Не удалось открыть: файл недоступен или это не ноутбук Jupyter. Его можно скачать."));
+      return;
+    }
+    body.textContent = "";
+    const cells = nb && Array.isArray(nb.cells) ? nb.cells : null;
+    if (!cells) { body.append(mk("p", "hint", "Старый формат ноутбука (до nbformat 4) — откройте его в Jupyter.")); return; }
+    const ks = nb.metadata && nb.metadata.kernelspec && nb.metadata.kernelspec.display_name;
+    const code = cells.filter((c) => c && c.cell_type === "code").length;
+    $("#nb-sub").textContent = [f.size ? sizeTxt(f.size) : "", `${cells.length} ячеек, кода ${code}`, typeof ks === "string" ? ks.slice(0, 40) : ""].filter(Boolean).join(" · ");
+    const plots = [];
+    for (const c of cells.slice(0, 3000)) {
+      if (!c || typeof c !== "object") continue;
+      const src = nbText(c.source);
+      const cell = mk("div", "nb-cell");
+      if (c.cell_type === "markdown") cell.append(nbMarkdown(src.slice(0, LIMIT)));
+      else if (c.cell_type === "code") {
+        cell.append(mk("span", "nb-n", c.execution_count != null ? `In [${c.execution_count}]` : "In [ ]"), mk("pre", "nb-code", src.slice(0, LIMIT)));
+        nbOutputs(c.outputs, cell, plots);
+      } else cell.append(mk("pre", "nb-code", src.slice(0, LIMIT)));
+      body.append(cell);
+    }
+    if (cells.length > 3000) body.append(mk("p", "hint", `Показаны первые 3000 ячеек из ${cells.length}.`));
+    if (!plots.length) return;
+    plots.forEach(([div]) => div.append(mk("p", "hint", "Рисую график…")));
+    try {
+      const P = await loadPlotly();
+      for (const [div, fig] of plots) {
+        if (!div.isConnected) return;                 // ноутбук уже закрыли
+        div.textContent = "";
+        const lay = fig.layout && typeof fig.layout === "object" ? fig.layout : {};
+        await P.newPlot(div, fig.data, { ...lay, width: undefined, autosize: true }, { responsive: true, displaylogo: false });
+      }
+    } catch (e) { plots.forEach(([div]) => { if (!div.querySelector(".plot-container")) div.textContent = "График Plotly не загрузился — он есть в скачанном ноутбуке."; }); }
+  }
+  function closeNotebook() {
+    if (window.Plotly) document.querySelectorAll("#nb-body .nb-plot").forEach((d) => { try { window.Plotly.purge(d); } catch (e) {} });
+    $("#nb").hidden = true; $("#nb-body").textContent = "";
+  }
+
   // ---------- файлы ----------
   function typeFor(f) {
     const ext = (f.name.split(".").pop() || "").toLowerCase();
@@ -726,8 +912,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     const out = [];
     for (const f of fileList) {
       const type = typeFor(f);
-      if (!type) { toast(`${f.name}: такой тип не принимается. Можно картинки, PDF, видео, CSV, Markdown, JSON, текст; Word и Excel сохраните как PDF или CSV.`); continue; }
-      if (f.size > 20 * 1048576) { toast(`${f.name}: файл больше 20 МБ.`); continue; }
+      if (!type) { toast(`${f.name}: такой тип не принимается. Можно картинки, PDF, видео, CSV, Markdown, JSON, ноутбуки .ipynb, текст; Word и Excel сохраните как PDF или CSV.`); continue; }
+      if (f.size > 20 * 1048576) { toast(isNotebook(f) ? `${f.name}: больше 20 МБ — сохраните ноутбук без выводов (Kernel → Restart & Clear Output).` : `${f.name}: файл больше 20 МБ.`); continue; }
       try {
         const r = await assets.upload(f, { type });
         out.push({ id: r.id, name: f.name.slice(0, 200), size: r.sizeBytes, type: r.contentType, at: new Date().toISOString(), ...(me.id ? { by: me.id } : {}) });
@@ -820,7 +1006,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       title: str(d.title, 160), text: str(d.text, 8000), answer: str(d.answer, 4000),
       kind: NKINDS[d.kind] ? d.kind : "task", status: NSTAT[d.status] ? d.status : "open",
       who: WHO.includes(d.who) ? d.who : "", due: str(d.due, 60), source: str(d.source, 120),
-      hyps: Array.isArray(d.hyps) ? hypCodes(d.hyps.join(" ")) : [], createdAt: str(d.createdAt, 40),
+      hyps: Array.isArray(d.hyps) ? hypCodes(d.hyps.join(" ")) : [], createdAt: str(d.createdAt, 40), updatedAt: str(d.updatedAt, 40),
       // файлы гипотезы, перенесённой в техдолг: хранятся, чтобы вернуться с ней обратно
       files: Array.isArray(d.files) ? d.files.filter((f) => f && typeof f.id === "string" && /^[0-9a-f]{32}$/.test(f.id)).slice(0, 50)
         .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40) })) : [],
@@ -1034,14 +1220,19 @@ label.f input.title { font-weight: 600; font-size: 15px; }
         try {
           const r = await fetch("/_blob/" + f.id);
           if (!r.ok) throw { code: "missing" };
-          // скачивать можно только разрешённые расширения: прочий текст (.py, .yaml) — как .txt
-          const name = SAVE_EXT.test(f.name) ? f.name : f.name + ".txt";
-          await downloads.save({ filename: name, data: await r.blob() });
+          // скачивать можно только разрешённые расширения: прочее (.ipynb, .py, .yaml) — в .zip под своим именем
+          const blob = await r.blob();
+          if (SAVE_EXT.test(f.name)) await downloads.save({ filename: f.name, data: blob });
+          else await downloads.save({ filename: f.name + ".zip", data: zipOne(f.name, new Uint8Array(await blob.arrayBuffer())) });
         } catch (err) {
           const c = err && err.code;
           if (c === "missing") toast("Файл недоступен: возможно, он удалён или скрыт для вашего аккаунта.");
+          else if (c === "rejected_extension" || c === "extension_not_enabled") toast("Такой файл здесь не скачать (архив .zip недоступен в этом просмотре). Ноутбук можно посмотреть кнопкой «открыть».");
           else if (c !== "declined") toast("Не удалось скачать файл.");
         }
+      }
+      else if (k === "nbview" && h) {
+        const f = h.files.find((x) => x.id === act.dataset.id); if (f) openNotebook(f);
       }
       else if (k === "unvote" && me.id) await write(() => col.doc(code).update({ votes: { [me.id]: null }, updatedAt: new Date().toISOString() }), "Ваша оценка убрана");
       else if (k === "unfile") {
@@ -1075,7 +1266,15 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   });
   document.addEventListener("input", (e) => { if (e.target.matches && e.target.matches("textarea.grow")) grow(e.target); });
   document.addEventListener("error", (e) => { if (e.target.matches && e.target.matches("img.thumb")) e.target.classList.add("broken"); }, true);
+  $("#nb-close").addEventListener("click", closeNotebook);
+  $("#nb").addEventListener("click", (e) => { if (e.target.id === "nb") closeNotebook(); });
+  $("#updated").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-stamp-code]"); if (!b) return;
+    const c = b.dataset.stampCode;
+    if (docs.has(c)) { view.page = "hyp"; renderPages(); openCode(c, true); setHash(c); } else if (notes.has(c)) openNote(c);
+  });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("#nb").hidden) { closeNotebook(); return; }
     const row = e.target.closest && e.target.closest(".row");
     if (row && e.target === row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); row.click(); }
   });
@@ -1118,8 +1317,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       const hc = typeof e.hypothesis === "string" ? e.hypothesis.toUpperCase() : null;
       if (hc && /^H\d+$/.test(hc)) (byHyp[hc] = byHyp[hc] || []).push(id);
     }
-    J = { byId, byHyp };
-    render();
+    J = { byId, byHyp, updated: typeof j.updated === "string" ? j.updated : "" };
+    render(); updateStamp();
   }).catch(() => {});
 
   // ---------- подключение к общей базе ----------
@@ -1146,6 +1345,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     col.onSnapshot((snap) => {
       docs = new Map(snap.docs.filter((d) => d.exists && safeId(d.id)).map((d) => [d.id, clean(d.id, d.data() || {})]));
       loaded = true;
+      updateStamp();
       if (!hashDone) {
         hashDone = true;
         const c = (location.hash || "").slice(1).toUpperCase();
@@ -1160,6 +1360,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     ncol.onSnapshot((snap) => {
       notes = new Map(snap.docs.filter((d) => d.exists && safeId(d.id)).map((d) => [d.id, cleanNote(d.id, d.data() || {})]));
       const first = !nloaded; nloaded = true;
+      updateStamp();
       const c = (location.hash || "").slice(1).toUpperCase();
       if (first && notes.has(c)) { openNote(c); return; }
       renderPages(); renderNotes();
