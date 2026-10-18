@@ -15,6 +15,7 @@
 families:
   strategy: стратегия без ML (импульс)
   search: новые стратегии из блоков ТЗ (перебор)
+  trend: тренд-фильтр как самостоятельная стратегия
   model: модель CatBoost
 
 # Выход по умолчанию — для линий стопа и трейлинга на графике сделок (в ATR на входе): стоп sl, трейлинг
@@ -827,6 +828,118 @@ experiments:
       moex: [moex_ss_s41]
       mtss: [mtss_ss_s41]
       eth: [eth_ss_s41]
+  - id: S45
+    family: search
+    title: "Итератор, стратегия 1: NR7 → пробой (набор для запуска)"
+    kind: clean
+    main: все
+    change: "вход: NR7 → пробой · фильтр: только лонг + ADX 1ч > 25 · выход: Дончиан 20 дней · стоп 6 · ATR10 · размер по риску; акции только в лонг, издержки как у S42"
+    hypothesis: H54
+    exit: {sl: 6, trail: 6, act: 99, hours: 240}
+    baseline: S42
+    verdict: 'провал на проверке: PF 2.29 на выборе → 0.88, без 2 лучших −17 — пример подгонки (первый финалист H54)'
+    doc: results/iterator_walkthrough.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      silver: [silver_wt1__eng]
+      gold: [gold_wt1__eng]
+      lkoh: [lkoh_wt1__eng]
+      gazp: [gazp_wt1__eng]
+      sber: [sber_wt1__eng]
+  - id: S46
+    family: search
+    title: "Итератор, стратегия 2: пробой 55 дней (набор для запуска)"
+    kind: clean
+    main: все
+    change: "вход: пробой 55 дней · фильтр: EMA200 4ч + ATR14/ATR100 > 1 · выход: Supertrend 4ч · стоп 3 · ATR20 · размер по риску; акции только в лонг, издержки как у S42"
+    hypothesis: H54
+    exit: {sl: 3, trail: 3, act: 99, hours: 240}
+    baseline: S42
+    verdict: 'держится в обоих периодах: PF 1.83 / 1.70, без 2 лучших в плюсе; с S42 t месяцев 2.43 против 1.93 — кандидат в бумажный режим (выбран после взгляда на проверку)'
+    doc: results/iterator_walkthrough.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      silver: [silver_wt2__eng]
+      gold: [gold_wt2__eng]
+      lkoh: [lkoh_wt2__eng]
+      gazp: [gazp_wt2__eng]
+      sber: [sber_wt2__eng]
+  - id: S47
+    family: search
+    title: "Итератор, стратегия 3: канал Кельтнера дневной (набор для запуска)"
+    kind: clean
+    main: все
+    change: "вход: канал Кельтнера 20/10/2 на дневках · фильтр: EMA200 дни · выход: обратный сигнал · стоп 6 · ATR14 · размер по риску; акции только в лонг, издержки как у S42"
+    hypothesis: H54
+    exit: {sl: 6, trail: 6, act: 99, hours: 240}
+    baseline: S42
+    verdict: 'слабее на проверке: PF 1.53 → 1.18, без 2 лучших +3.8, t 0.98'
+    doc: results/iterator_walkthrough.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      silver: [silver_wt3__eng]
+      gold: [gold_wt3__eng]
+      lkoh: [lkoh_wt3__eng]
+      gazp: [gazp_wt3__eng]
+      sber: [sber_wt3__eng]
+  - id: S48
+    family: search
+    title: "Итератор, стратегия 4: пробой 20 дней + 0.25 ATR (набор для запуска)"
+    kind: clean
+    main: все
+    change: "вход: пробой 20 дней + 0.25 ATR · фильтр: EMA200 дни · выход: Дончиан 20 дней · стоп 3 · ATR10 · размер 1; акции только в лонг, издержки как у S42"
+    hypothesis: H54
+    exit: {sl: 3, trail: 3, act: 99, hours: 240}
+    baseline: S42
+    verdict: 'слабее на проверке: PF 1.42 → 1.11, без 2 лучших +2.8, t 0.71'
+    doc: results/iterator_walkthrough.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      silver: [silver_wt4__eng]
+      gold: [gold_wt4__eng]
+      lkoh: [lkoh_wt4__eng]
+      gazp: [gazp_wt4__eng]
+      sber: [sber_wt4__eng]
+  # ---------------- тренд-фильтр как стратегия (созвон 18.10) ----------------
+  - id: S49
+    family: trend
+    title: "Сделки по трёхслойному фильтру (набор для запуска)"
+    kind: clean
+    main: все
+    change: "лонг, пока трёхслойный фильтр вверх, шорт — пока вниз (у акций только лонг); вход и выход по открытию часа после смены состояния; без стопа и подбора"
+    hypothesis: H59
+    baseline: S42
+    verdict: 'ноль: PF 1.01 на выборе и 1.00 на проверке, без 2 лучших в минусе — металлы теряют на частых переворотах, акции в лонг в плюсе (вынесено в H60)'
+    doc: results/trend_follow.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      silver: [silver_tf3__follow]
+      gold: [gold_tf3__follow]
+      lkoh: [lkoh_tf3__follow]
+      gazp: [gazp_tf3__follow]
+      sber: [sber_tf3__follow]
+  - id: S50
+    family: trend
+    title: "Акции в лонг по трёхслойному фильтру до противоположного сигнала"
+    kind: clean
+    main: все
+    change: "GAZP, SBER, LKOH в лонг, пока трёхслойный фильтр не покажет вниз (нейтраль не закрывает); без стопа и подбора; вариант найден после расчёта H59"
+    hypothesis: H60
+    baseline: S42
+    verdict: 'лучше «купить и держать» на единицу риска в обоих периодах, но с акциями S42 связан сильно (корр. 0.79) и портфель с ними на проверке не лучше — H60 не подтвердилась целиком; вариант найден после расчёта H59'
+    doc: results/trend_hold.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      lkoh: [lkoh_tf3hold__follow]
+      gazp: [gazp_tf3hold__follow]
+      sber: [sber_tf3hold__follow]
+
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01
     family: model
@@ -1035,6 +1148,19 @@ experiments:
     sources:
       silver: [silver_tsfeat_s42, silver_tsfeat_s7, silver_tsfeat_s1]
 
+  - id: M19
+    family: model
+    costs: *base_costs
+    title: "Сделки модели, которые пропускает трёхслойный фильтр"
+    kind: clean
+    change: "сделки M13 без изменений; берётся только сделка по направлению трёхслойного фильтра на последнем закрытом часе до входа (лонг — вверх, шорт — вниз)"
+    hypothesis: H58
+    baseline: M13
+    verdict: 'лучше M13 в обоих периодах (PF 0.74 → 0.78 и 0.91 → 0.98), но модель остаётся в минусе'
+    doc: results/trend_model_gate.md
+    sources:
+      silver: [silver_gatevar_s42__cb__tl, silver_gatevar_s7__cb__tl, silver_gatevar_s1__cb__tl]
+
   # ---------------- модель CatBoost: LKOH ----------------
   - id: L01
     family: model
@@ -1126,6 +1252,19 @@ experiments:
     doc: results/model_changelog.md
     sources:
       lkoh: [lkoh_gateonly]
+
+  - id: L09
+    family: model
+    costs: *base_costs
+    title: "LKOH — сделки модели, которые пропускает трёхслойный фильтр"
+    kind: clean
+    change: "сделки L07 без изменений; берётся только сделка по направлению трёхслойного фильтра на последнем закрытом часе до входа"
+    hypothesis: H58
+    baseline: L07
+    verdict: 'лучше L07 в обоих периодах (PF 0.90 → 0.92 и 0.58 → 0.64), но модель остаётся в минусе'
+    doc: results/trend_model_gate.md
+    sources:
+      lkoh: [lkoh_gate__tl]
 
 # Проверки, у которых нет журнала сделок штатного симулятора (быстрые расчёты, статистика паттернов,
 # точность прогноза). Их выводы — в документах; повторять их через журнал имеет смысл только если

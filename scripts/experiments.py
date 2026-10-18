@@ -46,7 +46,7 @@ NAMES = {"silver": "серебро", "gold": "золото", "lkoh": "LKOH", "ga
 STOCK_FILES = {"lkoh": "LKOH_1m_15-26", "gazp": "GAZP_1m_15-26_upd", "sber": "SBER_1m_15-26",
                "moex": "MOEX_1m_15-26", "mtss": "MTSS_1m_15-26"}
 REASON = {"stop_loss": "стоп", "trailing_stop": "трейлинг", "timeout": "время", "take_profit": "тейк", "trend_flip": "разворот",
-          "early_stop": "ранний стоп"}
+          "early_stop": "ранний стоп", "signal": "сигнал"}
 METRIC_COLS = ["сделок", "итог", "выигрышей", "ожидание", "ср_выигрыш", "ср_проигрыш", "PF", "без_2_лучших",
                "просадка", "t", "лет_в_плюсе", "с", "по"]
 BG, INK, INK2, GRID, BLUE, GRAY = "#f6f4ef", "#15233b", "#4a5568", "#dcd7cc", "#2459b3", "#9aa3ae"
@@ -289,10 +289,23 @@ def main(argv=None) -> int:
         (SITE / "exp" / f"{i}.json").write_text(json.dumps({"id": i, "runs": max(runs_by.values()), "runs_by": runs_by, "trades": payload,
                                                             "exit": {ins: exit_params(cat, exp, ins) for ins in payload}},
                                                            ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    if argv:
-        print("частичная сборка: registry, README и страница не перезаписаны")
-        return 0
+    clean = lambda v: None if isinstance(v, float) and not np.isfinite(v) else v  # noqa: E731
+    fresh = {e["id"]: {**meta(e),
+                       "costs": (e.get("costs") or {}).get("profile"), "dividends": bool(e.get("dividends")),
+                       "instruments": list(e["sources"]), "main": ms,
+                       "res": {p: {s: {"m": {k: clean(v) for k, v in r["m"].items()},
+                                       "b": {k: clean(v) for k, v in r["b"].items()} if r["b"] else None}
+                                   for s, r in sc.items()} for p, sc in res.items()}}
+             for e, res, ms in cards}
     reg = pd.DataFrame(rows)
+    if argv:   # частичная сборка: новые и пересчитанные эксперименты вливаются в готовый реестр, остальное не трогаем
+        old = json.loads((SITE / "registry.json").read_text(encoding="utf-8"))["experiments"]
+        fresh = {**{e["id"]: e for e in old if e["id"] in exps}, **fresh}
+        prev = pd.read_csv(DOC / "registry.csv", dtype=str, keep_default_na=False)   # старые строки — как были, до знака
+        reg = pd.concat([prev[~prev["id"].isin(want)], reg], ignore_index=True)
+        reg["_o"] = reg["id"].map({k: n for n, k in enumerate(exps)})
+        reg = reg.sort_values("_o", kind="stable").drop(columns="_o")
+    entries = [fresh[k] for k in exps if k in fresh]
     reg.to_csv(DOC / "registry.csv", index=False)
     # README: сводная таблица по проверке
     lines = ["# Журнал экспериментов", "",
@@ -305,33 +318,27 @@ def main(argv=None) -> int:
         lines += [f"## {fam_name}", "",
                   "| id | эксперимент | срез | сделок | итог % | Δ к базе | ожидание | PF | без 2 лучших | t | вердикт |",
                   "|---|---|---|---|---|---|---|---|---|---|---|"]
-        for exp, res, ms in cards:
-            if exp["family"] != fam:
+        for e in entries:
+            if e["family"] != fam:
                 continue
-            m, bm = res["проверка"][ms]["m"], res["проверка"][ms]["b"]
+            ms = e["main"]
+            m, bm = e["res"]["проверка"][ms]["m"], e["res"]["проверка"][ms]["b"]
             delta = f"{m['итог'] - bm['итог']:+.1f}" if bm and bm.get("сделок") and m.get("сделок") else "—"
-            lines.append(f"| [{exp['id']}]({exp['id']}/summary.md) | {exp['title']} | {NAMES.get(ms, ms)} | {fmt(m.get('сделок'), 'сделок')} | "
+            lines.append(f"| [{e['id']}]({e['id']}/summary.md) | {e['title']} | {NAMES.get(ms, ms)} | {fmt(m.get('сделок'), 'сделок')} | "
                          f"{fmt(m.get('итог'), 'итог')} | {delta} | {fmt(m.get('ожидание'), 'ожидание')} | {fmt(m.get('PF'), 'PF')} | "
-                         f"{fmt(m.get('без_2_лучших'), 'без_2_лучших')} | {fmt(m.get('t'), 't')} | {exp.get('verdict', '')} |")
+                         f"{fmt(m.get('без_2_лучших'), 'без_2_лучших')} | {fmt(m.get('t'), 't')} | {e.get('verdict', '')} |")
         lines.append("")
     lines += ["## Проверено без журнала сделок", "", "| проверка | итог | где |", "|---|---|---|"]
     lines += [f"| {x['title']} | {x['result']} | [{x['doc']}](../{x['doc']}) |" for x in cat.get("no_log", [])]
     (DOC / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     # реестр для страницы
-    clean = lambda v: None if isinstance(v, float) and not np.isfinite(v) else v  # noqa: E731
     out = {"protocol": {"test_start": "2021-01-01", "periods": list(PERIODS)}, "families": cat["families"], "names": NAMES, "kinds": KINDS,
-           "hypotheses": hypotheses_for({e["hypothesis"] for e, _, _ in cards if e.get("hypothesis")}),
-           "experiments": [{**meta(e),
-                            "costs": (e.get("costs") or {}).get("profile"), "dividends": bool(e.get("dividends")),
-                            "instruments": list(e["sources"]), "main": ms,
-                            "res": {p: {s: {"m": {k: clean(v) for k, v in r["m"].items()},
-                                            "b": {k: clean(v) for k, v in r["b"].items()} if r["b"] else None}
-                                        for s, r in sc.items()} for p, sc in res.items()}}
-                           for e, res, ms in cards],
+           "hypotheses": hypotheses_for({e["hypothesis"] for e in entries if e.get("hypothesis")}),
+           "experiments": entries,
            "no_log": [{**x, "doc": GH + x["doc"]} for x in cat.get("no_log", [])]}
     (SITE / "registry.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     write_bank_digest(out)
-    print(f"готово: {len(cards)} экспериментов → {DOC.relative_to(ROOT)}")
+    print(f"готово: {len(cards)} пересчитано, в реестре {len(entries)} → {DOC.relative_to(ROOT)}")
     return 0
 
 

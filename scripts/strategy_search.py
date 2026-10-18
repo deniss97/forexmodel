@@ -297,7 +297,9 @@ def simulate(ins: Inst, prm: dict, i: np.ndarray, s: np.ndarray) -> dict:
     if prm["size"] == "по риску":
         size = np.clip(ins.stop_med[p] / (A / np.abs(entry)), 0.25, 4.0)
     net = size * (gross - ins.spread + swap)
-    return {"i": i, "s": s, "x": xbar, "net": net, "gross": gross, "size": size, "kind": kind}
+    # время и цены сделки (для журнала сделок и графика; цены — без зеркала шорта), ATR на входе
+    return {"i": i, "s": s, "x": xbar, "net": net, "gross": gross, "size": size, "kind": kind, "t_entry": t_entry,
+            "t_exit": t_exit, "entry_px": np.abs(entry), "exit_px": np.abs(exit_px), "atr": A, "nroll": nroll}
 
 
 def chain(i: np.ndarray, x: np.ndarray) -> np.ndarray:
