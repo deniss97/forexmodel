@@ -48,3 +48,8 @@ docs/experiments/site/data/
 
 # свечи страницы журнала (десятки МБ, собираются scripts/build_journal_candles.py)
 docs/experiments/site/data/candles/
+
+# токены брокера — никогда в репозиторий (forexmodel/broker/tinvest.py читает их из ~/.config/forexmodel/ или TINVEST_TOKEN)
+*tinvest_token*
+.env
+.env.*

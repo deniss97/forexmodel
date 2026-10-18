@@ -92,7 +92,9 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None) -> dict
     trades, _ = simulate_trades(sig, minute, cfg)
     sim = cfg.simulation
     res = {"инструмент": name, "площадка": spec["venue"], "стороны": "только лонг" if spec.get("sides") == "long" else "обе",
-           "данные до": f"{last:%Y-%m-%d %H:%M}", "позиция": "нет", "действие": "ничего", "детали": ""}
+           "данные до": f"{last:%Y-%m-%d %H:%M}", "позиция": "нет", "действие": "ничего", "детали": "",
+           # машинные поля решения — для исполнителя (scripts/live_trade.py); в отчёт и журнал не пишутся
+           "_м": {"решение": "ничего", "данные_до": last, "цена": float(minute["close"].iloc[-1]) if len(minute) else None}}
     horizon = pd.Timedelta(minutes=sim.horizon_minutes)
     if len(trades):
         t = trades.iloc[-1]
@@ -108,9 +110,14 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None) -> dict
                                    + (f"трейлинг включён {s['trail_on']:%m-%d %H:%M}" if s["trail_on"] is not None
                                       else f"трейлинг включится на {s['activate']:.4g}")
                                    + f"; закрыть не позже {t['open_dt'] + horizon:%Y-%m-%d %H:%M}")})
+            res["_м"].update({"решение": "держать", "сторона": d, "вход": t["open_dt"], "цена_входа": float(t["open_price"]),
+                              "atr": float(t["atr_at_entry"]), "стоп": float(s["stop"]), "активация": float(s["activate"]),
+                              "отступ": sim.trail_atr * float(t["atr_at_entry"]), "трейлинг_вкл": s["trail_on"] is not None,
+                              "срок": t["open_dt"] + horizon})
         elif t["close_dt"] >= last - pd.Timedelta(hours=6):
             res.update({"действие": f"закрыто {t['close_dt']:%m-%d %H:%M} ({t['exit_reason']})",
                         "детали": f"{'лонг' if t['side'] == 'buy' else 'шорт'} с {t['open_dt']:%m-%d %H:%M}: {t['open_price']:.4g} → {t['exit_price']:.4g}, {t['gross_unit_pct']:+.2f}% до издержек"})
+            res["_м"].update({"решение": "закрыто", "вход": t["open_dt"], "выход": t["close_dt"], "причина": t["exit_reason"]})
     # сигнал на последней закрытой свече, вход по которому ещё впереди (в минутах его нет)
     act = sig[pd.to_numeric(sig["final_class"], errors="coerce").isin([LONG, SHORT])]
     if len(act) and res["позиция"] == "нет":
@@ -125,7 +132,24 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None) -> dict
             res.update({"действие": f"ОТКРЫТЬ {'лонг' if d > 0 else 'шорт'} в {entry_at:%m-%d %H:%M} по рынку",
                         "детали": f"цена ≈ {px:.4g}; ATR {atr:.4g}; начальный стоп ≈ {px - d * sim.sl_atr * atr:.4g}; "
                                   f"трейлинг с ≈ {px + d * sim.activate_atr * atr:.4g}"})
+            res["_м"].update({"решение": "открыть", "сторона": d, "вход_в": entry_at, "цена": px, "atr": atr,
+                              "стоп": px - d * sim.sl_atr * atr, "активация": px + d * sim.activate_atr * atr,
+                              "отступ": sim.trail_atr * atr, "срок_часов": sim.horizon_minutes / 60,
+                              "стоп_atr": sim.sl_atr, "активация_atr": sim.activate_atr})
     return res
+
+
+def decisions(only: list[str] | None = None, now: pd.Timestamp | None = None, config: Path = ROOT / "configs" / "live.yaml") -> list[dict]:
+    """Решения на сейчас по инструментам с машинными полями `_м` — для исполнителя (scripts/live_trade.py)."""
+    setup_logging(logging.WARNING)
+    logging.disable(logging.WARNING)
+    live = yaml.safe_load(Path(config).read_text(encoding="utf-8"))
+    out = []
+    for name, spec in live["instruments"].items():
+        if (only and name not in only) or not (ROOT / spec["csv"]).exists():
+            continue
+        out.append(analyse(name, spec, live, now))
+    return out
 
 
 def main(argv=None) -> int:
@@ -147,7 +171,7 @@ def main(argv=None) -> int:
             continue
         rows.append(analyse(name, spec, live, now))
         print(f"[{name}] {rows[-1]['действие']} · {rows[-1].get('позиция', '')}", flush=True)
-    R = pd.DataFrame(rows)
+    R = pd.DataFrame([{k: v for k, v in r.items() if k != "_м"} for r in rows])
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = pd.Timestamp.now().strftime("%Y-%m-%d_%H%M")
     md = ["# Сигналы импульса", "", f"Запуск {stamp}" + (f", момент {now}" if now is not None else ""), "",
