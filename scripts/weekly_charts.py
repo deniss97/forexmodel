@@ -507,12 +507,10 @@ def search_walk_forward(out: Path) -> dict:
 
 def search_overfit(out: Path) -> dict:
     """588 устойчивых проб H54, отобранных только по 2016–2020: PF на выборе против PF на проверке."""
-    import sqlite3
-
-    con = sqlite3.connect(f"file:{ROOT / 'reports' / 'second_search' / 'trials.sqlite'}?mode=ro", uri=True)
-    d = pd.DataFrame(con.execute("SELECT sel_pf, test_pf FROM trials WHERE score > 0 AND robust >= 1.2").fetchall(), columns=["sel", "test"])
-    con.close()
-    rho = float(d["sel"].corr(d["test"], method="spearman"))
+    # база проб (trials.sqlite, 1.75 ГБ) удалена 20.10 после вывода по H54; итоги всех проб — в trials_compact.parquet
+    d = pd.read_parquet(ROOT / "reports" / "second_search" / "trials_compact.parquet", columns=["sel_pf", "test_pf"],
+                        filters=[("score", ">", 0), ("robust", ">=", 1.2)]).rename(columns={"sel_pf": "sel", "test_pf": "test"}).astype(float)
+    rho = float(d["sel"].rank().corr(d["test"].rank()))
     f, ax = figure(1600, 600)
     style(ax)
     ax.scatter(d["sel"], d["test"], s=30, color=BLUE, alpha=0.45, linewidths=0)

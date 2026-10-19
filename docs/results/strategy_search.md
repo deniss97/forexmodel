@@ -8,6 +8,8 @@
 Прошлая версия (`scripts/night_search.py`) подбирала фильтры к импульсу — это была не та постановка.
 От неё остались подготовка данных (`night_search.py prepare`) и сравнение.
 
+> Хранение (20.10): база проб перебора H50 `reports/strategy_search/trials.sqlite` (2.5 ГБ) удалена после вывода. Все пробы с итогами — `reports/strategy_search/trials_flat.parquet` (по ней строится сводка блоков, `scripts/strategy_search_digest.py digest`), отчёт и финалисты — там же. Свечи и признаки для перебора (`reports/night_search/feat`) сохранены.
+
 ## Как запустить
 
 ```
