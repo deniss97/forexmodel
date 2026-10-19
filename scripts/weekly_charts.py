@@ -12,6 +12,7 @@
 
     python scripts/weekly_charts.py [--week 2026-10-05]
     python scripts/weekly_charts.py --week 2026-10-12      # отчёт № 2: база B01 и разбор недели
+    python scripts/weekly_charts.py --week 2026-10-19      # отчёт № 3: набор для запуска, вторая стратегия, тренд-фильтр
 """
 
 from __future__ import annotations
@@ -441,9 +442,191 @@ def week2(out: Path) -> None:
     print("накопленный итог B01:", {k: round(v, 1) for k, v in b01_equity(out).items()})
     print("разбор недели:", mae_and_early_stop(out))
 
+# ---------------- неделя 2026-10-12 – 2026-10-19 (отчёт № 3) ----------------
+# Источники: журнал экспериментов (docs/experiments/<id>/trades.csv.gz), честный поиск второй стратегии
+# (reports/second_search/walk_forward.csv и trials.sqlite), тренд-фильтр против держания (scripts/trend_hold.py).
+LAUNCH = {"весь набор": ["silver", "gold", "lkoh", "gazp", "sber"], "акции в лонг": ["lkoh", "gazp", "sber"],
+          "металлы через CFD": ["silver", "gold"]}
+
+
+def _trades(i: str) -> pd.DataFrame:
+    return pd.read_csv(EXP / i / "trades.csv.gz", parse_dates=["open_dt", "close_dt"])
+
+
+def _test_band(ax, end):
+    ax.axvspan(pd.Timestamp("2021-01-01"), end, color=BLUE, alpha=0.06, lw=0)
+    ax.text(pd.Timestamp("2021-02-01"), ax.get_ylim()[1], "проверка →", va="top", fontsize=FS - 1, color=BLUE)
+
+
+def launch_parts(out: Path) -> dict:
+    """Набор для запуска S42: весь набор, акции в лонг и металлы — накопленный итог, 2016–2026."""
+    t = _trades("S42")
+    f, ax = figure(1600, 560)
+    style(ax)
+    res = {}
+    for (name, mem), color, lw in zip(LAUNCH.items(), (INK, BLUE, ORANGE), (3.4, 2.4, 2.4)):
+        x = t[t["instrument"].isin(mem)].sort_values("close_dt")
+        y = (x["profit_pct"] / len(mem)).cumsum()
+        ax.plot(x["close_dt"], y, color=color, linewidth=lw, label=name)
+        ax.text(x["close_dt"].iloc[-1], y.iloc[-1], f"  {name} {y.iloc[-1]:+.0f}%", va="center", fontsize=FS, color=color if color != INK else INK)
+        res[name] = round(float(y.iloc[-1]), 1)
+    _test_band(ax, t["close_dt"].max())
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_ylabel("накопленный итог, %", fontsize=FS, color=INK2)
+    ax.set_xlim(right=t["close_dt"].max() + pd.Timedelta(days=900))
+    ax.set_xticks([pd.Timestamp(f"{y}-01-01") for y in range(2016, 2027, 2)])
+    ax.set_xticklabels([str(y) for y in range(2016, 2027, 2)])
+    f.tight_layout()
+    save(f, out, "launch_parts.png")
+    return res
+
+
+def search_walk_forward(out: Path) -> dict:
+    """Честный поиск H54: что дал бы сам поиск (лучшая по прошлым годам стратегия на каждый год) против S42."""
+    wf = pd.read_csv(ROOT / "reports" / "second_search" / "walk_forward.csv")
+    f, ax = figure(1600, 560)
+    style(ax)
+    k = np.arange(len(wf))
+    ax.bar(k - 0.2, wf["итог года"], 0.38, color=GRAY, label=f"поиск: лучшая по прошлым годам · всего {wf['итог года'].sum():+.1f}%")
+    ax.bar(k + 0.2, wf["S42 за год"], 0.38, color=BLUE, label=f"импульс S42 · всего {wf['S42 за год'].sum():+.1f}%")
+    for kk, a, b in zip(k, wf["итог года"], wf["S42 за год"]):
+        ax.text(kk - 0.2, a + (0.4 if a >= 0 else -0.4), f"{a:+.1f}", ha="center", va="bottom" if a >= 0 else "top", fontsize=FS - 1, color=INK2)
+        ax.text(kk + 0.2, b + (0.4 if b >= 0 else -0.4), f"{b:+.1f}", ha="center", va="bottom" if b >= 0 else "top", fontsize=FS - 1,
+                fontweight="bold", color=INK)
+    ax.set_xticks(k)
+    ax.set_xticklabels([str(y) for y in wf["год"]], fontsize=FS, color=INK)
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_ylabel("итог года, %", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="upper left")
+    ax.set_ylim(min(wf["итог года"].min(), wf["S42 за год"].min()) - 3, max(wf["S42 за год"].max(), wf["итог года"].max()) + 5)
+    f.tight_layout()
+    save(f, out, "search_walk_forward.png")
+    return {"поиск": round(float(wf["итог года"].sum()), 1), "S42": round(float(wf["S42 за год"].sum()), 1)}
+
+
+def search_overfit(out: Path) -> dict:
+    """588 устойчивых проб H54, отобранных только по 2016–2020: PF на выборе против PF на проверке."""
+    import sqlite3
+
+    con = sqlite3.connect(f"file:{ROOT / 'reports' / 'second_search' / 'trials.sqlite'}?mode=ro", uri=True)
+    d = pd.DataFrame(con.execute("SELECT sel_pf, test_pf FROM trials WHERE score > 0 AND robust >= 1.2").fetchall(), columns=["sel", "test"])
+    con.close()
+    rho = float(d["sel"].corr(d["test"], method="spearman"))
+    f, ax = figure(1600, 600)
+    style(ax)
+    ax.scatter(d["sel"], d["test"], s=30, color=BLUE, alpha=0.45, linewidths=0)
+    ax.axhline(1, color=INK2, linewidth=1.2)
+    ax.text(d["sel"].max(), 1.0, "PF 1 — ноль ", ha="right", va="bottom", fontsize=FS - 1, color=INK2)
+    z = np.polyfit(d["sel"], d["test"], 1)
+    xs = np.linspace(d["sel"].min(), d["sel"].max(), 50)
+    ax.plot(xs, np.polyval(z, xs), color=ORANGE, linewidth=3)
+    ax.text(0.99, 0.95, f"{len(d)} стратегий · связь выбор → проверка {rho:+.2f}", transform=ax.transAxes, ha="right", va="top",
+            fontsize=FS + 1, fontweight="bold", color=INK)
+    ax.set_xlabel("PF на выборе 2016–2020 (по нему отбирали)", fontsize=FS, color=INK2)
+    ax.set_ylabel("PF на проверке 2021–2026", fontsize=FS, color=INK2)
+    f.tight_layout()
+    save(f, out, "search_overfit.png")
+    return {"n": len(d), "rho": round(rho, 2), "test_pf_median": round(float(d["test"].median()), 2)}
+
+
+def iterator_strategies(out: Path) -> dict:
+    """Четыре стратегии итератора (S45–S48) и импульс S42 на наборе для запуска: накопленный итог."""
+    names = {"S42": "импульс S42", "S45": "NR7 → пробой", "S46": "пробой 55 дней", "S47": "Кельтнер на днях", "S48": "пробой 20 дней"}
+    colors = {"S42": INK, "S45": GRAY, "S46": BLUE, "S47": "#8a5cc4", "S48": ORANGE}
+    f, ax = figure(1600, 560)
+    style(ax)
+    res, end = {}, None
+    for i, name in names.items():
+        t = _trades(i).sort_values("close_dt")
+        y = (t["profit_pct"] / 5).cumsum()
+        ax.plot(t["close_dt"], y, color=colors[i], linewidth=3.2 if i in ("S42", "S46") else 2, label=f"{i} · {name}")
+        res[i] = round(float(y.iloc[-1]), 1)
+        end = t["close_dt"].max() if end is None else max(end, t["close_dt"].max())
+    _test_band(ax, end)
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_ylabel("накопленный итог, %", fontsize=FS, color=INK2)
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="upper left")
+    ax.set_xticks([pd.Timestamp(f"{y}-01-01") for y in range(2016, 2027, 2)])
+    ax.set_xticklabels([str(y) for y in range(2016, 2027, 2)])
+    f.tight_layout()
+    save(f, out, "iterator_strategies.png")
+    return res
+
+
+def trend_vs_hold(out: Path) -> dict:
+    """H60: акции в лонг по трёхслойному фильтру против «купить и держать», капитал с реинвестированием."""
+    import trend_grid as tg
+    import trend_hold as th
+    from forexmodel.simulation.costs import profile_entry
+
+    tg._init()
+    data = {i: tg._W["data"][i]["bars"][["time", "open", "close"]].copy() for i in th.STOCKS}
+    gates = {i: tg.gate_values(tg._W["data"][i]["bars"], th.TL) for i in th.STOCKS}
+    tg._W.clear()
+    cost = {i: profile_entry(ROOT / "configs" / "costs" / "exchange.yaml", i)["spread_pct"] for i in th.STOCKS}
+    f, axes = figure(1600, 560, ncols=2)
+    res = {}
+    for ax, (per, (a, b)) in zip(axes, th.PERIODS.items()):
+        style(ax)
+        hrs = {i: th.marked(data[i], gates[i], cost[i], a, b) for i in th.STOCKS}
+        day = {k: pd.concat([th.daily(h[k]) for h in hrs.values()], axis=1).ffill().fillna(1.0).mean(axis=1) for k in ("rule", "hold")}
+        for k, color, lw, name in (("hold", GRAY, 2.2, "купить и держать"), ("rule", BLUE, 3.2, "в лонг по фильтру")):
+            y = (day[k] - 1) * 100
+            r = th.risk(day[k])
+            ax.plot(y.index, y, color=color, linewidth=lw, label=f"{name}: {r['итог']:+.0f}%, просадка {r['просадка']:.0f}%")
+            res[(per, k)] = {"итог": round(r["итог"], 1), "просадка": round(r["просадка"], 1), "t": round(r["t"], 2)}
+        ax.axhline(0, color=INK2, linewidth=1.2)
+        ax.set_title("выбор 2016–2020" if per == "выбор" else "проверка 2021–2026", fontsize=FS, color=INK, loc="left")
+        ax.legend(frameon=False, fontsize=FS - 3, labelcolor=INK, loc="lower right")
+    axes[0].set_ylabel("капитал, % к началу периода", fontsize=FS, color=INK2)
+    f.tight_layout()
+    save(f, out, "trend_vs_hold.png")
+    return res
+
+
+def h31_seeds(out: Path) -> dict:
+    """H31: PF на проверке по seed, все издержки B01 (scripts/h31_check.py) — обучение внутри гейта против базы."""
+    import h31_check as hc
+    from forexmodel.evaluation.experiments import metrics
+
+    res = {}
+    for exp in ("M01", "M02"):
+        lv = hc.load(exp)[0][hc.LEVELS[2]]
+        res[exp] = {s: metrics(lv[lv["run"] == s], ["silver"], "проверка")["PF"] for s in ("42", "7", "1")}
+    f, ax = figure(1200, 520)
+    style(ax)
+    k = np.arange(3)
+    for off, exp, color, name in ((-0.2, "M01", GRAY, "база (M01)"), (0.2, "M02", BLUE, "обучение внутри гейта (M02)")):
+        v = [res[exp][s] for s in ("42", "7", "1")]
+        ax.bar(k + off, v, 0.38, color=color, label=name)
+        for kk, x in zip(k, v):
+            ax.text(kk + off, x + 0.005, f"{x:.2f}", ha="center", va="bottom", fontsize=FS - 1, fontweight="bold", color=INK)
+    ax.axhline(1, color=ORANGE, linewidth=2, linestyle="--")
+    ax.text(2.45, 1.0, "PF 1 = ноль", ha="right", va="bottom", fontsize=FS - 1, color=ORANGE)
+    ax.set_xticks(k)
+    ax.set_xticklabels(["seed 42", "seed 7", "seed 1"], fontsize=FS, color=INK)
+    ax.set_ylim(0.7, 1.05)
+    ax.set_ylabel("PF на проверке 2021–2026", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="upper left")
+    f.tight_layout()
+    save(f, out, "h31_seeds.png")
+    return {e: {s: round(v, 2) for s, v in d.items()} for e, d in res.items()}
+
+
+def week3(out: Path) -> None:
+    print("набор для запуска:", launch_parts(out))
+    print("поиск по годам:", search_walk_forward(out))
+    print("подгонка поиска:", search_overfit(out))
+    print("итератор:", iterator_strategies(out))
+    print("фильтр против держания:", trend_vs_hold(out))
+    print("H31 по seed:", h31_seeds(out))
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1) или 2026-10-12 (№ 2)")
+    ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1), 2026-10-12 (№ 2), 2026-10-19 (№ 3)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
     logging.disable(logging.WARNING)
@@ -451,6 +634,9 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     if args.week == "2026-10-12":
         week2(out)
+        return 0
+    if args.week == "2026-10-19":
+        week3(out)
         return 0
     st = equity(out)
     for k, v in st.items():
