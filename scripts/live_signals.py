@@ -40,6 +40,7 @@ WINDOW_DAYS = 40            # окно проверки: больше срока
 # вход контура не старше стольких минут отдаётся как «открыть» по рынку: с минутками без задержки к запуску
 # минута входа HH:01 уже в данных (бумажный прогон 22.10, docs/results/paper_replay.md: без окна 0 входов из 33)
 ENTRY_GRACE = 30
+REASON = {"trailing_stop": "трейлинг-стоп", "stop_loss": "стоп-лосс", "timeout": "по сроку", "take_profit": "тейк-профит"}
 
 
 def instrument_cfg(spec: dict, live: dict, start: pd.Timestamp, end: pd.Timestamp):
@@ -126,7 +127,7 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_m
                                   "срок_часов": (t["open_dt"] + horizon - last).total_seconds() / 3600,
                                   "стоп_atr": sim.sl_atr, "активация_atr": sim.activate_atr})
         elif t["close_dt"] >= last - pd.Timedelta(hours=6):
-            res.update({"действие": f"закрыто {t['close_dt']:%m-%d %H:%M} ({t['exit_reason']})",
+            res.update({"действие": f"закрыто {t['close_dt']:%m-%d %H:%M} ({REASON.get(t['exit_reason'], t['exit_reason'])})",
                         "детали": f"{'лонг' if t['side'] == 'buy' else 'шорт'} с {t['open_dt']:%m-%d %H:%M}: {t['open_price']:.4g} → {t['exit_price']:.4g}, {t['gross_unit_pct']:+.2f}% до издержек"})
             res["_м"].update({"решение": "закрыто", "вход": t["open_dt"], "выход": t["close_dt"], "причина": t["exit_reason"]})
     # сигнал на последней закрытой свече, вход по которому ещё впереди (в минутах его нет)

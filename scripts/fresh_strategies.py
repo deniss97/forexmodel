@@ -46,6 +46,8 @@ STOCKS = ["sber", "gazp", "lkoh"]
 FRESH = pd.Timestamp("2026-06-12")
 TEST = pd.Timestamp("2021-01-01")
 MARK = ("<!-- вывод -->", "<!-- /вывод -->")
+NAMES = {1: "S45 итератор: NR7 → пробой", 2: "S46 итератор: пробой 55 дней", 3: "S47 итератор: канал Кельтнера на дневках",
+         4: "S48 итератор: пробой 20 дней + 0.25 ATR"}
 COLORS = ["#16202b", "#2459b3", "#1d7a55", "#c8641e", "#8a5cc4", "#b4462a"]
 
 
@@ -107,7 +109,7 @@ def main(argv=None) -> int:
     hist_end = min(pd.Timestamp(pd.read_csv(ROOT / "data" / "raw" / f, usecols=["begin"]).iloc[-1, 0])
                    for f in ("SBER_1m_15-26.csv", "GAZP_1m_15-26_upd.csv", "LKOH_1m_15-26.csv"))
     ss.FEAT, ks.FEAT = FEAT, FEAT                     # движок перебора и дневки — по свежим признакам
-    strategies = {"S42 импульс": {}, **{f"{iw.EXP_ID[k]} итератор: {iw.STRATS[k]['entry']}": {} for k in iw.STRATS}, "RSI(2) Коннорса (H56)": {}}
+    strategies = {"S42 импульс": {}, **{NAMES[k]: {} for k in iw.STRATS}, "RSI(2) Коннорса (H56)": {}}
     check = []
     _, exps = load_catalog()
     j42 = load_trades(exps["S42"])
@@ -117,11 +119,11 @@ def main(argv=None) -> int:
         ins = iw.load_inst(inst)
         for k, prm in iw.STRATS.items():
             t = iw.trades_frame(ins, prm)
-            strategies[f"{iw.EXP_ID[k]} итератор: {prm['entry']}"][inst] = t
+            strategies[NAMES[k]][inst] = t
             j = pd.read_csv(WF / f"{inst}_wt{k}__eng_trades.csv", parse_dates=["open_dt"])
             cut = hist_end - pd.Timedelta(days=30)         # сделки, закрытые задолго до конца истории
             a, b = t[t["open_dt"] < cut], j[j["open_dt"] < cut]
-            check.append({"стратегия": iw.EXP_ID[k], "бумага": inst, "сделок: заново": len(a), "сделок: журнал": len(b),
+            check.append({"стратегия": iw.EXP_ID[k], "бумага": inst.upper(), "сделок: заново": len(a), "сделок: журнал": len(b),
                           "итог: заново": a["profit_pct"].sum(), "итог: журнал": b["profit_pct"].sum()})
         del ins
         gc.collect()

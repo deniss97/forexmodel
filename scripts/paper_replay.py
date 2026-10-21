@@ -56,6 +56,8 @@ RUN_MINUTE = 5                                # запуск в HH:05: в HH:02 
 SCHEDULES = {"cron сейчас: будни 10–23 ч": lambda t: t.weekday() < 5 and 10 <= t.hour <= 23,
              "все торговые часы": lambda t: True}
 MARK = ("<!-- вывод -->", "<!-- /вывод -->")
+REASON = {"trailing_stop": "трейлинг-стоп", "stop_loss": "стоп-лосс", "timeout": "по сроку", "take_profit": "тейк-профит",
+          "трейлинг": "трейлинг-стоп", "стоп": "стоп-лосс", "рынок": "по сроку (по рынку)"}
 
 
 class PaperBroker:
@@ -219,12 +221,12 @@ def match(ref: pd.DataFrame, pap: pd.DataFrame) -> pd.DataFrame:
         p = pap[(pap["instrument"] == r.instrument) & (pap["open_dt"] >= r.open_dt - pd.Timedelta(minutes=5))
                 & (pap["open_dt"] <= r.open_dt + pd.Timedelta(days=3))]
         p = p.iloc[0] if len(p) else None
-        rows.append({"бумага": r.instrument, "вход эталона": r.open_dt, "выход эталона": r.close_dt, "причина эталона": r.exit_reason,
+        rows.append({"бумага": r.instrument.upper(), "вход эталона": r.open_dt, "выход эталона": r.close_dt, "причина эталона": REASON.get(r.exit_reason, r.exit_reason),
                      "эталон, % до издержек": r.gross_unit_pct, "эталон, % после": r.profit_pct,
                      "вход на бумаге": p["open_dt"] if p is not None else pd.NaT,
                      "опоздание входа, мин": (p["open_dt"] - r.open_dt).total_seconds() / 60 if p is not None else np.nan,
                      "цена входа хуже, %": (p["open_price"] / r.open_price - 1) * 100 if p is not None else np.nan,
-                     "выход на бумаге": p["close_dt"] if p is not None else pd.NaT, "причина на бумаге": p["exit_reason"] if p is not None else "пропущена",
+                     "выход на бумаге": p["close_dt"] if p is not None else pd.NaT, "причина на бумаге": REASON.get(p["exit_reason"], p["exit_reason"]) if p is not None else "пропущена",
                      "бумага, % до издержек": p["gross_pct"] if p is not None else np.nan,
                      "бумага, % после": p["net_pct"] if p is not None else np.nan})
     return pd.DataFrame(rows)
@@ -311,7 +313,7 @@ def write_doc(ref_all, results, matches, silent, end) -> None:
     for name, (pap, broker, _) in results.items():
         m = matches[name]
         got = m["вход на бумаге"].notna()
-        md.append(f"| {name} | {len(pap)} | {got.sum()} из {len(m)} | {m.loc[got, 'опоздание входа, мин'].median():.0f} | "
+        md.append(f"| {name} | {len(pap)} | {got.sum()} из {len(m)} | {f(m.loc[got, 'опоздание входа, мин'].median(), 0) if got.any() else '—'} | "
                   f"{f(m.loc[got, 'цена входа хуже, %'].median(), 3)} | {f(pap['net_pct'].sum() / 3, 1)} | {f(m.loc[got, 'эталон, % после'].sum() / 3, 1)} | "
                   f"{len(broker.events)} |")
     md += ["", f"Эталон целиком: {len(ref_all)} сделок, {f(ref_sum, 1)}% после издержек журнала (0.05% комиссии и 0.05% "
@@ -324,7 +326,9 @@ def write_doc(ref_all, results, matches, silent, end) -> None:
         md.append(f"| {r[0]} | {r[1]:%d.%m %H:%M} | {r[2]:%d.%m %H:%M} | {r[3]} | {f(r[4])} / {f(r[5])} | "
                   f"{'' if pd.isna(r[6]) else f'{r[6]:%d.%m %H:%M}'} | {'' if pd.isna(r[7]) else f'{r[7]:.0f}'} | {f(r[8], 3)} | "
                   f"{'' if pd.isna(r[9]) else f'{r[9]:%d.%m %H:%M}'} | {r[10]} | {f(r[11])} / {f(r[12])} |")
-    md += ["", "## Проверки", "",
+    md += ["", "«Цена входа хуже» около +15% у сделок SBER до 18.07 — не проскальзывание: эталон считается в ценах с поправкой "
+           "на дивиденд 18.07 (37.64 ₽), брокер — в сырых. Результат сделок в процентах это не меняет.", "",
+           "## Проверки", "",
            f"* Случайные часы вне сигналов эталона: контур открыл бы сделку {len(silent)} раз" + (": " + "; ".join(f"{i} {t:%d.%m %H:%M}" for i, t, _ in silent) if silent else "."),
            "* Стоп-заявки без позиции (вторая заявка срабатывает после того, как первая закрыла позицию, до снятия раз в час): "
            + ", ".join(f"{n}: {len(b.events)}" for n, (_, b, _) in results.items()), ""]
