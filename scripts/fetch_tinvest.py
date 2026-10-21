@@ -4,7 +4,7 @@
 data/raw/live/<TICKER>_1m_live.csv) + свежие минуты → data/raw/live/<TICKER>_1m_live.csv в формате минуток
 Мосбиржи (open, close, high, low, value, volume, begin, end; время московское), поэтому scripts/live_signals.py
 работает без изменений. В отличие от бесплатного ISS, у клиентов брокера минутки без задержки. Только завершённые
-свечи, биржевые (без торгов выходного дня). Токен — TINVEST_TOKEN или ~/.config/forexmodel/tinvest_token.
+свечи, биржевые (без торгов выходного дня). Токен — в configs/tinvest_token (или TINVEST_TOKEN).
 
     python scripts/fetch_tinvest.py                    # SBER GAZP LKOH
     python scripts/fetch_tinvest.py SBER --sandbox     # токен песочницы: рыночные данные там те же

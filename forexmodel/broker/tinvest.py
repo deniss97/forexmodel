@@ -8,8 +8,8 @@ REST повторяет методы gRPC (https://<хост>/rest/tinkoff.publi
 доверяют. Корневой сертификат — configs/certs/russian_trusted_root_ca.pem (с Госуслуг, отпечаток совпадает с корнем,
 который присылает сервер); подключается только к этому клиенту, системное доверие не меняется.
 
-Токен — из переменной TINVEST_TOKEN или файла ~/.config/forexmodel/tinvest_token (права 600), никогда не печатается и
-не попадает в репозиторий. Песочница — отдельный хост и отдельные методы (SandboxService): заявки не уходят на биржу.
+Токен — из переменной TINVEST_TOKEN, файла configs/tinvest_token в проекте или ~/.config/forexmodel/tinvest_token
+(права 600; строки с # не читаются), никогда не печатается и не попадает в репозиторий (.gitignore: *tinvest_token*). Песочница — отдельный хост и отдельные методы (SandboxService): заявки не уходят на биржу.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 CA_FILE = ROOT / "configs" / "certs" / "russian_trusted_root_ca.pem"
 CA_SHA256 = "D26D2D0231B7C39F92CC738512BA54103519E4405D68B5BD703E9788CA8ECF31"
-TOKEN_FILE = Path.home() / ".config" / "forexmodel" / "tinvest_token"
+TOKEN_FILES = [ROOT / "configs" / "tinvest_token", Path.home() / ".config" / "forexmodel" / "tinvest_token"]
 HOSTS = {False: "https://invest-public-api.tinkoff.ru/rest/", True: "https://sandbox-invest-public-api.tinkoff.ru/rest/"}
 PKG = "tinkoff.public.invest.api.contract.v1."
 MSK = pd.Timedelta(hours=3)          # минутки Мосбиржи в проекте — по московскому времени, API отдаёт UTC
@@ -44,12 +44,16 @@ class TInvestError(RuntimeError):
 
 def load_token() -> str:
     tok = os.environ.get("TINVEST_TOKEN", "").strip()
-    if not tok and TOKEN_FILE.exists():
-        if TOKEN_FILE.stat().st_mode & 0o077:
-            raise PermissionError(f"{TOKEN_FILE}: доступ должен быть только у владельца (chmod 600)")
-        tok = TOKEN_FILE.read_text(encoding="utf-8").strip()
+    for f in TOKEN_FILES:
+        if tok:
+            break
+        if f.exists():
+            if f.stat().st_mode & 0o077:
+                raise PermissionError(f"{f}: доступ должен быть только у владельца (chmod 600)")
+            lines = [x.strip() for x in f.read_text(encoding="utf-8").splitlines()]
+            tok = next((x for x in lines if x and not x.startswith("#")), "")
     if not tok:
-        raise RuntimeError("нет токена: задайте TINVEST_TOKEN или положите его в ~/.config/forexmodel/tinvest_token (chmod 600)")
+        raise RuntimeError("нет токена: вставьте его в configs/tinvest_token (или задайте TINVEST_TOKEN)")
     return tok
 
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import time
+
 import pandas as pd
 
-from forexmodel.data.loader import load_minute_csv, resample_ohlcv
+from forexmodel.data.loader import load_minute_compact, load_minute_csv, resample_ohlcv
 from forexmodel.features.extension import extension_columns
 from forexmodel.pipelines.dataset import build_dataset
 
@@ -24,6 +27,20 @@ def test_loader_reads_begin_and_value_columns(tmp_path, minute_df):
     df = load_minute_csv(path)
     assert list(df.columns) == ["time", "open", "high", "low", "close", "volume"]
     assert len(df) == len(minute_df)
+
+
+def test_compact_cache_follows_appended_minutes(tmp_path, minute_df):
+    # живые минутки дописываются в тот же файл каждый час: кэш не должен застревать на первом чтении
+    raw = minute_df.rename(columns={"time": "begin", "volume": "value"})
+    path, cache = tmp_path / "live.csv", tmp_path / "cache"
+    raw.iloc[:-10].to_csv(path, index=False)
+    first = load_minute_compact(path, cache_dir=cache)
+    raw.iloc[-10:].to_csv(path, mode="a", header=False, index=False)
+    os.utime(path, (time.time() + 5, time.time() + 5))
+    second = load_minute_compact(path, cache_dir=cache)
+    assert len(first) == len(minute_df) - 10 and len(second) == len(minute_df)
+    assert second["time"].iloc[-1] == minute_df["time"].iloc[-1]
+    assert len(load_minute_compact(path, cache_dir=cache)) == len(minute_df)    # без изменений — из кэша
 
 
 def test_build_dataset_produces_disjoint_labeled_splits(tmp_path, minute_df, cfg):

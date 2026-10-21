@@ -13,7 +13,7 @@ flock -n 9 || exit 0                                  # предыдущий з�
 {
   date
   # минутки: Т-Инвестиции без задержки, если есть токен (созвон 18.10); иначе бесплатный ISS Мосбиржи
-  if [ -n "$TINVEST_TOKEN" ] || [ -f "$HOME/.config/forexmodel/tinvest_token" ]; then
+  if [ -n "$TINVEST_TOKEN" ] || grep -qsv '^[[:space:]]*\(#\|$\)' configs/tinvest_token "$HOME/.config/forexmodel/tinvest_token"; then
     .venv/bin/python scripts/fetch_tinvest.py SBER GAZP LKOH || .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
   else
     .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH

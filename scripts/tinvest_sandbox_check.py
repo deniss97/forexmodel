@@ -7,7 +7,7 @@
   5. стоп-лосс на −6 ATR и трейлинг-стоп (активация +3 ATR, отступ 6 ATR) — как выход импульса; ATR — по часам;
   6. активные стоп-заявки → отмена обеих → продажа 1 лота;
   7. позиции до и после.
-Заявки в песочнице на биржу не уходят. Токен песочницы — TINVEST_TOKEN или ~/.config/forexmodel/tinvest_token.
+Заявки в песочнице на биржу не уходят. Токен — в configs/tinvest_token (или TINVEST_TOKEN).
 
     python scripts/tinvest_sandbox_check.py            # SBER
     python scripts/tinvest_sandbox_check.py GAZP

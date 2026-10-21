@@ -77,12 +77,14 @@ def load_minute_compact(
     400 тыс. строк, объём не нужен, цены — float32 (для симуляции и признаков
     точности хватает: тик серебра 0.001 при цене ~80). Объём берётся из первой
     найденной колонки `volume_candidates` (если заданы). При `cache_dir` результат
-    кладётся в <cache_dir>/<имя файла>_1m[_vol].pkl и дальше читается оттуда.
+    кладётся в <cache_dir>/<имя файла>_1m[_vol].pkl и дальше читается оттуда, пока исходный
+    файл не изменится: живые минутки (data/raw/live) дописываются каждый час, и без этой
+    проверки контур считал решения по данным на момент первого запуска.
     """
     path = Path(path)
     suffix = "_1m_vol.pkl" if volume_candidates else "_1m.pkl"
     cache = Path(cache_dir) / f"{path.stem}{suffix}" if cache_dir else None
-    if cache is not None and cache.exists():
+    if cache is not None and cache.exists() and (not path.exists() or cache.stat().st_mtime >= path.stat().st_mtime):
         return pd.read_pickle(cache)
     if not path.exists():
         raise FileNotFoundError(f"Файл котировок не найден: {path}")
