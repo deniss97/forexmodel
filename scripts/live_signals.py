@@ -37,6 +37,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "reports" / "live"
 LONG, SHORT, FLAT = 2, 0, 1
 WINDOW_DAYS = 40            # окно проверки: больше срока сделки (240 ч) с запасом
+# вход контура не старше стольких минут отдаётся как «открыть» по рынку: с минутками без задержки к запуску
+# минута входа HH:01 уже в данных (бумажный прогон 22.10, docs/results/paper_replay.md: без окна 0 входов из 33)
+ENTRY_GRACE = 30
 
 
 def instrument_cfg(spec: dict, live: dict, start: pd.Timestamp, end: pd.Timestamp):
@@ -75,7 +78,9 @@ def stop_state(minutes: pd.DataFrame, side: str, entry: float, atr: float, sim) 
     return {"stop": stop, "best": best, "trail_on": on, "activate": entry + sgn * sim.activate_atr * atr}
 
 
-def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None) -> dict:
+def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_minutes: int = ENTRY_GRACE) -> dict:
+    """grace_minutes — вход контура, случившийся не раньше чем столько минут назад, ещё отдаётся как «открыть»
+    (по рынку сейчас): с минутками без задержки к запуску в :02 минута входа HH:01 уже в данных."""
     probe = load_config(ROOT / spec["config"])
     head = pd.read_csv(ROOT / spec["csv"], usecols=[probe.data.time_col]).iloc[-1, 0]
     tcol = "time"                       # внутри пайплайна время всегда в колонке time
@@ -114,6 +119,12 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None) -> dict
                               "atr": float(t["atr_at_entry"]), "стоп": float(s["stop"]), "активация": float(s["activate"]),
                               "отступ": sim.trail_atr * float(t["atr_at_entry"]), "трейлинг_вкл": s["trail_on"] is not None,
                               "срок": t["open_dt"] + horizon})
+            if grace_minutes and last - t["open_dt"] <= pd.Timedelta(minutes=grace_minutes) and s["trail_on"] is None:
+                atr = float(t["atr_at_entry"])
+                res["действие"] = f"ОТКРЫТЬ {'лонг' if d > 0 else 'шорт'} по рынку (вход контура {t['open_dt']:%m-%d %H:%M} по {t['open_price']:.4g})"
+                res["_м"].update({"решение": "открыть", "свежий_вход": True, "вход_в": t["open_dt"], "цена": px, "atr": atr,
+                                  "срок_часов": (t["open_dt"] + horizon - last).total_seconds() / 3600,
+                                  "стоп_atr": sim.sl_atr, "активация_atr": sim.activate_atr})
         elif t["close_dt"] >= last - pd.Timedelta(hours=6):
             res.update({"действие": f"закрыто {t['close_dt']:%m-%d %H:%M} ({t['exit_reason']})",
                         "детали": f"{'лонг' if t['side'] == 'buy' else 'шорт'} с {t['open_dt']:%m-%d %H:%M}: {t['open_price']:.4g} → {t['exit_price']:.4g}, {t['gross_unit_pct']:+.2f}% до издержек"})

@@ -4,8 +4,10 @@
 # (reports/live/<время>.md и строка в reports/live/journal.csv). Раз в день — здоровье стратегии
 # против порогов тревоги H43 (reports/live/health.md).
 #
-# cron (время сервера — Москва; основная и вечерняя сессии, будни):
-#   2 10-23 * * 1-5  /home/dev/forexmodel/scripts/queues/live_hourly.sh
+# cron — каждый час в :05, все дни (утренняя сессия с 07:00 и торги выходного дня тоже; вне торгов новых минут нет —
+# решения не меняются). В :02 минута входа HH:01 — последняя в данных, и контур её не видит; будни 10–23 ч теряли
+# треть входов (бумажный прогон 22.10, docs/results/paper_replay.md):
+#   5 * * * *  /home/dev/forexmodel/scripts/queues/live_hourly.sh
 cd /home/dev/forexmodel || exit 1
 LOG=reports/live/logs; mkdir -p $LOG
 exec 9> reports/live/.hourly.lock
