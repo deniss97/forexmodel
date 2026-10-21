@@ -185,7 +185,8 @@ def meta(e: dict) -> dict:
     return {"id": e["id"], "family": e["family"], "title": e["title"], "change": e.get("change", ""), "what": e.get("what", ""),
             "why": e.get("why", ""), "outcome": e.get("outcome", ""), "hypothesis": e.get("hypothesis"),
             "baseline": e.get("baseline"), "verdict": e.get("verdict", ""), "kind": e.get("kind", "clean"),
-            "archived": e.get("archived", ""), "doc": GH + e["doc"], "card": GH + f"experiments/{e['id']}/summary.md"}
+            "archived": e.get("archived", ""), "zones": e.get("zones", ""),
+            "doc": GH + e["doc"], "card": GH + f"experiments/{e['id']}/summary.md"}
 
 
 def hypotheses_for(codes) -> dict:
@@ -309,7 +310,7 @@ def main(argv=None) -> int:
         old = json.loads((SITE / "registry.json").read_text(encoding="utf-8"))["experiments"]
         fresh = {**{e["id"]: e for e in old if e["id"] in exps}, **fresh}
         prev = pd.read_csv(DOC / "registry.csv", dtype=str, keep_default_na=False)   # старые строки — как были, до знака
-        reg = pd.concat([prev[~prev["id"].isin(want)], reg], ignore_index=True)
+        reg = pd.concat([prev[~prev["id"].isin(want) & prev["id"].isin(exps)], reg], ignore_index=True)
         reg["_o"] = reg["id"].map({k: n for n, k in enumerate(exps)})
         reg = reg.sort_values("_o", kind="stable").drop(columns="_o")
     entries = [fresh[k] for k in exps if k in fresh]

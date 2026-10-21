@@ -327,7 +327,7 @@ h3 { font-size: 15px; }
           <span class="muted" style="font-size:12.5px">Нажмите на сделку — она откроется на графике ниже со стопом и трейлингом.</span></div>
       </div>
       <div style="display:grid;gap:6px"><div class="bar"><h3 id="px-title" style="margin-right:auto">Сделки на графике</h3>
-          <label class="chk"><input type="checkbox" id="ly-zones" checked> тренд-фильтр</label>
+          <label class="chk"><input type="checkbox" id="ly-zones" checked> тренд-фильтр: ${e.zones === "tl" ? "трёхслойный" : "гейт C"}</label>
           <label class="chk"><input type="checkbox" id="ly-ema" checked> EMA5 4ч</label>
           <label class="chk"><input type="checkbox" id="ly-atr" checked> ATR</label>
           <label class="chk"><input type="checkbox" id="ly-lines" checked> линии сделок</label></div>
@@ -390,16 +390,16 @@ h3 { font-size: 15px; }
   const dt = (s) => new Date(s * 1000).toISOString().slice(0, 16).replace("T", " ");
 
   // ---------- сделки на графике: свечи, тренд-фильтр, EMA, ATR, линии сделок, стоп выбранной сделки ----------
-  let px = null; // { d, t, g, trades, sel, ex, zones, ema, atr, stop, act, canvas, raf }
+  let px = null; // { d, t, g, zname, trades, sel, ex, zones, ema, atr, stop, act, canvas, raf }
 
+  // зоны тренд-фильтра: гейт C (gate) у всех; трёхслойный (gate_tl) — у экспериментов с zones: "tl" (H58–H60)
   async function getCandles(inst) {
     if (candles[inst]) return candles[inst];
     const d = await getJSON(`data/candles/${inst}.json`);
     const n = d.dt.length, t = new Array(n); let acc = d.t0;
     for (let i = 0; i < n; i++) { acc += d.dt[i] * 3600; t[i] = acc; }
-    const g = new Int8Array(n);
-    (d.gate || []).forEach(([i, v], k, a) => g.fill(v, i, k + 1 < a.length ? a[k + 1][0] : n));
-    return (candles[inst] = { d, t, g });
+    const fill = (ch) => { const g = new Int8Array(n); ch.forEach(([i, v], k, a) => g.fill(v, i, k + 1 < a.length ? a[k + 1][0] : n)); return g; };
+    return (candles[inst] = { d, t, g: fill(d.gate || []), gtl: d.gate_tl ? fill(d.gate_tl) : null });
   }
 
   function barIdx(x) { // последняя свеча со временем <= x
@@ -416,7 +416,7 @@ h3 { font-size: 15px; }
     try { c = await getCandles(inst); }
     catch (err) { if (pxChart) { pxChart.remove(); pxChart = null; } $("#px").innerHTML = `<div class="empty">Свечей для этого инструмента нет.</div>`; return; }
     if (st.inst !== inst) return;
-    const { d, t, g } = c;
+    const { d, t } = c, tl = e.zones === "tl" && c.gtl, g = tl ? c.gtl : c.g, zname = tl ? "трёхслойный" : "гейт C";
     if (pxChart) { pxChart.remove(); pxChart = null; }
     $("#px").innerHTML = "";
     const o = chartOpts();
@@ -449,7 +449,7 @@ h3 { font-size: 15px; }
     const canvas = document.createElement("canvas");
     canvas.className = "px-lines"; canvas.setAttribute("aria-hidden", "true");
     $("#px").appendChild(canvas);
-    px = { d, t, g, trades, sel: null, ex: (data.exit || {})[inst] || {}, zones, ema, atr, stop, act, canvas, raf: 0 };
+    px = { d, t, g, zname, trades, sel: null, ex: (data.exit || {})[inst] || {}, zones, ema, atr, stop, act, canvas, raf: 0 };
     applyLayers();
     const ts = pxChart.timeScale();
     ts.subscribeVisibleLogicalRangeChange(queueLines);
@@ -480,7 +480,7 @@ h3 { font-size: 15px; }
     const a = d.atr ? d.atr[i] : null, c = d.c[i];
     $("#px-read").textContent = `${dt(t[i])} · закрытие ${f(c)}` + (d.ema ? ` · EMA5 4ч ${f(d.ema[i])}` : "") +
       (a != null ? ` · ATR(${d.atr_period || 14}) ${f(a, d.decimals + 1)} (${(a / c * 100).toFixed(2)}% цены)` : "") +
-      (d.gate ? ` · тренд-фильтр: ${g[i] > 0 ? "вверх" : g[i] < 0 ? "вниз" : "нейтраль"}` : "");
+      (d.gate ? ` · тренд-фильтр (${px.zname}): ${g[i] > 0 ? "вверх" : g[i] < 0 ? "вниз" : "нейтраль"}` : "");
   }
 
   function queueLines() { if (px && !px.raf) px.raf = requestAnimationFrame(() => { px.raf = 0; drawLines(); }); }

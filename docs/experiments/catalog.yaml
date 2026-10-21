@@ -487,106 +487,6 @@ experiments:
       moex: [moex_tz__impulse_6_3_gatex4]
       mtss: [mtss_tz__impulse_6_3_gatex4]
       eth: [eth_tz__impulse_6_3_gatex4]
-  - id: S28
-    family: strategy
-    title: "Тренд-фильтр Дончиан 55/20 на 4 ч"
-    kind: clean
-    change: "классический фильтр, лучший по 2016–2020 из 111 (EMA, MACD, Supertrend, Дончиан, Кельтнер, Боллинджер, ADX, KAMA на 1 ч / 4 ч / днях): пробой 55 4-часовых свечей — тренд, выход при пробое 20 в обратную сторону"
-    hypothesis: H45
-    baseline: B01
-    verdict: "хуже базы (выбор не переносится на проверку)"
-    doc: results/trend_filter_tz.md
-    dividends: true
-    costs: *base_costs
-    sources:
-      silver: [silver_tz__impulse_6_3_gatedon55]
-      gold: [gold_tz__impulse_6_3_gatedon55]
-      lkoh: [lkoh_tz__impulse_6_3_gatedon55]
-      gazp: [gazp_tz__impulse_6_3_gatedon55]
-      sber: [sber_tz__impulse_6_3_gatedon55]
-      moex: [moex_tz__impulse_6_3_gatedon55]
-      mtss: [mtss_tz__impulse_6_3_gatedon55]
-      eth: [eth_tz__impulse_6_3_gatedon55]
-  - id: S29
-    family: strategy
-    title: "Импульс без фильтра направления, только лонг"
-    kind: clean
-    change: "эталон перебора «всегда лонг»: гейт C снят, шортовые сигналы гасятся до симуляции на всех рынках"
-    hypothesis: H45
-    baseline: B01
-    verdict: "хуже базы на металлах, на портфеле 4 как база"
-    doc: results/trend_filter_tz.md
-    dividends: true
-    costs: *base_costs
-    sources:
-      silver: [silver_tz__impulse_6_3_notrend_long]
-      gold: [gold_tz__impulse_6_3_notrend_long]
-      lkoh: [lkoh_tz__impulse_6_3_notrend_long]
-      gazp: [gazp_tz__impulse_6_3_notrend_long]
-      sber: [sber_tz__impulse_6_3_notrend_long]
-      moex: [moex_tz__impulse_6_3_notrend_long]
-      mtss: [mtss_tz__impulse_6_3_notrend_long]
-      eth: [eth_tz__impulse_6_3_notrend_long]
-  - id: S30
-    family: strategy
-    title: "Вход по сжатию: NR7 + inside bar"
-    kind: clean
-    change: "вход вместо импульса: вчерашний день — самый узкий за 7 и внутри позавчерашнего; первое закрытие часа за его границей, по гейту C; выход как у базы"
-    hypothesis: H46
-    baseline: B01
-    verdict: "хуже базы"
-    doc: results/trend_filter_tz.md
-    dividends: true
-    costs: *base_costs
-    sources:
-      silver: [silver_tz__pattern_nr7ib]
-      gold: [gold_tz__pattern_nr7ib]
-      lkoh: [lkoh_tz__pattern_nr7ib]
-      gazp: [gazp_tz__pattern_nr7ib]
-      sber: [sber_tz__pattern_nr7ib]
-      moex: [moex_tz__pattern_nr7ib]
-      mtss: [mtss_tz__pattern_nr7ib]
-      eth: [eth_tz__pattern_nr7ib]
-  - id: S31
-    family: strategy
-    title: "Вход по пробою 55-дневного уровня"
-    kind: clean
-    change: "вход вместо импульса: первое закрытие часа выше максимума (ниже минимума) 55 прошлых дней, по гейту C («Черепахи», система 2); выход как у базы"
-    hypothesis: H47
-    baseline: B01
-    verdict: "в пределах шума: портфель 4 лучше, металлы хуже базы"
-    doc: results/trend_filter_tz.md
-    dividends: true
-    costs: *base_costs
-    sources:
-      silver: [silver_tz__pattern_donch_55]
-      gold: [gold_tz__pattern_donch_55]
-      lkoh: [lkoh_tz__pattern_donch_55]
-      gazp: [gazp_tz__pattern_donch_55]
-      sber: [sber_tz__pattern_donch_55]
-      moex: [moex_tz__pattern_donch_55]
-      mtss: [mtss_tz__pattern_donch_55]
-      eth: [eth_tz__pattern_donch_55]
-  - id: S32
-    family: strategy
-    title: "Вход по ложному пробою 20-дневного уровня"
-    kind: clean
-    change: "Turtle Soup: час вышел за 20-дневный максимум, но закрылся под ним — шорт (зеркально — лонг), по гейту C; выход как у базы"
-    hypothesis: H47
-    baseline: B01
-    verdict: "хуже базы"
-    doc: results/trend_filter_tz.md
-    dividends: true
-    costs: *base_costs
-    sources:
-      silver: [silver_tz__pattern_soup_20]
-      gold: [gold_tz__pattern_soup_20]
-      lkoh: [lkoh_tz__pattern_soup_20]
-      gazp: [gazp_tz__pattern_soup_20]
-      sber: [sber_tz__pattern_soup_20]
-      moex: [moex_tz__pattern_soup_20]
-      mtss: [mtss_tz__pattern_soup_20]
-      eth: [eth_tz__pattern_soup_20]
   - id: S33
     family: strategy
     title: "Выход по времени через 20 ч"
@@ -908,6 +808,7 @@ experiments:
   - id: S49
     family: trend
     title: "Сделки по трёхслойному фильтру (набор для запуска)"
+    zones: tl
     kind: clean
     main: все
     change: "лонг, пока трёхслойный фильтр вверх, шорт — пока вниз (у акций только лонг); вход и выход по открытию часа после смены состояния; без стопа и подбора"
@@ -926,6 +827,7 @@ experiments:
   - id: S50
     family: trend
     title: "Акции в лонг по трёхслойному фильтру до противоположного сигнала"
+    zones: tl
     kind: clean
     main: все
     change: "GAZP, SBER, LKOH в лонг, пока трёхслойный фильтр не покажет вниз (нейтраль не закрывает); без стопа и подбора; вариант найден после расчёта H59"
@@ -1152,6 +1054,7 @@ experiments:
     family: model
     costs: *base_costs
     title: "Сделки модели, которые пропускает трёхслойный фильтр"
+    zones: tl
     kind: clean
     change: "сделки M13 без изменений; берётся только сделка по направлению трёхслойного фильтра на последнем закрытом часе до входа (лонг — вверх, шорт — вниз)"
     hypothesis: H58
@@ -1257,6 +1160,7 @@ experiments:
     family: model
     costs: *base_costs
     title: "LKOH — сделки модели, которые пропускает трёхслойный фильтр"
+    zones: tl
     kind: clean
     change: "сделки L07 без изменений; берётся только сделка по направлению трёхслойного фильтра на последнем закрытом часе до входа"
     hypothesis: H58
@@ -1289,5 +1193,5 @@ no_log:
   - {title: "Возврат к среднему внутри дня на LKOH", result: "до комиссии до +0.13%, после — не значим", doc: results/model_changelog.md}
   - {title: "Фильтры входа CatBoost: против свечи, пауза после стопа, растяжение", result: "не работают на обоих инструментах", doc: results/silver_1h_cb/trade_review.md}
   - {title: "Выход из «застывших» сделок импульса (H34): через K часов трейлинг не включился и цена ближе Y ATR от входа — закрыть", result: "быстрый расчёт по часовым свечам поверх сделок B01, издержки базы: выбор 72 ч / 1 ATR по 2016–2020; на проверке хуже базы — металлы +41% → +22%, портфель 4 −2% → −14%", doc: results/strategy_week_1012.md}
-  - {title: "Перебор 128 тренд-фильтров ТЗ 15.10 быстрым движком (H44, H45)", result: "сделки отбираются из прогона всех сигналов штатным симулятором и совпадают с B01; связь PF выбор → проверка 0.01, гейт C — 90-й на выборе и 5-й на проверке; финалисты — S26–S29", doc: results/trend_filter_tz.md}
+  - {title: "Перебор 128 тренд-фильтров ТЗ 15.10 быстрым движком (H44, H45)", result: "сделки отбираются из прогона всех сигналов штатным симулятором и совпадают с B01; связь PF выбор → проверка 0.01, гейт C — 90-й на выборе и 5-й на проверке; финалисты — S26, S27 (S28 Дончиан 55/20 и S29 «всегда лонг» убраны из журнала 22.10)", doc: results/trend_filter_tz.md}
   - {title: "Вход против уже ушедшей цены (H33): ход за 72 / 120 ч до сигнала против сделки", result: "разведка на сделках B01, только выбор 2016–2020: монотонной связи с результатом нет, правила для фильтра нет — проверку не трогали", doc: results/strategy_week_1012.md}

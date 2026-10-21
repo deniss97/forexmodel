@@ -24,7 +24,8 @@ BANK = "https://claude.ai/artifact/QkKUwLx2zAQ8X5CZypbU6f"
 JOURNAL = "https://claude.ai/artifact/E4teCbCVvojCf96CJy9UQU"
 
 # те же справочники, что на странице банка
-AREAS = {"model": "Модель", "impulse": "Импульсная стратегия", "search": "Итератор параметров", "trend": "Тренд-фильтр"}
+AREAS = {"model": "Модель", "impulse": "Импульсная стратегия", "search": "Итератор параметров", "trend": "Тренд-фильтр",
+         "trade": "Инференс и торговля"}
 KINDS = {"check": "проверка достоверности", "entry": "вход и сигнал", "exit": "выход и сопровождение",
          "filter": "фильтр входа и направления", "sizing": "размер позиции и риск", "costs": "издержки и исполнение",
          "markets": "рынки и инструменты", "portfolio": "сочетание стратегий", "feature": "признаки модели",
