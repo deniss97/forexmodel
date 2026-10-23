@@ -122,7 +122,8 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_m
                               "срок": t["open_dt"] + horizon})
             if grace_minutes and last - t["open_dt"] <= pd.Timedelta(minutes=grace_minutes) and s["trail_on"] is None:
                 atr = float(t["atr_at_entry"])
-                res["действие"] = f"ОТКРЫТЬ {'лонг' if d > 0 else 'шорт'} по рынку (вход контура {t['open_dt']:%m-%d %H:%M} по {t['open_price']:.4g})"
+                res["действие"] = (f"ОТКРЫТЬ {'лонг' if d > 0 else 'шорт'} по рынку (вход контура {t['open_dt']:%m-%d %H:%M} по {t['open_price']:.4g}); "
+                                   f"стоп {s['stop']:.4g}, трейлинг с {s['activate']:.4g} с отступом {sim.trail_atr * atr:.4g}")
                 res["_м"].update({"решение": "открыть", "свежий_вход": True, "вход_в": t["open_dt"], "цена": px, "atr": atr,
                                   "срок_часов": (t["open_dt"] + horizon - last).total_seconds() / 3600,
                                   "стоп_atr": sim.sl_atr, "активация_atr": sim.activate_atr})
