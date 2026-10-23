@@ -19,23 +19,25 @@ import pandas as pd
 
 from forexmodel.broker.tinvest import MSK, TInvest, to_moex_minutes
 from fetch_moex_iss import COLS, LIVE, RAW, ROOT, SOURCES
+from moex_data import last_begin
 
 
 def update(api: TInvest, ticker: str) -> None:
+    """Свежие минуты дописываются в конец файла: история не перезаписывается (прежде файл ~170 МБ переписывался
+    каждый час — перезагрузка посреди записи оставила бы его обрезанным), последняя минута — по хвосту файла."""
     LIVE.mkdir(parents=True, exist_ok=True)
     out = LIVE / f"{ticker}_1m_live.csv"
-    hist = pd.read_csv(out if out.exists() else RAW / SOURCES[ticker])[COLS]
-    last = pd.Timestamp(hist["begin"].iloc[-1])                        # московское время
+    if not out.exists():
+        pd.read_csv(RAW / SOURCES[ticker])[COLS].to_csv(out, index=False)  # у GAZP в истории лишняя колонка-индекс
+    last = last_begin(out)                                             # московское время
     share = api.share(ticker)
     start = last + pd.Timedelta(minutes=1) - MSK                       # → UTC
-    c = api.candles_1m(share.uid, start, pd.Timestamp.utcnow().tz_localize(None))
-    new = to_moex_minutes(c, share.lot)
+    c = api.candles_1m(share.uid, start, pd.Timestamp.now("UTC").tz_localize(None))
+    new = to_moex_minutes(c, share.lot) if len(c) else pd.DataFrame(columns=COLS)   # ночью и в закрытую биржу свечей нет
     new = new[pd.to_datetime(new["begin"]) > last]
     if len(new):
-        pd.concat([hist, new[COLS]], ignore_index=True).to_csv(out, index=False)
-    elif not out.exists():
-        hist.to_csv(out, index=False)
-    end = new["begin"].iloc[-1] if len(new) else hist["begin"].iloc[-1]
+        new[COLS].to_csv(out, mode="a", header=False, index=False)
+    end = new["begin"].iloc[-1] if len(new) else last
     print(f"[{ticker}] +{len(new)} минут из Т-Инвестиций, данные до {end} → {out.relative_to(ROOT)}", flush=True)
 
 

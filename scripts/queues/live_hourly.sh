@@ -21,5 +21,6 @@ flock -n 9 || exit 0                                  # предыдущий з�
     .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
   fi
   .venv/bin/python scripts/live_signals.py --only sber gazp lkoh
-  if [ "$(date +%H)" = "23" ]; then .venv/bin/python scripts/live_health.py; fi
+  # здоровье — раз в день после вечерней сессии (часы сервера +05, торги — по Москве)
+  if [ "$(TZ=Europe/Moscow date +%H)" = "23" ]; then .venv/bin/python scripts/live_health.py; fi
 } >> $LOG/$(date +%Y-%m-%d).log 2>&1
