@@ -26,6 +26,7 @@ import pandas as pd
 from forexmodel.data.dividends import adjust_for_dividends, adjustment_factors, load_dividends
 from forexmodel.data.loader import load_minute_compact
 from forexmodel.features.trend import add_trend_filter
+from experiments import NEW_STOCKS
 from impulse_universe import hourly
 from pattern_lab import ALL_INSTRUMENTS, instrument_cfg
 from trend_filter_lab import base_config
@@ -37,7 +38,7 @@ THREE_LAYER = {"mode": "score", "score_regime_tf": "24h"}
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "experiments" / "site" / "data" / "candles"
 DIVS = ROOT / "data" / "dividends" / "moex_dividends.csv"
-STOCKS = {"lkoh", "gazp", "sber", "moex", "mtss"}
+STOCKS = {"lkoh", "gazp", "sber", "moex", "mtss", *NEW_STOCKS}
 
 
 def build(inst: str) -> dict:

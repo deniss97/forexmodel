@@ -208,8 +208,9 @@ h3 { font-size: 15px; }
     const all = new Set();
     R.experiments.forEach((e) => Object.keys(e.res["проверка"]).forEach((s) => all.add(s)));
     const order = ["все", "портфель 4", "металлы", "silver", "gold", "lkoh", "gazp", "sber", "moex", "mtss", "eth"];
+    const rest = [...all].filter((s) => !order.includes(s)).sort();   // новые акции (H66) — следом, по алфавиту
     $("#scope").innerHTML = `<option value="main">срез: основной для эксперимента</option>` +
-      order.filter((s) => all.has(s)).map((s) => `<option value="${s}">срез: ${esc(name(s))}</option>`).join("");
+      order.concat(rest).filter((s) => all.has(s)).map((s) => `<option value="${s}">срез: ${esc(name(s))}</option>`).join("");
     $("#scope").value = st.scope;
   }
 

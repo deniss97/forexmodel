@@ -20,6 +20,23 @@ instruments:
   sber: *moex_stock
   moex: *moex_stock
   mtss: *moex_stock
+  # новые акции IMOEX для перепроверки найденных стратегий вне выборки (H66, 23.10)
+  tatn: *moex_stock
+  nvtk: *moex_stock
+  gmkn: *moex_stock
+  rosn: *moex_stock
+  vtbr: *moex_stock
+  plzl: *moex_stock
+  sngsp: *moex_stock
+  irao: *moex_stock
+  chmf: *moex_stock
+  nlmk: *moex_stock
+  magn: *moex_stock
+  rtkm: *moex_stock
+  trnfp: *moex_stock
+  aflt: *moex_stock
+  alrs: *moex_stock
+  afks: *moex_stock
   silver:
     commission_pct: 0.04
     slippage_pct: 0.05

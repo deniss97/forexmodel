@@ -41,11 +41,15 @@ WF = ROOT / "reports" / "walk_forward"
 DOC = ROOT / "docs" / "experiments"
 SITE = DOC / "site" / "data"
 GH = "https://github.com/deniss97/forexmodel/blob/main/docs/"
+# акции IMOEX для проверки найденных стратегий вне выборки (H66, 23.10): минутки ISS в data/raw/moex/<БУМАГА>_1m.csv,
+# отбор и расчёт — scripts/new_stocks.py
+NEW_STOCKS = ["tatn", "nvtk", "gmkn", "rosn", "vtbr", "plzl", "sngsp", "irao", "chmf", "nlmk", "magn", "rtkm", "trnfp",
+              "aflt", "alrs", "afks"]
 NAMES = {"silver": "серебро", "gold": "золото", "lkoh": "LKOH", "gazp": "GAZP", "sber": "SBER", "moex": "MOEX",
          "mtss": "MTSS", "eth": "ETH", "все": "все инструменты", "портфель 4": "портфель 4",
-         "металлы": "металлы (серебро + золото)"}
+         "металлы": "металлы (серебро + золото)", **{i: i.upper() for i in NEW_STOCKS}}
 STOCK_FILES = {"lkoh": "LKOH_1m_15-26", "gazp": "GAZP_1m_15-26_upd", "sber": "SBER_1m_15-26",
-               "moex": "MOEX_1m_15-26", "mtss": "MTSS_1m_15-26"}
+               "moex": "MOEX_1m_15-26", "mtss": "MTSS_1m_15-26", **{i: f"{i.upper()}_1m" for i in NEW_STOCKS}}
 REASON = {"stop_loss": "стоп", "trailing_stop": "трейлинг", "timeout": "время", "take_profit": "тейк", "trend_flip": "разворот",
           "early_stop": "ранний стоп", "signal": "сигнал"}
 METRIC_COLS = ["сделок", "итог", "выигрышей", "ожидание", "ср_выигрыш", "ср_проигрыш", "PF", "без_2_лучших",

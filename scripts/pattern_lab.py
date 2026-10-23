@@ -50,6 +50,7 @@ from entry_rules_lab import forward_outcomes, sequential, trend_variant
 from forexmodel.config import load_config
 from forexmodel.data.loader import load_minute_compact
 from forexmodel.features import indicators as ind
+from experiments import NEW_STOCKS
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTRUMENTS = {
@@ -67,6 +68,8 @@ EXTRA_INSTRUMENTS = {
     "mtss": ("configs/default.yaml", "data/raw/MTSS_1m_15-26.csv"),
     "eth": ("configs/silver.yaml", "data/raw/ETHUSDT_1m_clean.csv"),
 }
+# акции IMOEX для проверки найденных стратегий вне выборки (H66, 23.10) — свечи журнала, scripts/build_journal_candles.py
+EXTRA_INSTRUMENTS.update({i: ("configs/default.yaml", f"data/raw/moex/{i.upper()}_1m.csv") for i in NEW_STOCKS})
 ALL_INSTRUMENTS = {**INSTRUMENTS, **EXTRA_INSTRUMENTS}
 
 

@@ -18,6 +18,7 @@ last_with (утро следующего дня, праздничная или �
     python scripts/fetch_dividends.py            # скачать страницы и пересобрать таблицу
     python scripts/fetch_dividends.py --offline  # только из сохранённых страниц reports/_cache/dividends
     python scripts/fetch_dividends.py --live     # и свежие отсечки по data/raw/live (scripts/fetch_moex_iss.py)
+    python scripts/fetch_dividends.py --tickers TATN NVTK   # только эти бумаги (data/raw/moex), остальные строки как были
 """
 
 from __future__ import annotations
@@ -107,18 +108,22 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--offline", action="store_true")
     ap.add_argument("--live", action="store_true", help="минуты из data/raw/live/<TICKER>_1m_live.csv, где он есть (свежие отсечки)")
+    ap.add_argument("--tickers", nargs="+", help="пересобрать только эти бумаги (минутки data/raw/moex/<TICKER>_1m.csv, "
+                                                 "scripts/new_stocks.py); строки остальных бумаг в файле не меняются")
     args = ap.parse_args(argv)
     pd.set_option("display.width", 250)
     rows = []
-    for ticker, fname in MINUTES.items():
+    minutes = {t: f"moex/{t}_1m" for t in args.tickers} if args.tickers else MINUTES
+    for ticker, fname in minutes.items():
         if not args.offline:
             download(ticker)
         dohod, sl = parse(ticker)
         live = ROOT / "data" / "raw" / "live" / f"{ticker}_1m_live.csv"
-        if args.live and live.exists():
+        if args.live and live.exists() or args.tickers:
             from forexmodel.data.loader import load_minute_compact
 
-            m = load_minute_compact(live, "begin", ROOT / "reports" / "_cache").sort_values("time")
+            src = live if args.live and live.exists() else ROOT / "data" / "raw" / f"{fname}.csv"
+            m = load_minute_compact(src, "begin", ROOT / "reports" / "_cache").sort_values("time")
         else:
             m = pd.read_pickle(ROOT / "reports" / "_cache" / f"{fname}_1m.pkl").sort_values("time")
         t = m["time"].to_numpy()
@@ -159,7 +164,12 @@ def main(argv=None) -> int:
                          "source": note + (" + smart-lab" if len(hit) and note == "dohod.ru" else "")})
     d = pd.DataFrame(rows).sort_values(["ticker", "ex_time"])
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    d.to_csv(OUT, index=False)
+    if args.tickers and OUT.exists():           # остальные бумаги (и отсечки живого контура) — как были
+        old = pd.read_csv(OUT, parse_dates=["ex_time"])
+        old = old[~old["ticker"].isin(args.tickers)]
+        pd.concat([old, d], ignore_index=True).sort_values(["ticker", "ex_time"]).to_csv(OUT, index=False)
+    else:
+        d.to_csv(OUT, index=False)
     print(d.drop(columns=["ex_date"]).to_string(index=False))
     bad = d[d["last_with_smartlab"].notna() & (d["last_with_smartlab"] != d["last_with"])]
     print(f"\nзаписано {len(d)} отсечек → {OUT.relative_to(ROOT)}; расхождений последнего дня с дивидендом "
