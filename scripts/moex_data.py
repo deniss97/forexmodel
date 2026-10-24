@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
 import time
 import urllib.error
@@ -34,9 +36,10 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlencode
 
+import numpy as np
 import pandas as pd
 
-ISS = "https://iss.moex.com/iss"
+ISS ="https://iss.moex.com/iss"
 COLS = ["open", "close", "high", "low", "value", "volume", "begin", "end"]
 # интервалы ISS: минуты 1 / 10 / 60, 24 — день, 7 — неделя, 31 — месяц
 NAMES = {1: "1m", 10: "10m", 60: "1h", 24: "1d", 7: "1w", 31: "1mo"}
@@ -44,6 +47,14 @@ PATHS = {"shares": "engines/stock/markets/shares/boards/{board}/securities/{seci
          "futures": "engines/futures/markets/forts/securities/{secid}",
          "index": "engines/stock/markets/index/securities/{secid}"}
 OUT = Path(__file__).resolve().parents[1] / "data" / "raw" / "moex"
+# на сервере свободно ~20 ГБ (24.10): выгрузка останавливается, если на диске осталось меньше этого; докачка — с того же места
+MIN_FREE_GB = float(os.environ.get("FOREXMODEL_MIN_FREE_GB", "10"))
+
+
+def check_disk(path: Path) -> None:
+    free = shutil.disk_usage(path if path.exists() else path.parent).free / 1024 ** 3
+    if free < MIN_FREE_GB:
+        raise OSError(f"на диске свободно {free:.1f} ГБ — меньше {MIN_FREE_GB:g} ГБ (FOREXMODEL_MIN_FREE_GB): выгрузка остановлена")
 
 
 def get_json(path: str, retries: int = 4, **params) -> dict:
@@ -113,6 +124,7 @@ def download(secid: str, start, end=None, interval: int = 1, kind: str = "shares
         if have is not None:
             df = df[pd.to_datetime(df["begin"]) > have]
         if len(df):
+            check_disk(out.parent)
             df.to_csv(out, mode="a", header=not out.exists() or out.stat().st_size == 0, index=False)
             have, added = pd.Timestamp(df["begin"].iloc[-1]), added + len(df)
         if not quiet:
@@ -182,6 +194,53 @@ def continuous(folder: Path | str, asset_code: str, interval: int = 1, roll_days
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=COLS + ["contract"])
 
 
+def continuous_csv(folder: Path | str, asset_code: str, out: Path | str, interval: int = 1, roll_days: int = 5,
+                   series: pd.DataFrame | None = None, rename: dict | None = None, columns: list | None = None) -> int:
+    """То же, что continuous (переход за roll_days до экспирации, пропорциональная поправка прошлого на разрыв), но
+    потоком в CSV: первый проход — множители на переходах, второй — запись кусков, в памяти один контракт (у золота
+    ряд ~3 млн минут — целиком не помещался в потолок памяти 24.10). rename / columns — имена и порядок колонок файла."""
+    folder, out = Path(folder), Path(out)
+    s = series if series is not None else futures_series(asset_code)
+    files = {r.secid: folder / f"{r.secid}_{NAMES.get(interval, interval)}.csv" for r in s.itertuples()}
+    s = s[[files[x].exists() for x in s["secid"]]].reset_index(drop=True)
+
+    def part_of(r, prev_switch, cols):
+        df = pd.read_csv(files[r.secid], usecols=cols, parse_dates=["begin"])
+        switch = r.expiration_date - pd.Timedelta(days=roll_days)
+        lo = prev_switch if prev_switch is not None else df["begin"].min()
+        return df, df[(df["begin"] < switch) & (df["begin"] >= lo)], switch
+
+    kept, k, prev_switch, last = [], [], None, None          # контракты с непустым куском и множитель перехода на них
+    for r in s.itertuples():
+        df, part, switch = part_of(r, prev_switch, ["begin", "close"])
+        if len(part):
+            if last is not None:
+                ref = df[df["begin"] <= last[0]]
+                k.append(ref["close"].iloc[-1] / last[1] if len(ref) else 1.0)
+            else:
+                k.append(1.0)
+            kept.append((r, prev_switch))
+            last = (part["begin"].iloc[-1], part["close"].iloc[-1])
+        prev_switch = switch
+    # множитель куска j — произведение множителей всех следующих переходов
+    factor = np.cumprod(np.r_[k[1:], 1.0][::-1])[::-1] if k else np.array([])
+    check_disk(out.parent)
+    rows = 0
+    with open(out, "w", encoding="utf-8") as fh:
+        for n, ((r, prev), f) in enumerate(zip(kept, factor)):
+            _, part, _ = part_of(r, prev, COLS)
+            part = part.copy()
+            part[["open", "close", "high", "low"]] *= f
+            part["contract"] = r.secid
+            if rename:
+                part = part.rename(columns=rename)
+            if columns:
+                part = part[columns]
+            part.to_csv(fh, header=n == 0, index=False)
+            rows += len(part)
+    return rows
+
+
 # ---------------- открытые позиции по фьючерсам (FUTOI) ----------------
 
 FUTOI_COLS = ["tradedate", "tradetime", "ticker", "clgroup", "pos", "pos_long", "pos_short", "pos_long_num", "pos_short_num"]
@@ -209,6 +268,7 @@ def futoi(ticker: str, start, end=None, out: Path | str | None = None, pause: fl
         df = pd.DataFrame(j["data"], columns=j["columns"])
         if len(df):
             df = df[FUTOI_COLS].sort_values(["tradetime", "clgroup"])
+            check_disk(out.parent)
             df.to_csv(out, mode="a", header=not out.exists() or out.stat().st_size == 0, index=False)
             added += len(df)
         time.sleep(pause)

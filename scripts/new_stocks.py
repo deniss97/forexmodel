@@ -165,7 +165,10 @@ def bars(inst: str) -> None:
     divs = load_dividends(ROOT / cfg.data.dividends_path, cfg.data.dividend_ticker)
     if divs.empty:
         raise ValueError(f"{inst}: нет дивидендов — сначала scripts/fetch_dividends.py --tickers {inst.upper()}")
-    m = load_minute_compact(ROOT / cfg.data.csv_path, cfg.data.time_col, ROOT / "reports" / "_cache", cfg.data.volume_candidates)
+    # минутки новых бумаг дописываются каждую ночь (live_iterator) — копия в кэше к следующему запуску устаревает,
+    # а заняла бы ~0.8 ГБ на 16 бумаг, поэтому без кэша
+    cache = None if inst.upper() in NEW else ROOT / "reports" / "_cache"
+    m = load_minute_compact(ROOT / cfg.data.csv_path, cfg.data.time_col, cache, cfg.data.volume_candidates)
     m = adjust_for_dividends(m, divs)
     h = resample_ohlcv(m, cfg.data.base_timeframe).reset_index(drop=True)
     del m

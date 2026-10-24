@@ -37,6 +37,16 @@ instruments:
   aflt: *moex_stock
   alrs: *moex_stock
   afks: *moex_stock
+  # фьючерсы Мосбиржи на серебро и золото (H68, 24.10): ближний контракт, обе стороны; комиссия брокера и биржи
+  # 0.04% на сторону (осторожная оценка), проскальзывание 0.05% на сторону; свопов нет — перенос в цене контракта
+  silvfut: &moex_future
+    commission_pct: 0.08
+    slippage_pct: 0.05
+    swap_long_pct: 0.0
+    swap_short_pct: 0.0
+    triple_weekday: null
+    rollover_hour: 0
+  goldfut: *moex_future
   silver:
     commission_pct: 0.04
     slippage_pct: 0.05

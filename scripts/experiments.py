@@ -45,9 +45,12 @@ GH = "https://github.com/deniss97/forexmodel/blob/main/docs/"
 # отбор и расчёт — scripts/new_stocks.py
 NEW_STOCKS = ["tatn", "nvtk", "gmkn", "rosn", "vtbr", "plzl", "sngsp", "irao", "chmf", "nlmk", "magn", "rtkm", "trnfp",
               "aflt", "alrs", "afks"]
+# фьючерсы Мосбиржи на металлы (H68, 24.10): склейка ближних контрактов, data/raw/moex/<серия>_1m_fut.csv
+FUTURES = {"silvfut": "SILV", "goldfut": "GOLD"}
 NAMES = {"silver": "серебро", "gold": "золото", "lkoh": "LKOH", "gazp": "GAZP", "sber": "SBER", "moex": "MOEX",
          "mtss": "MTSS", "eth": "ETH", "все": "все инструменты", "портфель 4": "портфель 4",
-         "металлы": "металлы (серебро + золото)", **{i: i.upper() for i in NEW_STOCKS}}
+         "металлы": "металлы (серебро + золото)", **{i: i.upper() for i in NEW_STOCKS},
+         "silvfut": "серебро (фьючерс SILV)", "goldfut": "золото (фьючерс GOLD)"}
 STOCK_FILES = {"lkoh": "LKOH_1m_15-26", "gazp": "GAZP_1m_15-26_upd", "sber": "SBER_1m_15-26",
                "moex": "MOEX_1m_15-26", "mtss": "MTSS_1m_15-26", **{i: f"{i.upper()}_1m" for i in NEW_STOCKS}}
 REASON = {"stop_loss": "стоп", "trailing_stop": "трейлинг", "timeout": "время", "take_profit": "тейк", "trend_flip": "разворот",
@@ -99,7 +102,9 @@ def raw_prices(t: pd.DataFrame) -> pd.DataFrame:
         if "atr_at_entry" in t:
             cols.append(("atr_at_entry", "open_dt"))
         for col, tcol in cols:
-            i = np.clip(np.searchsorted(tt, t.loc[sel, tcol].to_numpy(), "left"), 0, len(f) - 1)
+            # последняя минута не позже момента сделки: выход «по сроку» пишется концом часа (19:00) — первая минута
+            # после него бывает уже после дивидендной отсечки, и цена съезжала на дивиденд (сверка 24.10, CHMF 14.06.2019)
+            i = np.clip(np.searchsorted(tt, t.loc[sel, tcol].to_numpy(), "right") - 1, 0, len(f) - 1)
             t.loc[sel, col] = t.loc[sel, col].to_numpy() / f[i]
     return t
 

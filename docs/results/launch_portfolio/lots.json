@@ -1,0 +1,97 @@
+{
+ "SBER": {
+  "lot": 1,
+  "price": 292.32,
+  "lot_rub": 292.32
+ },
+ "GAZP": {
+  "lot": 10,
+  "price": 114.75,
+  "lot_rub": 1147.5
+ },
+ "LKOH": {
+  "lot": 1,
+  "price": 6144.5,
+  "lot_rub": 6144.5
+ },
+ "TATN": {
+  "lot": 1,
+  "price": 632.4,
+  "lot_rub": 632.4
+ },
+ "NVTK": {
+  "lot": 1,
+  "price": 1181.8,
+  "lot_rub": 1181.8
+ },
+ "GMKN": {
+  "lot": 10,
+  "price": 114.3,
+  "lot_rub": 1143.0
+ },
+ "ROSN": {
+  "lot": 1,
+  "price": 390.05,
+  "lot_rub": 390.05
+ },
+ "VTBR": {
+  "lot": 1,
+  "price": 56.94,
+  "lot_rub": 56.94
+ },
+ "PLZL": {
+  "lot": 1,
+  "price": 1098.2,
+  "lot_rub": 1098.2
+ },
+ "SNGSP": {
+  "lot": 10,
+  "price": 40.915,
+  "lot_rub": 409.15
+ },
+ "IRAO": {
+  "lot": 100,
+  "price": 2.812,
+  "lot_rub": 281.2
+ },
+ "CHMF": {
+  "lot": 1,
+  "price": 712.6,
+  "lot_rub": 712.6
+ },
+ "NLMK": {
+  "lot": 10,
+  "price": 76.44,
+  "lot_rub": 764.4
+ },
+ "MAGN": {
+  "lot": 10,
+  "price": 23.505,
+  "lot_rub": 235.05
+ },
+ "RTKM": {
+  "lot": 10,
+  "price": 43.31,
+  "lot_rub": 433.1
+ },
+ "TRNFP": {
+  "lot": 1,
+  "price": 1062.6,
+  "lot_rub": 1062.6
+ },
+ "AFLT": {
+  "lot": 10,
+  "price": 35.95,
+  "lot_rub": 359.5
+ },
+ "ALRS": {
+  "lot": 10,
+  "price": 21.07,
+  "lot_rub": 210.7
+ },
+ "AFKS": {
+  "lot": 100,
+  "price": 7.775,
+  "lot_rub": 777.5
+ }
+}

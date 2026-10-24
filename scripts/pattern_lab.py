@@ -50,7 +50,7 @@ from entry_rules_lab import forward_outcomes, sequential, trend_variant
 from forexmodel.config import load_config
 from forexmodel.data.loader import load_minute_compact
 from forexmodel.features import indicators as ind
-from experiments import NEW_STOCKS
+from experiments import FUTURES, NEW_STOCKS
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTRUMENTS = {
@@ -70,6 +70,8 @@ EXTRA_INSTRUMENTS = {
 }
 # акции IMOEX для проверки найденных стратегий вне выборки (H66, 23.10) — свечи журнала, scripts/build_journal_candles.py
 EXTRA_INSTRUMENTS.update({i: ("configs/default.yaml", f"data/raw/moex/{i.upper()}_1m.csv") for i in NEW_STOCKS})
+# фьючерсы Мосбиржи на металлы (H68) — конфиг серебра, склейка в формате минуток XAG/XAU
+EXTRA_INSTRUMENTS.update({i: ("configs/silver.yaml", f"data/raw/moex/{s}_1m_fut.csv") for i, s in FUTURES.items()})
 ALL_INSTRUMENTS = {**INSTRUMENTS, **EXTRA_INSTRUMENTS}
 
 

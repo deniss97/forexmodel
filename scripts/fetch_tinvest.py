@@ -19,16 +19,18 @@ import pandas as pd
 
 from forexmodel.broker.tinvest import MSK, TInvest, to_moex_minutes
 from fetch_moex_iss import COLS, LIVE, RAW, ROOT, SOURCES
-from moex_data import last_begin
+from moex_data import check_disk, last_begin
 
 
-def update(api: TInvest, ticker: str) -> None:
+def update(api: TInvest, ticker: str, out=None) -> None:
     """Свежие минуты дописываются в конец файла: история не перезаписывается (прежде файл ~170 МБ переписывался
-    каждый час — перезагрузка посреди записи оставила бы его обрезанным), последняя минута — по хвосту файла."""
+    каждый час — перезагрузка посреди записи оставила бы его обрезанным), последняя минута — по хвосту файла.
+    out — готовый файл минуток (новые акции H66 дописываются прямо в data/raw/moex, без копии истории в live)."""
     LIVE.mkdir(parents=True, exist_ok=True)
-    out = LIVE / f"{ticker}_1m_live.csv"
-    if not out.exists():
-        pd.read_csv(RAW / SOURCES[ticker])[COLS].to_csv(out, index=False)  # у GAZP в истории лишняя колонка-индекс
+    if out is None:
+        out = LIVE / f"{ticker}_1m_live.csv"
+        if not out.exists():
+            pd.read_csv(RAW / SOURCES[ticker])[COLS].to_csv(out, index=False)  # у GAZP в истории лишняя колонка-индекс
     last = last_begin(out)                                             # московское время
     share = api.share(ticker)
     start = last + pd.Timedelta(minutes=1) - MSK                       # → UTC
@@ -36,6 +38,7 @@ def update(api: TInvest, ticker: str) -> None:
     new = to_moex_minutes(c, share.lot) if len(c) else pd.DataFrame(columns=COLS)   # ночью и в закрытую биржу свечей нет
     new = new[pd.to_datetime(new["begin"]) > last]
     if len(new):
+        check_disk(out.parent)
         new[COLS].to_csv(out, mode="a", header=False, index=False)
     end = new["begin"].iloc[-1] if len(new) else last
     print(f"[{ticker}] +{len(new)} минут из Т-Инвестиций, данные до {end} → {out.relative_to(ROOT)}", flush=True)
