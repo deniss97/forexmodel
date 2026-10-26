@@ -13,6 +13,7 @@
     python scripts/weekly_charts.py [--week 2026-10-05]
     python scripts/weekly_charts.py --week 2026-10-12      # отчёт № 2: база B01 и разбор недели
     python scripts/weekly_charts.py --week 2026-10-19      # отчёт № 3: набор для запуска, вторая стратегия, тренд-фильтр
+    python scripts/weekly_charts.py --week 2026-10-26      # отчёт № 4: новые акции, портфель для запуска, металлы
 """
 
 from __future__ import annotations
@@ -622,9 +623,143 @@ def week3(out: Path) -> None:
     print("H31 по seed:", h31_seeds(out))
 
 
+# ---------------- неделя 2026-10-19 – 2026-10-26 (отчёт № 4) ----------------
+# Источники: итоги H66 (docs/results/new_stocks/summary.csv), сделки журнала для H67 (scripts/launch_portfolio.py) и
+# целые лоты (docs/results/launch_portfolio/capital.csv), итоги H68 (docs/results/metals_futures/variants.csv).
+DOCS = ROOT / "docs" / "results"
+ITER = {"S42": "импульс S42", "S45": "NR7 → пробой", "S46": "пробой 55 дней", "S47": "Кельтнер на днях", "S48": "пробой 20 дней"}
+
+
+def _pf_bars(ax, k, off, v, color, label, bold):
+    """Столбцы PF от линии PF 1: вверх — прибыль, вниз — убыток."""
+    v = np.asarray(v, float)
+    ax.bar(k + off, v - 1, 0.38, bottom=1, color=color, label=label)
+    for kk, x in zip(k, v):
+        ax.text(kk + off, x + (0.015 if x >= 1 else -0.015), f"{x:.2f}", ha="center", va="bottom" if x >= 1 else "top",
+                fontsize=FS - 1, fontweight="bold" if bold else "normal", color=INK)
+
+
+def new_stocks_pf(out: Path) -> dict:
+    """H66: PF на проверке 2021–2026 — на бумагах выбора (SBER, GAZP, LKOH) и на 16 новых акциях."""
+    s = pd.read_csv(DOCS / "new_stocks" / "summary.csv").set_index(["стратегия", "группа"])
+    f, ax = figure(1600, 560)
+    style(ax)
+    k = np.arange(len(ITER))
+    res = {}
+    for off, grp, color, name in ((-0.2, "SBER, GAZP, LKOH", GRAY, "бумаги выбора: SBER, GAZP, LKOH"),
+                                  (0.2, "новые 16", BLUE, "16 новых акций — их не видели при выборе")):
+        v = [s.loc[(i, grp), "проверка: PF"] for i in ITER]
+        _pf_bars(ax, k, off, v, color, name, grp == "новые 16")
+        res[grp] = dict(zip(ITER, np.round(v, 2)))
+    ax.axhline(1.1, color=ORANGE, linewidth=2, linestyle="--")
+    ax.text(1, 1.135, "порог H66: PF 1.1", ha="center", va="bottom", fontsize=FS - 1, color=ORANGE)
+    ax.axhline(1, color=INK2, linewidth=1.2)
+    ax.set_xticks(k)
+    ax.set_xticklabels([f"{i}\n{n}" for i, n in ITER.items()], fontsize=FS, color=INK)
+    ax.set_ylim(0.85, 2.85)
+    ax.set_ylabel("PF на проверке 2021–2026", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="upper right")
+    f.tight_layout()
+    save(f, out, "new_stocks_pf.png")
+    return res
+
+
+def portfolio_d(out: Path) -> dict:
+    """H67: накопленный результат по месяцам — один S42 против портфеля D (S42 + S46 + S48 по трети)."""
+    import launch_portfolio as lp
+    from forexmodel.evaluation import portfolio as pf
+    from forexmodel.evaluation.experiments import TEST_START
+
+    parts = lp.strategies()
+    f, ax = figure(1600, 560)
+    style(ax)
+    res = {}
+    for name, color, lw, label in (("A: S42 один", GRAY, 2.6, "один S42 на SBER, GAZP, LKOH"),
+                                   ("D: S42 + S46 + S48", BLUE, 3.4, "портфель D: S42 + S46 и S48 на 19 акциях")):
+        x = lp.portfolio(parts, lp.VARIANTS[name])
+        m = pf.monthly(x).cumsum()
+        t = m.index.to_timestamp()
+        dd = float((m - m.cummax()).loc[m.index.to_timestamp() >= TEST_START].min())
+        ax.plot(t, m.to_numpy(), color=color, linewidth=lw, label=label)
+        ax.text(t[-1], m.iloc[-1], f"  {m.iloc[-1]:+.0f}%", va="center", fontsize=FS, color=color, fontweight="bold")
+        res[name] = {"итог": round(float(m.iloc[-1]), 1), "просадка на проверке": round(dd, 1)}
+    _test_band(ax, pd.Timestamp(lp.END))
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_ylabel("накоплено, % капитала", fontsize=FS, color=INK2)
+    ax.set_xlim(right=pd.Timestamp(lp.END) + pd.Timedelta(days=330))
+    ax.set_xticks([pd.Timestamp(f"{y}-01-01") for y in range(2016, 2027, 2)])
+    ax.set_xticklabels([str(y) for y in range(2016, 2027, 2)])
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="upper left", bbox_to_anchor=(0.0, 0.88))
+    f.tight_layout()
+    save(f, out, "portfolio_d.png")
+    return res
+
+
+def capital_lots(out: Path) -> dict:
+    """H67: портфель D целыми лотами — доля сделок, которые можно взять, и итог на проверке при разном капитале."""
+    c = pd.read_csv(DOCS / "launch_portfolio" / "capital.csv")
+    d = c[c["портфель"].str.startswith("D")]
+    a = c[c["портфель"].str.startswith("A")]
+    f, ax = figure(1600, 520)
+    style(ax)
+    labels = [f"{v // 1000:,} тыс. ₽".replace(",", " ") if v < 1_000_000 else "1 млн ₽" for v in d["капитал"]]
+    k = np.arange(len(d))
+    ax.bar(k, d["проверка: итог"], 0.55, color=BLUE)
+    for kk, v, share in zip(k, d["проверка: итог"], d["сделок взято, %"]):
+        ax.text(kk, v + 0.6, f"{v:+.0f}%", ha="center", va="bottom", fontsize=FS + 2, fontweight="bold", color=INK)
+        ax.text(kk, 1.0, f"{share:.0f}% сделок", ha="center", va="bottom", fontsize=FS - 1, color="white")
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_xticks(k)
+    ax.set_xticklabels(labels, fontsize=FS, color=INK)
+    ax.set_ylim(0, d["проверка: итог"].max() + 7)
+    ax.set_ylabel("итог D на проверке, %", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    f.tight_layout()
+    save(f, out, "capital_lots.png")
+    return {"D": dict(zip(d["капитал"], d["сделок взято, %"].round(0))), "A 20 тыс.": float(a["сделок взято, %"].iloc[0])}
+
+
+def metals_pf(out: Path) -> dict:
+    """H68: S42 по серебру и золоту — PF на CFD со свопами, на CFD без свопов и на фьючерсах Мосбиржи."""
+    v = pd.read_csv(DOCS / "metals_futures" / "variants.csv")
+    v = v[v["срез"] == "серебро + золото"].set_index("вариант")
+    rows = {"S42 CFD (журнал, свопы Альфа-Форекс)": ("CFD со свопами", GRAY),
+            "S42 CFD с издержками фьючерса": ("CFD без свопов", ORANGE),
+            "S42 фьючерсы": ("фьючерсы Мосбиржи", BLUE)}
+    f, ax = figure(1600, 520)
+    style(ax)
+    k = np.arange(2)
+    res = {}
+    for off, (key, (name, color)) in zip((-0.27, 0.0, 0.27), rows.items()):
+        y = [v.loc[key, "выбор: PF"], v.loc[key, "проверка: PF"]]
+        ax.bar(k + off, np.asarray(y) - 1, 0.25, bottom=1, color=color, label=name)
+        for kk, x in zip(k, y):
+            ax.text(kk + off, x + (0.01 if x >= 1 else -0.01), f"{x:.2f}", ha="center", va="bottom" if x >= 1 else "top",
+                    fontsize=FS, fontweight="bold" if color == BLUE else "normal", color=INK)
+        res[name] = [round(float(z), 2) for z in y]
+    ax.axhline(1, color=INK2, linewidth=1.2)
+    ax.set_xticks(k)
+    ax.set_xticklabels(["выбор 2016–2020", "проверка 2021–2026"], fontsize=FS, color=INK)
+    ax.set_ylim(0.88, 1.42)
+    ax.set_ylabel("PF, серебро + золото", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="upper left")
+    f.tight_layout()
+    save(f, out, "metals_pf.png")
+    return res
+
+
+def week4(out: Path) -> None:
+    print("H66 PF на проверке:", new_stocks_pf(out))
+    print("H67 портфель D:", portfolio_d(out))
+    print("H67 целые лоты:", capital_lots(out))
+    print("H68 металлы:", metals_pf(out))
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1), 2026-10-12 (№ 2), 2026-10-19 (№ 3)")
+    ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1), 2026-10-12 (№ 2), 2026-10-19 (№ 3), 2026-10-26 (№ 4)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
     logging.disable(logging.WARNING)
@@ -635,6 +770,9 @@ def main(argv=None) -> int:
         return 0
     if args.week == "2026-10-19":
         week3(out)
+        return 0
+    if args.week == "2026-10-26":
+        week4(out)
         return 0
     st = equity(out)
     for k, v in st.items():

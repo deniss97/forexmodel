@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import logging
 import sys
 from pathlib import Path
@@ -130,7 +131,8 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_m
         elif t["close_dt"] >= last - pd.Timedelta(hours=6):
             res.update({"действие": f"закрыто {t['close_dt']:%m-%d %H:%M} ({REASON.get(t['exit_reason'], t['exit_reason'])})",
                         "детали": f"{'лонг' if t['side'] == 'buy' else 'шорт'} с {t['open_dt']:%m-%d %H:%M}: {t['open_price']:.4g} → {t['exit_price']:.4g}, {t['gross_unit_pct']:+.2f}% до издержек"})
-            res["_м"].update({"решение": "закрыто", "вход": t["open_dt"], "выход": t["close_dt"], "причина": t["exit_reason"]})
+            res["_м"].update({"решение": "закрыто", "вход": t["open_dt"], "выход": t["close_dt"], "причина": t["exit_reason"],
+                              "цена_входа": float(t["open_price"]), "цена_выхода": float(t["exit_price"])})
     # сигнал на последней закрытой свече, вход по которому ещё впереди (в минутах его нет)
     act = sig[pd.to_numeric(sig["final_class"], errors="coerce").isin([LONG, SHORT])]
     if len(act) and res["позиция"] == "нет":
@@ -193,6 +195,19 @@ def main(argv=None) -> int:
     (OUT / f"{stamp}.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     j = OUT / "journal.csv"
     R.assign(запуск=stamp, момент=str(now or "")).to_csv(j, mode="a", header=not j.exists(), index=False)
+    # машинные поля решений — для счёта (scripts/live_account.py): что открыть, где стоп, когда закрыть
+    state = {r["инструмент"]: r.get("_м", {}) for r in rows}
+    # закрытые сделки стратегии на живых данных — для сверки с симуляцией (scripts/live_deviation.py)
+    done = [{"стратегия": "S42", "бумага": k.upper(), "вход": m["вход"], "выход": m["выход"], "цена входа": m.get("цена_входа"),
+             "цена выхода": m.get("цена_выхода"), "причина": m.get("причина")} for k, m in state.items() if m.get("решение") == "закрыто"]
+    jp = OUT / "s42_journal.csv"
+    if done:
+        old = pd.read_csv(jp, parse_dates=["вход"]) if jp.exists() else pd.DataFrame(columns=["бумага", "вход"])
+        new = pd.DataFrame(done)
+        new = new[~new.set_index(["бумага", "вход"]).index.isin(old.set_index(["бумага", "вход"]).index)]
+        new.to_csv(jp, mode="a", header=not jp.exists(), index=False)
+    (OUT / "s42_state.json").write_text(json.dumps({"запуск": stamp, "решения": state}, ensure_ascii=False, default=str, indent=1),
+                                        encoding="utf-8")
     print("\n".join(md))
     return 0
 

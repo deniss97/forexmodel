@@ -173,6 +173,14 @@ class TInvest:
         r = self.call(svc, m, {"accountId": account})
         return {s["instrumentUid"]: int(s.get("balance", 0)) + int(s.get("blocked", 0)) for s in r.get("securities", [])}
 
+    def operations(self, account: str, start: pd.Timestamp, end: pd.Timestamp) -> list[dict]:
+        """Исполненные операции счёта за [start, end] (UTC): покупки, продажи, комиссии — только чтение; для сверки наших
+        сделок с сигналами (scripts/live_account.py, live_deviation.py). Поля: operationType, instrumentUid, quantity,
+        price, payment, date."""
+        svc, m = ("SandboxService", "GetSandboxOperations") if self.sandbox else ("OperationsService", "GetOperations")
+        r = self.call(svc, m, {"accountId": account, "from": ts(start), "to": ts(end), "state": "OPERATION_STATE_EXECUTED"})
+        return r.get("operations", [])
+
     def money(self, account: str) -> Decimal:
         svc, m = ("SandboxService", "GetSandboxPositions") if self.sandbox else ("OperationsService", "GetPositions")
         r = self.call(svc, m, {"accountId": account})

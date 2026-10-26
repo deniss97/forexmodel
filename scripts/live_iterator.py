@@ -1,41 +1,45 @@
-"""Бумажный режим S46 и S48 на 19 акциях (H67, 24.10): раз в сутки — свежие минутки, пересчёт стратегий тем же
-движком перебора, журнал сделок и отчёт. Заявок нет — только сигналы, как у этапа 0 импульса.
+"""Сигналы S46 и S48 на 19 акциях каждый час (H67; ТЗ инференса 26.10): свежие минутки, часовые свечи дописываются
+(scripts/live_bars.py), сделки — тем же движком перебора, что журнал. Заявок нет — решения берёт счёт
+(scripts/live_account.py), сделки делаем руками по уведомлениям.
 
-S46 «пробой 55 дней» и S48 «пробой 20 дней + 0.25 ATR» — дневные по смыслу стратегии (пробои 55 и 20 дней, держат до
-240 ч), поэтому пересчёт раз в сутки после вечерней сессии: сделки те же, что дал бы ежечасный контур, только видны
-с задержкой до суток. Минутки: SBER, GAZP, LKOH — живые файлы контура (data/raw/live, докачиваются каждый час),
-16 новых бумаг H66 — data/raw/moex, сюда докачиваются из Т-Инвестиций. Часовые свечи и признаки пересобираются по
-всей истории, когда файл минуток новее (тем же кодом, что журнал: fresh_strategies.build_feat, new_stocks.bars).
-
-Журнал reports/live/iterator_journal.csv — сделки, открытые с начала режима: вход, стоп, выход, результат, когда
-контур впервые увидел вход и выход. Отчёт — reports/live/iterator_<дата>_<время>.md.
+По каждой стратегии и бумаге:
+  * сделки движка с 12.06 (свежие данные) — открытая позиция: вход, стоп, срок; закрытая — причина выхода;
+  * сигнал на последней ЗАКРЫТОЙ часовой свече — «открыть» по открытию следующего часа. Движок перебора не берёт
+    сигналы с двух последних свечей (entries_for), поэтому сигнал на последней закрытой проверяется здесь тем же
+    правилом: вход, оба фильтра, ATR, нет открытой сделки (chain: свеча сигнала позже свечи выхода прошлой сделки).
+Журнал reports/live/iterator_journal.csv — сделки, открытые с начала режима (24.10), и когда контур впервые увидел
+вход и выход; состояние для счёта — reports/live/iterator_state.json; отчёт — reports/live/iterator_<дата>_<время>.md,
+когда были события (и раз в сутки — в 23 ч по Москве).
 Открытая сделка: движок закрывает её на последней свече «по сроку», а срок 240 ч ещё не вышел.
 
-    python scripts/live_iterator.py             # cron: scripts/queues/live_iterator.sh, после вечерней сессии
+    python scripts/live_iterator.py             # каждый час — scripts/queues/live_hourly.sh
     python scripts/live_iterator.py --no-fetch  # без загрузки минуток
 """
 from __future__ import annotations
 
 import argparse
 import gc
+import json
 import logging
 import sys
 
 import _bootstrap  # noqa: F401
 import numpy as np
 import pandas as pd
-import yaml
 
+import live_bars as lb
 import new_stocks as ns
 from experiments import NEW_STOCKS, ROOT
 
-LAUNCH = ["sber", "gazp", "lkoh"]
+LAUNCH = lb.LAUNCH
 STOCKS = LAUNCH + NEW_STOCKS
 START = pd.Timestamp("2026-10-24")            # начало бумажного режима: сделки, открытые с этого дня
 FRESH = pd.Timestamp("2026-06-12")            # свежие данные (после конца истории) — для сравнения в отчёте
 CODES = {2: "S46", 4: "S48"}
+GRACE = pd.Timedelta(minutes=30)              # вход не старше этого — ещё «открыть по рынку» (как у S42)
 OUT = ROOT / "reports" / "live"
 JOURNAL = OUT / "iterator_journal.csv"
+STATE = OUT / "iterator_state.json"
 KEY = ["стратегия", "бумага", "вход"]
 
 
@@ -45,47 +49,61 @@ def fetch() -> None:
 
     api = TInvest(sandbox=False)
     for i in NEW_STOCKS:
-        update(api, i.upper(), out=ns.RAW / f"{ns.FILES[i.upper()]}.csv")
+        update(api, i.upper(), out=lb.minutes_csv(i))
 
 
-def features(inst: str, live: dict):
-    """Свежие признаки бумаги; возвращает папку, где они лежат (движок перебора читает FEAT/<бумага>.pkl)."""
-    import fresh_strategies as fs
-
-    if inst in LAUNCH:
-        fs.FEAT.mkdir(parents=True, exist_ok=True)
-        fs.build_feat(inst, live)                # сам проверяет, покрывает ли готовый файл последние минуты
-        return fs.FEAT
-    csv, pkl = ns.RAW / f"{ns.FILES[inst.upper()]}.csv", ns.FEAT / f"{inst}.pkl"
-    if not pkl.exists() or csv.stat().st_mtime > pkl.stat().st_mtime:
-        ns.bars(inst)
-    return ns.FEAT
-
-
-def strategy_trades(inst: str, feat) -> tuple[pd.DataFrame, dict]:
-    import iterator_walkthrough as iw
+def signal_at(ins, prm: dict, j: int) -> bool:
+    """Тот же вход, что entries_for (лонг: акции только в лонг), на свече j — без запрета двух последних свечей."""
     import strategy_search as ss
 
-    ss.FEAT = feat
+    if not ins.ok[j] or ins.entries[prm["entry"]][j] != 1:
+        return False
+    for f in ("f1", "f2"):
+        if not ins.filters[prm[f]][0][j]:
+            return False
+    a = ins.atr[ss.EXITS[prm["exit"]].get("atr", prm["atr"])][j]
+    return bool(np.isfinite(a) and a > 0)
+
+
+def strategy_state(inst: str) -> tuple[pd.DataFrame, list[dict], dict]:
+    """Сделки движка с 12.06, свежие сигналы на последней закрытой свече, данные бумаги."""
+    import iterator_walkthrough as iw
+    import strategy_search as ss
+    from moex_data import last_begin
+
+    ss.FEAT = lb.features(inst)
     ins = iw.load_inst(inst)
-    end = pd.Timestamp(ins.t[-1])
-    parts = []
+    until = last_begin(lb.minutes_csv(inst))
+    hour = np.timedelta64(60, "m")
+    closed = np.flatnonzero(ins.t + hour <= np.datetime64(until + pd.Timedelta(minutes=1)))
+    j = int(closed[-1])
+    parts, fresh = [], []
     for k, code in CODES.items():
-        prm = iw.STRATS[k]
-        ex = ss.EXITS[prm["exit"]]
+        prm, ex = iw.STRATS[k], ss.EXITS[iw.STRATS[k]["exit"]]
+        p = ex.get("atr", prm["atr"])
         t = iw.trades_frame(ins, prm)
-        if t.empty:
-            continue
-        t = t[t["open_dt"] >= FRESH].copy()
-        horizon = t["open_dt"] + pd.Timedelta(hours=ex["H"])
-        t["открыта"] = (t["exit_reason"] == "timeout") & (horizon > end + pd.Timedelta(hours=1))
-        t["стоп"] = t["open_price"] - ex["sl"] * t["atr_at_entry"]
-        t["закрыть не позже"] = horizon
-        t["стратегия"], t["бумага"] = code, inst.upper()
-        parts.append(t)
-    info = {"бумага": inst.upper(), "данные до": end, "цена": float(ins.c[-1])}
+        if len(t):
+            horizon = t["open_dt"] + pd.Timedelta(hours=ex["H"])
+            t["открыта"] = (t["exit_reason"] == "timeout") & (horizon > until + pd.Timedelta(hours=1))
+            t["стоп"] = t["open_price"] - ex["sl"] * t["atr_at_entry"]
+            t["закрыть не позже"] = horizon
+            t["стратегия"], t["бумага"] = code, inst.upper()
+            last_exit = int(np.searchsorted(ins.t, t["close_dt"].iloc[-1].to_datetime64(), "right") - 1)
+            parts.append(t[t["open_dt"] >= FRESH])
+        else:
+            last_exit = -1
+        if j > last_exit and signal_at(ins, prm, j):
+            e = j + 1
+            at = (pd.Timestamp(ins.t[e]) if e < ins.n else pd.Timestamp(ins.t[j]) + pd.Timedelta(hours=1)) + pd.Timedelta(minutes=1)
+            px = float(ins.o[e]) if e < ins.n else float(ins.c[j])
+            a = float(ins.atr[p][j])
+            size = float(np.clip(ins.stop_med[p] / (a / px), 0.25, 4.0)) if prm["size"] == "по риску" else 1.0
+            fresh.append({"стратегия": code, "бумага": inst.upper(), "решение": "открыть", "вход_в": at, "цена": px, "atr": a,
+                          "стоп": px - ex["sl"] * a, "размер": size, "срок": at + pd.Timedelta(hours=ex["H"]),
+                          "сигнал": pd.Timestamp(ins.t[j])})
+    info = {"бумага": inst.upper(), "данные до": until, "цена": float(ins.c[-1])}
     del ins
-    return (pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()), info
+    return (pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()), fresh, info
 
 
 def merge(trades: pd.DataFrame, now: pd.Timestamp) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -113,7 +131,7 @@ def report(j: pd.DataFrame, events: pd.DataFrame, info: pd.DataFrame, fresh: pd.
     f = lambda v, d=2: "—" if pd.isna(v) else f"{v:.{d}f}"  # noqa: E731
     dt = lambda v: "" if pd.isna(v) else f"{pd.Timestamp(v):%d.%m %H:%M}"  # noqa: E731
     price = dict(zip(info["бумага"], info["цена"]))
-    md = ["# Бумажный режим S46 и S48", "", f"Запуск {now:%Y-%m-%d %H:%M} (Москва). Сделки, открытые с {START:%d.%m.%Y}; "
+    md = ["# Сигналы S46 и S48", "", f"Запуск {now:%Y-%m-%d %H:%M} (Москва). Сделки, открытые с {START:%d.%m.%Y}; "
           f"заявок нет. Данные до: {info['данные до'].min():%d.%m %H:%M} — {info['данные до'].max():%d.%m %H:%M}.", ""]
     md += ["## События с прошлого запуска", ""]
     if events.empty:
@@ -152,23 +170,31 @@ def main(argv=None) -> int:
     ns.register()
     if not a.no_fetch:
         fetch()
-    live = yaml.safe_load((ROOT / "configs" / "live.yaml").read_text(encoding="utf-8"))
-    parts, info = [], []
+    parts, info, fresh = [], [], []
     for inst in STOCKS:                          # по одной бумаге — память
-        t, i = strategy_trades(inst, features(inst, live))
+        t, sig, i = strategy_state(inst)
         parts.append(t)
+        fresh += sig
         info.append(i)
         gc.collect()
     allt = pd.concat([p for p in parts if len(p)], ignore_index=True)
-    trades, fresh = allt[allt["open_dt"] >= START], allt[(allt["open_dt"] < START) & ~allt["открыта"]]
+    trades, before = allt[allt["open_dt"] >= START], allt[(allt["open_dt"] < START) & ~allt["открыта"]]
     j, events = merge(trades, now)
     OUT.mkdir(parents=True, exist_ok=True)
     j.to_csv(JOURNAL, index=False)
-    md = report(j, events, pd.DataFrame(info), fresh, now)
-    path = OUT / f"iterator_{now:%Y-%m-%d_%H%M}.md"
-    path.write_text(md, encoding="utf-8")
+    # состояние для счёта: открытые позиции стратегий, сделки, закрытые за последние сутки, свежие сигналы
+    recent = allt[~allt["открыта"] & (allt["close_dt"] >= now - pd.Timedelta(days=1))]
+    cols = ["стратегия", "бумага", "open_dt", "open_price", "стоп", "size", "закрыть не позже", "close_dt", "exit_price", "exit_reason"]
+    state = {"запуск": now, "данные": {i["бумага"]: {"до": i["данные до"], "цена": i["цена"]} for i in info},
+             "позиции": allt[allt["открыта"]][cols].to_dict("records"), "закрыто": recent[cols].to_dict("records"),
+             "сигналы": [s for s in fresh if now - s["вход_в"] <= GRACE or s["вход_в"] > now]}
+    STATE.write_text(json.dumps(state, ensure_ascii=False, default=str, indent=1), encoding="utf-8")
+    md = report(j, events, pd.DataFrame(info), before, now)
+    if len(events) or state["сигналы"] or now.hour == 23:
+        path = OUT / f"iterator_{now:%Y-%m-%d_%H%M}.md"
+        path.write_text(md, encoding="utf-8")
+        print(f"→ {path.relative_to(ROOT)}")
     print(md)
-    print(f"→ {path.relative_to(ROOT)}")
     return 0
 
 

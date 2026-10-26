@@ -51,5 +51,7 @@ docs/experiments/site/data/candles/
 
 # токены брокера — никогда в репозиторий (forexmodel/broker/tinvest.py читает их из ~/.config/forexmodel/ или TINVEST_TOKEN)
 *tinvest_token*
+# бот уведомлений контура (scripts/notify.py)
+configs/telegram.yaml
 .env
 .env.*
