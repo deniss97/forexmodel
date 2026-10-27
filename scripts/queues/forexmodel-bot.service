@@ -1,0 +1,14 @@
+[Unit]
+Description=Бот контура forexmodel в Telegram (@MeLan_ITB_1_bot): команды, кнопки «Исполнить», тревоги — ~/forexmodel/scripts/live_bot.py
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/forexmodel
+ExecStart=%h/forexmodel/.venv/bin/python scripts/live_bot.py
+Restart=always
+RestartSec=20
+Environment=PYTHONUNBUFFERED=1
+# Без MemoryMax, как у других ботов на машине: mem-watchdog первыми убивает службы с ограничением памяти, а бот лёгкий.
+
+[Install]
+WantedBy=default.target

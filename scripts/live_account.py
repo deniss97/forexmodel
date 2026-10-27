@@ -1,5 +1,6 @@
-"""Счёт по сигналам контура (ТЗ инференса 26.10 и условия Дениса): какие сигналы берём на счёт, что держим, когда
-закрываем, и уведомления — сделки на первом этапе делаем руками.
+"""Счёт по сигналам контура (ТЗ инференса Тимура, решения 26.10 и 28.10): какие сигналы берём на счёт, что держим,
+когда закрываем, и уведомления. Сделки — по кнопкам в группе (mode: button): «Исполнить» — бот покупает через API
+(scripts/live_bot.py, live_exec.py), «Купил сам» — сделка руками в приложении; mode: manual — только уведомления.
 
 Каждый час после сигналов (S42 — scripts/live_signals.py → reports/live/s42_state.json; S46, S48 —
 scripts/live_iterator.py → reports/live/iterator_state.json):
@@ -14,8 +15,12 @@ scripts/live_iterator.py → reports/live/iterator_state.json):
      остановленная сверкой с симуляцией (reports/live/strategy_stop.json, scripts/live_deviation.py), — тоже;
   4. данные бумаги не обновлялись больше 2 часов в торговое время — уведомление (раз в день на бумагу);
   5. позиции у брокера (только чтение, если есть токен): взятый сигнал, которого через 30 минут нет на счёте, —
-     уведомление «сделка не открыта»; бумаги на счёте, которых нет у контура, — тоже.
-Состояние — reports/live/account_state.json, история сделок счёта — reports/live/account_trades.csv.
+     уведомление «сделка не открыта»; бумаги на счёте, которых нет у контура, — тоже;
+  6. выходные (weekends: false, созвон 26.10): сигналы торгов выходного дня на счёт не берём — в журнал альтернативных;
+  7. тревоги ТЗ: сигнал не взят из-за лимита (нет слота или денег) и повышенная волатильность — ход последнего часа
+     в volatility_x раз больше обычного (медиана часов за 20 дней), раз в день на бумагу.
+Состояние — reports/live/account_state.json (меняет и бот — под общей блокировкой state_lock), история сделок счёта —
+reports/live/account_trades.csv.
 
     python scripts/live_account.py              # каждый час — scripts/queues/live_hourly.sh
     python scripts/live_account.py --no-broker  # без обращения к брокеру
@@ -23,15 +28,17 @@ scripts/live_iterator.py → reports/live/iterator_state.json):
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import sys
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import _bootstrap  # noqa: F401
+import notify
 import pandas as pd
 import yaml
-
-import notify
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "reports" / "live"
@@ -41,6 +48,8 @@ TRADES = OUT / "account_trades.csv"
 ALT = OUT / "alt_journal.csv"
 STOP_FILE = OUT / "STOP"
 STRATEGY_STOP = OUT / "strategy_stop.json"
+LOCK = OUT / ".account.lock"
+LIVE_FILES = {"SBER": "live/SBER_1m_live.csv", "GAZP": "live/GAZP_1m_live.csv", "LKOH": "live/LKOH_1m_live.csv"}  # остальные — moex/<T>_1m.csv
 REASON = {"stop_loss": "стоп-лосс", "trailing_stop": "трейлинг-стоп", "timeout": "по сроку", "signal": "сигнал выхода стратегии",
           "take_profit": "тейк"}
 STOPS_AT_BROKER = {"stop_loss", "trailing_stop"}   # эти выходы исполняет стоп-заявка у брокера — проверить, сработала ли
@@ -48,6 +57,39 @@ STOPS_AT_BROKER = {"stop_loss", "trailing_stop"}   # эти выходы исп�
 
 def ts(x) -> pd.Timestamp | None:
     return None if x in (None, "", "NaT", "None") or (isinstance(x, float) and pd.isna(x)) else pd.Timestamp(x)
+
+
+@contextmanager
+def state_lock(timeout: float = 180.0):
+    """Общая блокировка состояния счёта: почасовой запуск и бот не пишут его одновременно."""
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOCK, "w") as fh:
+        t0 = time.time()
+        while True:
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() - t0 > timeout:
+                    raise TimeoutError("состояние счёта занято другим процессом") from None
+                time.sleep(0.5)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def pid(p: dict) -> str:
+    """Короткий ключ позиции для кнопок: S42:SBER:2610231701 (стратегия, бумага, вход стратегии)."""
+    return f"{p['стратегия']}:{p['бумага']}:{pd.Timestamp(p['вход_в']):%y%m%d%H%M}"
+
+
+def allowed_stocks(cfg: dict, lots: dict) -> dict[str, list[str]]:
+    """Бумаги стратегий на счёте: all — все из lots_file, список — эти, off / false / пусто — стратегия на счёт не берётся."""
+    out = {}
+    for code, v in (cfg.get("strategies") or {}).items():
+        out[code] = [s.lower() for s in lots] if v == "all" else ([s.lower() for s in v] if isinstance(v, list) else [])
+    return out
 
 
 # ---------------------------------------------------------------- сигналы и позиции стратегий
@@ -101,6 +143,8 @@ def allocate(signals: list[dict], positions: list[dict], cfg: dict, lots: dict, 
         n, reason = 0, None
         if stop_on:
             reason = "стоп-кран"
+        elif not cfg.get("weekends", True) and pd.Timestamp(s["вход_в"]).weekday() >= 5:
+            reason = "выходные: торги выходного дня на счёт не берём"
         elif s["стратегия"] in disabled:
             reason = "стратегия остановлена сверкой с симуляцией"
         elif cfg.get("one_position_per_stock", True) and s["бумага"] in held:
@@ -151,13 +195,23 @@ def f(x, d=2) -> str:
     return "—" if x is None else f"{x:,.{d}f}".replace(",", " ")
 
 
-def msg_open(p: dict) -> str:
+def msg_open(p: dict, cfg: dict | None = None) -> str:
     trail = (f"\nТрейлинг-стоп: включение {f(p['активация'])}, отступ {f(p['отступ'])} — выставить у брокера."
              if p.get("активация") else "")
     cap = "" if p["стоп"] == p["стоп стратегии"] else f" (стоп стратегии {f(p['стоп стратегии'])} дальше −10% — ставим потолок)"
-    return (f"🟢 ОТКРЫТЬ {p['стратегия']} · {p['бумага']}\nКупить {p['штук']} шт. ({p['лоты']} лот.) по рынку ≈ {f(p['цена'])} ₽ "
+    text = (f"🟢 ОТКРЫТЬ {p['стратегия']} · {p['бумага']}\nКупить {p['штук']} шт. ({p['лоты']} лот.) по рынку ≈ {f(p['цена'])} ₽ "
             f"на {f(p['сумма'], 0)} ₽.\nСтоп-лосс: {f(p['стоп'])} ({(p['стоп'] / p['цена'] - 1) * 100:+.1f}%){cap}.{trail}\n"
             f"Вход стратегии {p['вход_в']:%d.%m %H:%M}; закрыть не позже {p['срок']:%d.%m %H:%M}.")
+    if cfg and cfg.get("mode") == "button":
+        lim = p["цена"] * (1 + float(cfg.get("max_slippage_pct", 0.3)) / 100)
+        text += (f"\n\n«Исполнить» — бот купит через API не дороже {f(lim)} ₽ (допуск {cfg.get('max_slippage_pct', 0.3)}%) и сам "
+                 f"поставит стоп{' и трейлинг' if p.get('активация') else ''}. «Купил сам» — если покупаете в приложении.")
+    return text
+
+
+def open_buttons(p: dict) -> list[list[tuple[str, str]]]:
+    k = pid(p)
+    return [[("✅ Исполнить", "x:" + k), ("👌 Купил сам", "m:" + k)], [("⏭ Пропустить", "s:" + k)]]
 
 
 def msg_close(p: dict) -> str:
@@ -169,6 +223,38 @@ def msg_close(p: dict) -> str:
     return (f"🔴 ЗАКРЫТЬ {p['стратегия']} · {p['бумага']} — {why}\n{p['штук']} шт.: {act}.\nВход {f(p['цена'])}{res}.")
 
 
+def close_buttons(p: dict) -> list[list[tuple[str, str]]]:
+    k = pid(p)
+    return [[("🔴 Закрыть через API", "c:" + k), ("👌 Закрыл сам", "cm:" + k)]]
+
+
+def tail_minutes(path: Path, nbytes: int = 3_500_000) -> pd.DataFrame:
+    """Хвост файла минуток (≈ 40 торговых дней) — без чтения всего файла."""
+    with open(path, "rb") as fh:
+        head = fh.readline().decode().strip().split(",")
+        fh.seek(0, 2)
+        fh.seek(max(fh.tell() - nbytes, 0))
+        lines = fh.read().decode(errors="ignore").splitlines()[1:]
+    rows = [x.split(",") for x in lines if x.count(",") == len(head) - 1 and not x.startswith(head[0] + ",")]
+    d = pd.DataFrame(rows, columns=head)
+    for c in ("high", "low", "close"):
+        d[c] = d[c].astype(float)
+    d["begin"] = pd.to_datetime(d["begin"])
+    return d
+
+
+def volatility(d: pd.DataFrame, now: pd.Timestamp, days: int = 20) -> tuple[float, float, pd.Timestamp] | None:
+    """Ход последнего завершённого часа (максимум − минимум к цене, %) и медиана таких часов за days дней до него."""
+    h = d.assign(hour=d["begin"].dt.floor("h")).groupby("hour").agg(high=("high", "max"), low=("low", "min"), close=("close", "last"))
+    h = h[h.index < now.floor("h")]                          # текущий час ещё не закрыт
+    if len(h) < 50:
+        return None
+    rng = (h["high"] - h["low"]) / h["close"] * 100
+    last = rng.index[-1]
+    base = rng[(rng.index < last) & (rng.index >= last - pd.Timedelta(days=days))]
+    return float(rng.iloc[-1]), float(base.median()), last
+
+
 # ---------------------------------------------------------------- брокер (только чтение)
 
 def account_id(api, want: str | None) -> str:
@@ -177,12 +263,12 @@ def account_id(api, want: str | None) -> str:
     return next((a for a in accs if want and str(a).endswith(str(want))), accs[0])
 
 
-def broker_view(lots: dict, want: str | None = None) -> dict | None:
+def broker_view(lots: dict, want: str | None = None, sandbox: bool = False) -> dict | None:
     """Бумаги на счёте (тикер → штук) и рубли; {"ошибка": …} — нет токена или сбой (контур работает и без этого)."""
     try:
         from forexmodel.broker.tinvest import TInvest
 
-        api = TInvest(sandbox=False)
+        api = TInvest(sandbox=sandbox)
         acc = account_id(api, want)
         uids = json.loads((OUT / "uids.json").read_text()) if (OUT / "uids.json").exists() else {}
         for t in lots:
@@ -200,17 +286,157 @@ def broker_view(lots: dict, want: str | None = None) -> dict | None:
 
 def load_state() -> dict:
     if not STATE.exists():
-        return {"позиции": [], "алерты": {}, "стоп_кран": False}
+        return {"позиции": [], "алерты": {}, "стоп_кран": False, "к_закрытию": {}}
     s = json.loads(STATE.read_text(encoding="utf-8"))
     for p in s["позиции"]:
         for k in ("вход_в", "срок", "назначено"):
             p[k] = ts(p.get(k))
+    s.setdefault("алерты", {})
+    s.setdefault("к_закрытию", {})
     return s
 
 
+def save_state(st: dict) -> None:
+    STATE.write_text(json.dumps(st, ensure_ascii=False, default=str, indent=1), encoding="utf-8")
+
+
 def append_csv(path: Path, rows: list[dict]) -> None:
-    if rows:
-        pd.DataFrame(rows).to_csv(path, mode="a", header=not path.exists(), index=False)
+    """Дописать строки по столбцам файла; у строк новые поля (позиции из бота богаче) — файл переписывается целиком."""
+    if not rows:
+        return
+    new = pd.DataFrame(rows)
+    if not path.exists():
+        new.to_csv(path, index=False)
+        return
+    cols = pd.read_csv(path, nrows=0).columns.tolist()
+    if set(new.columns) <= set(cols):
+        new.reindex(columns=cols).to_csv(path, mode="a", header=False, index=False)
+    else:
+        pd.concat([pd.read_csv(path), new], ignore_index=True).to_csv(path, index=False)
+
+
+def volatility_alerts(stocks: set[str], cfg: dict, st: dict, now: pd.Timestamp) -> list[str]:
+    """Ход последнего часа в volatility_x раз больше обычного — раз в день на бумагу (ТЗ: повышенная волатильность)."""
+    out, x = [], float(cfg.get("volatility_x", 2.5))
+    for t in sorted(stocks):
+        path = ROOT / "data" / "raw" / LIVE_FILES.get(t, f"moex/{t}_1m.csv")
+        key = "волатильность " + t
+        if not path.exists() or st["алерты"].get(key) == str(now.date()):
+            continue
+        try:
+            v = volatility(tail_minutes(path), now)
+        except Exception:                      # файл дописывается или битая строка — в следующий час
+            continue
+        if v and v[1] > 0 and v[0] >= x * v[1] and now - v[2] <= pd.Timedelta(hours=2):
+            out.append(f"🌪 Повышенная волатильность {t}: за час {v[2]:%H:%M} ход {v[0]:.2f}% при обычных {v[1]:.2f}% (×{v[0] / v[1]:.1f}).")
+            st["алерты"][key] = str(now.date())
+    return out
+
+
+def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str, list | None]], str]:
+    """Один часовой шаг счёта под блокировкой: (сообщения с кнопками, строка итога)."""
+    lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text()).items()}
+    allowed = allowed_stocks(cfg, lots)
+    button = cfg.get("mode") == "button"
+    s42_state = json.loads((OUT / "s42_state.json").read_text(encoding="utf-8")) if (OUT / "s42_state.json").exists() else {}
+    it_state = json.loads((OUT / "iterator_state.json").read_text(encoding="utf-8")) if (OUT / "iterator_state.json").exists() else {}
+    sig42, pos42 = s42_signals(s42_state, allowed.get("S42", []))
+    sig_it, pos_it = iterator_signals(it_state, allowed)
+    st = load_state()
+    msgs: list[tuple[str, list | None]] = []
+
+    # 1. выходы: не исполненный сигнал просто снимается, открытая позиция — «ЗАКРЫТЬ» с кнопками
+    still, closed = exits(st["позиции"], pos42, pos_it)
+    for p in closed:
+        if p.get("статус") == "к исполнению":
+            msgs.append((f"⏹ Сигнал {p['стратегия']} {p['бумага']} снят: сделка стратегии уже закрылась, а позиция не открывалась — "
+                         f"покупать не нужно.", None))
+            continue
+        msgs.append((msg_close(p), close_buttons(p) if button else None))
+        st["к_закрытию"][pid(p)] = {"стратегия": p["стратегия"], "бумага": p["бумага"], "штук": p["штук"], "цена": p["цена"],
+                                    "исполнение": p.get("исполнение"), "причина": p.get("причина"), "когда": str(now)}
+    st["к_закрытию"] = {k: v for k, v in st["к_закрытию"].items() if now - pd.Timestamp(v["когда"]) < pd.Timedelta(days=3)}
+    append_csv(TRADES, [{**p, "закрыто": now} for p in closed if p.get("статус") != "к исполнению"])
+
+    # 2. стоп-кран и новые сигналы
+    stop_on = bool(cfg.get("stop")) or STOP_FILE.exists()
+    if stop_on != st.get("стоп_кран", False):
+        msgs.append(("⛔ Стоп-кран включён: новые сделки не открываются. Открытые позиции: " + (", ".join(f"{p['стратегия']} {p['бумага']}" for p in still) or "нет")
+                     if stop_on else "✅ Стоп-кран выключен: контур снова берёт сигналы.", None))
+    disabled = set(json.loads(STRATEGY_STOP.read_text())) if STRATEGY_STOP.exists() else set()
+    seen = {(p["стратегия"], p["бумага"], str(p["вход_в"])) for p in st["позиции"]}
+    for path in (ALT, TRADES):               # не взятые и уже закрытые (в том числе через бот) повторно не берём
+        if path.exists():
+            old = pd.read_csv(path)
+            seen |= set(zip(old["стратегия"], old["бумага"], old["вход_в"].astype(str)))
+    fresh = [s for s in sig42 + sig_it if (s["стратегия"], s["бумага"], str(s["вход_в"])) not in seen]
+    take, alt = allocate(fresh, still, cfg, lots, stop_on, disabled)
+    for p in take:
+        p.update({"статус": "к исполнению", "назначено": now})
+        msgs.append((msg_open(p, cfg), open_buttons(p) if button else None))
+    append_csv(ALT, [{**{k: s.get(k) for k in ("стратегия", "бумага", "вход_в", "цена", "стоп", "срок", "причина")}, "запуск": now}
+                     for s in alt])
+    if alt:                                    # ТЗ: о неоткрытии и причине; лимит сделок — отдельной тревогой
+        limit = [s for s in alt if s["причина"].startswith(("нет свободного слота", "не хватает денег"))]
+        other = [s for s in alt if s not in limit]
+        if limit:
+            msgs.append(("⚠️ Лимит сделок исчерпан — сигнал не взят:\n" + "\n".join(
+                f"• {s['стратегия']} {s['бумага']} по {f(s['цена'])}: {s['причина']}" for s in limit), None))
+        if other:
+            msgs.append(("ℹ️ Сигнал не взят на счёт (в журнал альтернативных):\n" + "\n".join(
+                f"• {s['стратегия']} {s['бумага']} по {f(s['цена'])}: {s['причина']}" for s in other), None))
+
+    # 3. позиции у брокера: взятые сигналы исполнены ли (куплено руками — тоже видно)
+    positions = still + take
+    if use_broker and cfg.get("mode") in ("manual", "button") and positions:
+        b = broker_view(lots, cfg.get("account"), sandbox=cfg.get("broker") == "sandbox")
+        if b and "бумаги" in b:
+            for p in positions:
+                have = b["бумаги"].get(p["бумага"], 0)
+                if p.get("статус") == "к исполнению":
+                    if have >= p["штук"]:
+                        p.update({"статус": "открыта", "исполнение": p.get("исполнение") or "вручную"})
+                    elif now - p["назначено"] > pd.Timedelta(minutes=30) and not p.get("напомнили"):
+                        msgs.append((f"⚠️ Сделка не открыта: {p['стратегия']} {p['бумага']} — на счёте {have} шт. из {p['штук']} через 30 минут "
+                                     f"после сигнала. " + ("Нажмите «Исполнить» или «Пропустить»." if button else
+                                                           "Открыть по рынку или отменить: файл reports/live/account_state.json."),
+                                     open_buttons(p) if button else None))
+                        p["напомнили"] = True
+            extra = set(b["бумаги"]) - {p["бумага"] for p in positions}
+            key = "лишние " + ",".join(sorted(extra))
+            if extra and st["алерты"].get(key) != str(now.date()):
+                msgs.append(("⚠️ На счёте бумаги, которых нет у контура: " + ", ".join(f"{t} {b['бумаги'][t]} шт." for t in sorted(extra)), None))
+                st["алерты"][key] = str(now.date())
+
+    # 4. свежесть данных и волатильность в торговое время (будни 07–23 ч по Москве)
+    data = {**{k.upper(): ts(v.get("данные_до")) for k, v in (s42_state.get("решения") or {}).items() if v},
+            **{k: ts(v["до"]) for k, v in (it_state.get("данные") or {}).items()}}
+    if now.weekday() < 5 and 8 <= now.hour <= 23:
+        stale = sorted(t for t, d in data.items() if d is not None and now - d > pd.Timedelta(hours=2)
+                       and st["алерты"].get("данные " + t) != str(now.date()))
+        if stale:
+            msgs.append(("⚠️ Данные не обновлялись больше 2 часов: " + ", ".join(f"{t} (до {data[t]:%d.%m %H:%M})" for t in stale), None))
+            for t in stale:
+                st["алерты"]["данные " + t] = str(now.date())
+        watch = {s.upper() for v in allowed.values() for s in v} | {p["бумага"] for p in positions}
+        msgs += [(m, None) for m in volatility_alerts(watch, cfg, st, now)]
+
+    # 5. сводка раз в день
+    if now.hour == 23 and st.get("сводка") != str(now.date()):
+        used = sum(p["сумма"] for p in positions)
+        lines = [f"📋 Счёт на {now:%d.%m %H:%M}: в позициях {f(used, 0)} ₽ из {f(cfg['capital'], 0)} ₽, позиций {len(positions)} из {cfg['max_positions']}."]
+        lines += [f"• {p['стратегия']} {p['бумага']}: {p['штук']} шт. с {p['вход_в']:%d.%m}, стоп {f(p['стоп'])}, до {p['срок']:%d.%m} — {p.get('статус')}"
+                  for p in positions]
+        if ALT.exists():
+            n = (pd.to_datetime(pd.read_csv(ALT)["запуск"]) >= now.normalize()).sum()
+            lines.append(f"Альтернативных сигналов за день: {n} (reports/live/alt_journal.csv).")
+        msgs.append(("\n".join(lines), None))
+        st["сводка"] = str(now.date())
+
+    st.update({"позиции": positions, "стоп_кран": stop_on, "запуск": now})
+    save_state(st)
+    return msgs, (f"[счёт] позиций {len(positions)}, взято {len(take)}, в альтернативные {len(alt)}, закрыто {len(closed)}, "
+                  f"стоп-кран {'вкл' if stop_on else 'выкл'}")
 
 
 def main(argv=None) -> int:
@@ -219,87 +445,12 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     now = pd.Timestamp.now("Europe/Moscow").tz_localize(None).floor("min")
     cfg = yaml.safe_load(CFG.read_text(encoding="utf-8"))
-    lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text()).items()}
-    allowed = {code: [s.lower() for s in lots] if v == "all" else v for code, v in cfg["strategies"].items()}
-    s42_state = json.loads((OUT / "s42_state.json").read_text(encoding="utf-8")) if (OUT / "s42_state.json").exists() else {}
-    it_state = json.loads((OUT / "iterator_state.json").read_text(encoding="utf-8")) if (OUT / "iterator_state.json").exists() else {}
-    sig42, pos42 = s42_signals(s42_state, allowed.get("S42", []))
-    sig_it, pos_it = iterator_signals(it_state, allowed)
-    st = load_state()
-    msgs = []
-
-    # 1. выходы
-    still, closed = exits(st["позиции"], pos42, pos_it)
-    for p in closed:
-        msgs.append(msg_close(p))
-    append_csv(TRADES, [{**p, "закрыто": now} for p in closed])
-
-    # 2. стоп-кран и новые сигналы
-    stop_on = bool(cfg.get("stop")) or STOP_FILE.exists()
-    if stop_on != st.get("стоп_кран", False):
-        msgs.append("⛔ Стоп-кран включён: новые сделки не открываются. Открытые позиции: " + (", ".join(f"{p['стратегия']} {p['бумага']}" for p in still) or "нет")
-                    if stop_on else "✅ Стоп-кран выключен: контур снова берёт сигналы.")
-    disabled = set(json.loads(STRATEGY_STOP.read_text())) if STRATEGY_STOP.exists() else set()
-    seen = {(p["стратегия"], p["бумага"], str(p["вход_в"])) for p in st["позиции"]}
-    if ALT.exists():
-        alt_old = pd.read_csv(ALT)
-        seen |= set(zip(alt_old["стратегия"], alt_old["бумага"], alt_old["вход_в"].astype(str)))
-    fresh = [s for s in sig42 + sig_it if (s["стратегия"], s["бумага"], str(s["вход_в"])) not in seen]
-    take, alt = allocate(fresh, still, cfg, lots, stop_on, disabled)
-    for p in take:
-        p.update({"статус": "к исполнению", "назначено": now})
-        msgs.append(msg_open(p))
-    append_csv(ALT, [{**{k: s.get(k) for k in ("стратегия", "бумага", "вход_в", "цена", "стоп", "срок", "причина")}, "запуск": now}
-                     for s in alt])
-
-    # 3. позиции у брокера: взятые сигналы исполнены ли
-    positions = still + take
-    if not a.no_broker and cfg.get("mode") == "manual" and positions:
-        b = broker_view(lots, cfg.get("account"))
-        if b and "бумаги" in b:
-            for p in positions:
-                have = b["бумаги"].get(p["бумага"], 0)
-                if p.get("статус") == "к исполнению":
-                    if have >= p["штук"]:
-                        p["статус"] = "открыта"
-                    elif now - p["назначено"] > pd.Timedelta(minutes=30) and not p.get("напомнили"):
-                        msgs.append(f"⚠️ Сделка не открыта: {p['стратегия']} {p['бумага']} — на счёте {have} шт. из {p['штук']} через 30 минут "
-                                    f"после сигнала. Открыть по рынку или отменить: файл reports/live/account_state.json.")
-                        p["напомнили"] = True
-            extra = set(b["бумаги"]) - {p["бумага"] for p in positions}
-            key = "лишние " + ",".join(sorted(extra))
-            if extra and st["алерты"].get(key) != str(now.date()):
-                msgs.append("⚠️ На счёте бумаги, которых нет у контура: " + ", ".join(f"{t} {b['бумаги'][t]} шт." for t in sorted(extra)))
-                st["алерты"][key] = str(now.date())
-
-    # 4. свежесть данных в торговое время (будни 07–23 ч по Москве)
-    data = {**{k.upper(): ts(v.get("данные_до")) for k, v in (s42_state.get("решения") or {}).items() if v},
-            **{k: ts(v["до"]) for k, v in (it_state.get("данные") or {}).items()}}
-    if now.weekday() < 5 and 8 <= now.hour <= 23:
-        stale = sorted(t for t, d in data.items() if d is not None and now - d > pd.Timedelta(hours=2)
-                       and st["алерты"].get("данные " + t) != str(now.date()))
-        if stale:
-            msgs.append("⚠️ Данные не обновлялись больше 2 часов: " + ", ".join(f"{t} (до {data[t]:%d.%m %H:%M})" for t in stale))
-            for t in stale:
-                st["алерты"]["данные " + t] = str(now.date())
-
-    # 5. сводка раз в день
-    if now.hour == 23 and st.get("сводка") != str(now.date()):
-        used = sum(p["сумма"] for p in positions)
-        lines = [f"📋 Счёт на {now:%d.%m %H:%M}: в позициях {f(used, 0)} ₽ из {f(cfg['capital'], 0)} ₽, позиций {len(positions)} из {cfg['max_positions']}."]
-        lines += [f"• {p['стратегия']} {p['бумага']}: {p['штук']} шт. с {p['вход_в']:%d.%m}, стоп {f(p['стоп'])}, до {p['срок']:%d.%m}" for p in positions]
-        if ALT.exists():
-            n = (pd.to_datetime(pd.read_csv(ALT)["запуск"]) >= now.normalize()).sum()
-            lines.append(f"Альтернативных сигналов за день: {n} (reports/live/alt_journal.csv).")
-        msgs.append("\n".join(lines))
-        st["сводка"] = str(now.date())
-
-    st.update({"позиции": positions, "стоп_кран": stop_on, "запуск": now})
-    STATE.write_text(json.dumps(st, ensure_ascii=False, default=str, indent=1), encoding="utf-8")
-    for m in msgs:
-        notify.send(m)
+    with state_lock():
+        msgs, summary = run(cfg, now, not a.no_broker)
+    for m, buttons in msgs:                    # сеть — уже без блокировки
+        notify.send(m, buttons=buttons)
         print(m, "\n", flush=True)
-    print(f"[счёт] позиций {len(positions)}, взято {len(take)}, в альтернативные {len(alt)}, закрыто {len(closed)}, стоп-кран {'вкл' if stop_on else 'выкл'}")
+    print(summary)
     return 0
 
 

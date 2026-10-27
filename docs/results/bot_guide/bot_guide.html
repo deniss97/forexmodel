@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Бот контура forexmodel — инструкция</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Noto+Color+Emoji&display=block" rel="stylesheet">
+<style>
+:root {
+  --ink: #15233b; --ink2: #4a5568; --muted: #6b7280; --line: #e2ddd2; --paper: #f6f4ef;
+  --blue: #2459b3; --blue-soft: #e6edf8; --blue-line: #b9cbe8; --orange: #a9521a; --orange-soft: #fbeee4;
+  --green: #1e7a4f; --green-soft: #e3f2ea; --red: #b3261e; --red-soft: #fbe9e7; --tg: #e9eef3;
+}
+@page { size: A4; margin: 15mm 15mm 17mm 15mm;
+  @bottom-left { content: "Бот контура forexmodel · инструкция · 28.10.2026"; font: 7.5pt "IBM Plex Sans", sans-serif; color: #8a93a0; }
+  @bottom-right { content: counter(page) " / " counter(pages); font: 7.5pt "IBM Plex Sans", sans-serif; color: #8a93a0; } }
+@page :first { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 9.6pt/1.5 "IBM Plex Sans", "DejaVu Sans", sans-serif, "Noto Color Emoji"; color: var(--ink); background: #fff; }
+h1, h2, h3 { font-family: "Manrope", "IBM Plex Sans", sans-serif; letter-spacing: -0.01em; margin: 0; }
+h2 { font-size: 19pt; font-weight: 800; margin: 0 0 3mm; }
+h3 { font-size: 11.5pt; font-weight: 700; margin: 5mm 0 2mm; }
+p { margin: 0 0 2.4mm; }
+.kicker { font: 600 7.6pt "IBM Plex Sans", sans-serif; letter-spacing: 0.16em; text-transform: uppercase; color: var(--orange); margin-bottom: 1.5mm; }
+.lead { font-size: 10.6pt; color: var(--ink2); max-width: 165mm; margin-bottom: 5mm; }
+.page { break-before: page; }
+.mono, code { font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 8.6pt; }
+code { background: var(--paper); border: 1px solid var(--line); border-radius: 3px; padding: 0 3px; }
+.emoji { font-family: "Noto Color Emoji", sans-serif; }
+
+/* обложка */
+.cover { height: 297mm; padding: 22mm 20mm 18mm; background: var(--ink); color: #fff; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.cover::after { content: ""; position: absolute; right: -40mm; top: -40mm; width: 150mm; height: 150mm; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(36,89,179,.55), rgba(36,89,179,0) 70%); }
+.cover .kicker { color: #f0b48a; }
+.cover h1 { font-size: 40pt; font-weight: 800; line-height: 1.05; margin: 6mm 0 5mm; max-width: 150mm; position: relative; z-index: 1; }
+.cover .sub { font-size: 12.5pt; color: #c9d3e3; max-width: 140mm; position: relative; z-index: 1; }
+.cover .meta { margin-top: 9mm; display: flex; gap: 6mm; flex-wrap: wrap; position: relative; z-index: 1; }
+.pill { border: 1px solid rgba(255,255,255,.28); border-radius: 30px; padding: 1.6mm 4.5mm; font-size: 9pt; color: #e8edf5; }
+.cover .cards { margin-top: auto; display: grid; grid-template-columns: 1.15fr 1fr; gap: 6mm; position: relative; z-index: 1; }
+.ccard { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16); border-radius: 4mm; padding: 6mm 6.5mm; }
+.ccard h3 { color: #fff; margin: 0 0 3mm; font-size: 12pt; }
+.ccard dl { margin: 0; display: grid; grid-template-columns: 31mm 1fr; row-gap: 2mm; column-gap: 3mm; font-size: 9.3pt; }
+.ccard dt { color: #9fb0c8; }
+.ccard dd { margin: 0; color: #fff; }
+.ccard ol { margin: 0; padding-left: 5mm; font-size: 9.3pt; color: #e8edf5; }
+.ccard ol li { margin-bottom: 2.4mm; }
+.ccard b { color: #fff; }
+.warn-dot { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: 50%; background: #f07a6a; margin-right: 1.5mm; vertical-align: 0.2mm; }
+
+/* схема сделки */
+.flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin: 4mm 0 5mm; }
+.step { position: relative; background: var(--blue-soft); border: 1px solid var(--blue-line); border-radius: 3mm; padding: 3.5mm 3mm 3mm; margin-right: 5mm; min-height: 33mm; }
+.step:last-child { margin-right: 0; }
+.step:not(:last-child)::after { content: "→"; position: absolute; right: -4.6mm; top: 12mm; color: var(--blue); font-weight: 700; font-size: 12pt; }
+.step .n { font: 800 15pt "Manrope", sans-serif; color: var(--blue); line-height: 1; }
+.step .t { font-weight: 600; margin: 1.5mm 0 1mm; font-size: 9.4pt; }
+.step .d { font-size: 8.2pt; color: var(--ink2); line-height: 1.4; }
+.step.alt { background: var(--paper); border-color: var(--line); }
+.step.alt .n { color: var(--orange); }
+
+/* сообщения Telegram */
+.chat { background: var(--tg); border-radius: 4mm; padding: 4mm; }
+.msg { background: #fff; border-radius: 3mm 3mm 3mm 1mm; padding: 2.6mm 3.4mm; font-size: 8.7pt; line-height: 1.45; white-space: pre-wrap; box-shadow: 0 0.4mm 0.8mm rgba(21,35,59,.12); max-width: 118mm; }
+.msg .from { display: block; font-weight: 600; color: var(--blue); font-size: 8pt; margin-bottom: 0.6mm; white-space: normal; }
+.msg + .msg, .kb + .msg { margin-top: 2.6mm; }
+.kb { display: grid; gap: 1mm; margin-top: 1mm; max-width: 118mm; }
+.kb .row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1mm; }
+.kb span { background: rgba(255,255,255,.75); border-radius: 2mm; text-align: center; padding: 1.4mm 2mm; font-size: 8.3pt; font-weight: 600; color: var(--ink); }
+.pair { display: grid; grid-template-columns: 120mm 1fr; gap: 6mm; align-items: start; margin-bottom: 5mm; break-inside: avoid; }
+.note { font-size: 8.8pt; color: var(--ink2); }
+.note b { color: var(--ink); }
+
+/* таблицы */
+table { width: 100%; border-collapse: collapse; font-size: 8.8pt; margin: 1mm 0 4mm; }
+th { text-align: left; font: 600 7.4pt "IBM Plex Sans", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+  border-bottom: 1.5px solid var(--ink); padding: 0 3mm 1.6mm 0; }
+td { border-bottom: 1px solid var(--line); padding: 1.9mm 3mm 1.9mm 0; vertical-align: top; }
+tr { break-inside: avoid; }
+td:first-child { white-space: nowrap; }
+.tag { display: inline-block; border-radius: 1.4mm; padding: 0.2mm 1.8mm; font-size: 7.6pt; font-weight: 600; }
+.tag.ok { background: var(--green-soft); color: var(--green); }
+.tag.c { background: var(--orange-soft); color: var(--orange); }
+.tag.r { background: var(--red-soft); color: var(--red); }
+
+/* ситуации */
+.cases { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.case { border: 1px solid var(--line); border-radius: 3mm; padding: 3.5mm 4mm; break-inside: avoid; background: #fff; }
+.case h4 { font: 700 9.8pt "Manrope", sans-serif; margin: 0 0 1.5mm; }
+.case p { font-size: 8.7pt; color: var(--ink2); margin: 0; }
+.case p + p { margin-top: 1.4mm; }
+.callout { border-left: 1.2mm solid var(--blue); background: var(--blue-soft); padding: 3mm 4mm; border-radius: 0 2mm 2mm 0; margin: 2mm 0 4mm; font-size: 9pt; }
+.callout.o { border-color: var(--orange); background: var(--orange-soft); }
+
+/* устройство */
+.arch { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; margin: 3mm 0 5mm; }
+.box { border: 1px solid var(--line); border-radius: 3mm; padding: 3.5mm; background: var(--paper); }
+.box h4 { font: 700 9.6pt "Manrope", sans-serif; margin: 0 0 1.5mm; }
+.box ul { margin: 0; padding-left: 4mm; font-size: 8.5pt; color: var(--ink2); }
+.box li { margin-bottom: 0.8mm; }
+.box.b { background: var(--blue-soft); border-color: var(--blue-line); }
+.tight td { padding: 1.25mm 3mm 1.25mm 0; }
+.tight h3 { margin: 3.5mm 0 1.5mm; }
+.tight .lead { margin-bottom: 3mm; }
+.tight .arch { margin: 2mm 0 3mm; }
+</style>
+</head>
+<body>
+
+<!-- 1. обложка -->
+<section class="cover">
+  <div class="kicker">forexmodel · живой контур · Т-Инвестиции</div>
+  <h1>Бот контура в&nbsp;Telegram</h1>
+  <div class="sub">Как торговать по сигналам кнопками, следить за счётом и что делать, если что-то идёт не так. Для группы «forexmodel».</div>
+  <div class="meta">
+    <span class="pill">@MeLan_ITB_1_bot</span>
+    <span class="pill">группа «forexmodel» — Денис и Тимур</span>
+    <span class="pill">версия от 28.10.2026</span>
+  </div>
+  <div class="cards">
+    <div class="ccard">
+      <h3>Как настроено сейчас</h3>
+      <dl>
+        <dt>На счёт</dt><dd>S42 — импульс, на SBER, GAZP, LKOH</dd>
+        <dt>На бумаге</dt><dd>S46 и S48 — считаются, но без денег</dd>
+        <dt>Деньги</dt><dd>15 000 ₽, сделка — 5 000 ₽, до 3 позиций</dd>
+        <dt>Сделки</dt><dd>кнопками: «Исполнить» или «Купил сам»</dd>
+        <dt>Выходные</dt><dd>новые сигналы не берём</dd>
+        <dt>Стоп-кран</dt><dd><span class="warn-dot"></span>включён — снимаем вместе, /resume</dd>
+      </dl>
+    </div>
+    <div class="ccard">
+      <h3>Три главных правила</h3>
+      <ol>
+        <li><b>На каждый сигнал — кнопка.</b> «Исполнить», «Купил сам» или «Пропустить»: иначе контур не знает, есть ли позиция.</li>
+        <li><b>Купили руками — сразу стоп.</b> Бот напишет уровень стопа и трейлинга; через «Исполнить» их ставит сам.</li>
+        <li><b>Тревожно — /stop.</b> Новые сделки не откроются, открытые останутся. Выйти из всего — /closeall.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 2. как проходит сделка -->
+<section class="page">
+  <div class="kicker">Раздел 1</div>
+  <h2>Как проходит сделка</h2>
+  <p class="lead">Контур каждый час в :05 скачивает свежие минутки, считает стратегии и решает, что брать на счёт. Сигналы S42 приходят примерно раз-два в неделю. Всё остальное время бот молчит, если нет тревог.</p>
+  <div class="flow">
+    <div class="step"><div class="n">1</div><div class="t">Сигнал</div><div class="d">в :05 приходит «🟢 ОТКРЫТЬ»: сколько купить, стоп, трейлинг, срок</div></div>
+    <div class="step"><div class="n">2</div><div class="t">Решение</div><div class="d">«Исполнить» — бот купит сам; «Купил сам» — в приложении; «Пропустить»</div></div>
+    <div class="step"><div class="n">3</div><div class="t">Позиция</div><div class="d">стоп-лосс и трейлинг стоят у брокера; бот следит за ценой каждые 5 минут</div></div>
+    <div class="step alt"><div class="n">4</div><div class="t">Тревоги</div><div class="d">близко к стопу, трейлинг включился, волатильность — по одному разу</div></div>
+    <div class="step"><div class="n">5</div><div class="t">Выход</div><div class="d">стоп или трейлинг у брокера — сами; по сроку — «🔴 ЗАКРЫТЬ» с кнопками</div></div>
+  </div>
+
+  <h3>Чего ждать от S42</h3>
+  <table>
+    <tr><th>что</th><th>как обычно</th><th>откуда</th></tr>
+    <tr><td>Сделок</td><td>≈ 66 в год на трёх бумагах — 1–2 в неделю</td><td>история 2021–2026, правило слотов</td></tr>
+    <tr><td>Стоп</td><td>6 ATR от входа — обычно около 3% от цены, у 90% сделок не дальше 5.3%</td><td>разбор 27.10</td></tr>
+    <tr><td>Трейлинг</td><td>включается после +3 ATR и идёт на 6 ATR ниже максимума</td><td>правило S42</td></tr>
+    <tr><td>Срок</td><td>не дольше 10 дней — потом «ЗАКРЫТЬ по сроку»</td><td>правило S42</td></tr>
+    <tr><td>Доход и риск</td><td>≈ 9% в год на счёт 15 тыс.; просадка на истории до −17% счёта; худшая сделка −419 ₽</td><td>разбор 27.10</td></tr>
+  </table>
+  <div class="callout">Сигнал не горит: «Исполнить» можно нажать и через полчаса. Бот купит, только если цена не ушла выше цены сигнала больше чем на 0.3%. Если решения нет, на следующем часовом запуске придёт напоминание, а когда сделка стратегии закроется, сигнал снимется сам.</div>
+
+  <h3>Что происходит по кнопке «Исполнить»</h3>
+  <table>
+    <tr><th>шаг</th><th>что делает бот</th></tr>
+    <tr><td>1. Цена</td><td>сверяет текущую цену с ценой сигнала: выше допуска (+0.3%) — ждёт 20 секунд и пробует снова</td></tr>
+    <tr><td>2. Деньги</td><td>проверяет, что на счёте хватает денег на позицию по предельной цене</td></tr>
+    <tr><td>3. Заявка</td><td>ставит лимитную заявку не дороже предельной цены; за 20 секунд не исполнилась — снимает и повторяет, всего 3 попытки</td></tr>
+    <tr><td>4. Частично</td><td>если купилась часть — остаток снимает и докупает в следующей попытке; не вышло — оставляет сколько купил</td></tr>
+    <tr><td>5. Стопы</td><td>ставит у брокера стоп-лосс на всё купленное и трейлинг-стоп S42</td></tr>
+    <tr><td>6. Отчёт</td><td>пишет в группу цену, сумму и стопы — или «Не исполнено» с причиной и кнопками ещё раз</td></tr>
+  </table>
+</section>
+
+<!-- 3. сообщения и кнопки -->
+<section class="page">
+  <div class="kicker">Раздел 2</div>
+  <h2>Сообщения и кнопки</h2>
+  <p class="lead">Так выглядят сообщения в группе. Цифры — пример: сигнал S42 по SBER при цене 298.36 ₽ и ATR 0.79.</p>
+
+  <div class="pair">
+    <div class="chat">
+      <div class="msg"><span class="from">MeLan_ITB_1_bot</span>🟢 ОТКРЫТЬ S42 · SBER
+Купить 16 шт. (16 лот.) по рынку ≈ 298.36 ₽ на 4 774 ₽.
+Стоп-лосс: 293.62 (−1.6%).
+Трейлинг-стоп: включение 300.73, отступ 4.74 — выставить у брокера.
+Вход стратегии 28.10 12:01; закрыть не позже 07.11 12:01.
+
+«Исполнить» — бот купит через API не дороже 299.26 ₽ (допуск 0.3%) и сам поставит стоп и трейлинг. «Купил сам» — если покупаете в приложении.</div>
+      <div class="kb"><div class="row"><span>✅ Исполнить</span><span>👌 Купил сам</span></div><div class="row"><span>⏭ Пропустить</span></div></div>
+    </div>
+    <div class="note">
+      <p><b>✅ Исполнить</b> — бот покупает через API и сам ставит стоп-лосс и трейлинг у брокера. Удобнее всего.</p>
+      <p><b>👌 Купил сам</b> — если купили в приложении Т-Инвестиций. Бот ответит, какой стоп и трейлинг поставить руками.</p>
+      <p><b>⏭ Пропустить</b> — не берём. Сигнал уйдёт в журнал альтернативных сделок: потом видно, сколько упустили.</p>
+      <p>После нажатия кнопки исчезают — второй раз нажать нельзя.</p>
+    </div>
+  </div>
+
+  <div class="pair">
+    <div class="chat">
+      <div class="msg"><span class="from">MeLan_ITB_1_bot</span>⏳ Покупаю S42 SBER: 16 лот. не дороже 299.26 — Денис</div>
+      <div class="msg"><span class="from">MeLan_ITB_1_bot</span>✅ Куплено через API: S42 SBER — 16 шт. (16 лот.) по 298.41 на 4 775 ₽ (сигнал 298.36).
+попытка 1: лимит 299.26, исполнено 16 из 16 лот.
+у брокера: стоп-лосс 293.62, трейлинг с 300.73, отступ 4.74</div>
+    </div>
+    <div class="note">
+      <p><b>Удачная покупка.</b> В отчёте видно, кто нажал, по какой цене купили и что стоит у брокера.</p>
+      <p>Если вместо этого пришло <b>«❌ Не исполнено»</b> — там причина (цена ушла выше допуска, не хватило денег, заявка не исполнилась) и снова кнопки: можно нажать «Исполнить» ещё раз, купить самим или пропустить.</p>
+      <p>Если стоп-заявка не встала, бот напишет <b>«СТОП-ЗАЯВКИ НЕ ВЫСТАВЛЕНЫ»</b> — поставьте стоп в приложении сразу.</p>
+    </div>
+  </div>
+
+  <div class="pair">
+    <div class="chat">
+      <div class="msg"><span class="from">MeLan_ITB_1_bot</span>🔴 ЗАКРЫТЬ S42 · SBER — по сроку
+16 шт.: продать по рынку.
+Вход 298.36 → 303.10 (+1.59% до издержек).</div>
+      <div class="kb"><div class="row"><span>🔴 Закрыть через API</span><span>👌 Закрыл сам</span></div></div>
+    </div>
+    <div class="note">
+      <p><b>«Закрыть через API»</b> — бот снимет стоп-заявки бумаги и продаст по рынку.</p>
+      <p><b>«Закрыл сам»</b> — если продали в приложении.</p>
+      <p>Если выход — <b>стоп или трейлинг</b>, брокер уже продал сам: в сообщении будет «проверить, что стоп-заявка сработала». Нажатие «Закрыть через API» тогда просто ответит, что бумаги на счёте нет.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4. тревоги -->
+<section class="page">
+  <div class="kicker">Раздел 3</div>
+  <h2>Тревоги и что с ними делать</h2>
+  <p class="lead">Каждая тревога приходит один раз — на позицию или на бумагу в день. Цены открытых позиций бот смотрит каждые 5 минут, остальное — каждый час.</p>
+  <table>
+    <tr><th>сообщение</th><th>когда приходит</th><th>что делать</th></tr>
+    <tr><td>⚠️ Близко к стопу</td><td>до стопа меньше 1% (<code>near_stop_pct</code>)</td><td>ничего, если стоп стоит у брокера; купили руками — проверьте, что стоп в приложении есть</td></tr>
+    <tr><td>🔻 Цена дошла до стопа</td><td>цена ниже или на уровне стопа</td><td>через «Исполнить» — стоп сработает у брокера; купили руками без стопа — <code>/close SBER</code></td></tr>
+    <tr><td>📈 Включился трейлинг</td><td>цена дошла до уровня включения трейлинга S42</td><td>через «Исполнить» — ничего; руками — подтяните стоп на отступ ниже максимума</td></tr>
+    <tr><td>🔔 Позиции у брокера больше нет</td><td>купленное через API исчезло со счёта</td><td>ничего: сработал стоп или трейлинг; контур отметит выход в ближайший час</td></tr>
+    <tr><td>⚠️ Лимит сделок исчерпан</td><td>сигнал не взят: нет свободного слота или денег</td><td>ничего; сигнал в журнале альтернативных. Часто — повод обсудить капитал</td></tr>
+    <tr><td>ℹ️ Сигнал не взят на счёт</td><td>стоп-кран, выходные, бумага уже в позиции, стратегия остановлена сверкой</td><td>ничего: это статистика для сверки</td></tr>
+    <tr><td>⚠️ Сделка не открыта</td><td>на следующем часовом запуске после сигнала нет ни покупки, ни нажатой кнопки</td><td>нажмите «Исполнить», «Купил сам» или «Пропустить»</td></tr>
+    <tr><td>🌪 Повышенная волатильность</td><td>ход последнего часа в 2.5 раза больше обычного (<code>volatility_x</code>)</td><td>посмотрите новости; если что-то серьёзное — <code>/stop</code></td></tr>
+    <tr><td>⚠️ Данные не обновлялись</td><td>минутки бумаги старше 2 часов в торговое время</td><td>скажите Денису: сигналы по бумаге сейчас не считаются</td></tr>
+    <tr><td>Внимание / стоп сверки</td><td>23:00 — живые сделки стратегии сильно хуже бэктеста</td><td>«стоп» сам выключает стратегию на счёте; обсудить вместе</td></tr>
+    <tr><td>📋 Сводка</td><td>каждый день в 23:00</td><td>прочитать: позиции, стопы, сколько сигналов не взяли за день</td></tr>
+  </table>
+  <div class="callout o"><b>Стоп-кран не закрывает позиции.</b> <code>/stop</code> только запрещает новые сделки. Чтобы выйти из всего — <code>/closeall</code>: бот продаст все позиции счёта по рынку и включит стоп-кран.</div>
+</section>
+
+<!-- 5. команды и настройки -->
+<section class="page">
+  <div class="kicker">Раздел 4</div>
+  <h2>Команды и настройки</h2>
+  <p class="lead">Команды пишутся в группе, отвечает бот там же. В личке бот не отвечает. Команды, которые меняют торговлю, бот выполнит только после кнопки «✅ Да». Кнопка действует 10 минут.</p>
+  <table>
+    <tr><th>команда</th><th>что делает</th><th>подтверждение</th></tr>
+    <tr><td><code>/status</code></td><td>счёт: стоп-кран, деньги и слоты, позиции с ценой и расстоянием до стопа, бумажные позиции S42/S46/S48, свежесть данных</td><td>—</td></tr>
+    <tr><td><code>/balance</code></td><td>у брокера по всем счетам: всего, деньги, бумаги с результатом, стоп-заявки</td><td>—</td></tr>
+    <tr><td><code>/stop</code> [причина]</td><td>стоп-кран сразу: новые сделки не открываются</td><td><span class="tag ok">сразу</span></td></tr>
+    <tr><td><code>/resume</code></td><td>снять стоп-кран — сигналы снова идут на счёт со следующего часа</td><td><span class="tag c">да / нет</span></td></tr>
+    <tr><td><code>/close SBER</code></td><td>закрыть позицию через API: снять стопы и продать по рынку</td><td><span class="tag c">да / нет</span></td></tr>
+    <tr><td><code>/closeall</code></td><td>закрыть все позиции через API и включить стоп-кран</td><td><span class="tag r">да / нет</span></td></tr>
+    <tr><td><code>/risk</code></td><td>все настройки риска с текущими значениями</td><td>—</td></tr>
+    <tr><td><code>/set slot 4000</code></td><td>изменить настройку (список ниже)</td><td><span class="tag c">да / нет</span></td></tr>
+    <tr><td><code>/strategy S46 on</code></td><td>взять стратегию на счёт (<code>off</code> — оставить на бумаге)</td><td><span class="tag c">да / нет</span></td></tr>
+    <tr><td><code>/journal</code></td><td>последние сделки счёта, заявки через API и не взятые сигналы</td><td>—</td></tr>
+    <tr><td><code>/help</code></td><td>краткая памятка</td><td>—</td></tr>
+  </table>
+
+  <h3>Настройки риска — <code>/set ключ значение</code></h3>
+  <table>
+    <tr><th>ключ</th><th>сейчас</th><th>что значит</th><th>можно</th></tr>
+    <tr><td><code>capital</code></td><td>15 000</td><td>рублей на счёте стратегий</td><td>1 000 – 15 000 (лимит пробного этапа)</td></tr>
+    <tr><td><code>slot</code></td><td>5 000</td><td>рублей на одну сделку, вниз до целых лотов</td><td>500 – капитал</td></tr>
+    <tr><td><code>max_positions</code></td><td>3</td><td>позиций одновременно</td><td>1 – 10</td></tr>
+    <tr><td><code>max_loss_pct</code></td><td>10</td><td>стоп не дальше этого % от входа</td><td>1 – 20</td></tr>
+    <tr><td><code>max_slippage_pct</code></td><td>0.3</td><td>«Исполнить» покупает не дороже цены сигнала + %</td><td>0 – 2</td></tr>
+    <tr><td><code>order_attempts</code></td><td>3</td><td>попыток выставить заявку</td><td>1 – 5</td></tr>
+    <tr><td><code>near_stop_pct</code></td><td>1.0</td><td>тревога «близко к стопу», % до стопа</td><td>0.2 – 5</td></tr>
+    <tr><td><code>volatility_x</code></td><td>2.5</td><td>тревога о волатильности: ход часа во столько раз больше обычного</td><td>1.5 – 10</td></tr>
+    <tr><td><code>weekends</code></td><td>off</td><td>брать сигналы торгов выходного дня</td><td>on / off</td></tr>
+  </table>
+  <p class="note">Настройки действуют со следующего часового запуска. Лот дороже слота (LKOH ≈ 6.1 тыс. ₽) берётся одним лотом, если свободных денег хватает.</p>
+</section>
+
+<!-- 6. что делать, если -->
+<section class="page">
+  <div class="kicker">Раздел 5</div>
+  <h2>Что делать, если…</h2>
+  <p class="lead">Короткие ответы на ситуации, которые точно случатся в первые недели.</p>
+  <div class="cases">
+    <div class="case"><h4>Пришёл сигнал, а я занят</h4><p>Ничего страшного: сигнал ждёт, на следующем часу бот напомнит. «Исполнить» купит, только если цена не убежала больше чем на 0.3%; иначе ответит «Не исполнено» — тогда лучше «Пропустить».</p></div>
+    <div class="case"><h4>Нажали «Исполнить» оба</h4><p>Сработает первое нажатие: после него кнопки исчезают, а второй ответ будет «уже не ждёт исполнения». Дважды бот не купит.</p></div>
+    <div class="case"><h4>Пришло «Не исполнено»</h4><p>Прочитайте причину. Цена ушла выше допуска — подождите или пропустите. Не хватило денег — проверьте <code>/balance</code>. Ошибка брокера — попробуйте ещё раз или купите в приложении и нажмите «Купил сам».</p></div>
+    <div class="case"><h4>Купил в приложении</h4><p>Нажмите «Купил сам» и сразу поставьте стоп-лосс и трейлинг на уровни из сигнала — бот их напомнит. Без кнопки контур на следующем часу сам увидит бумагу на счёте, но стоп за вас не поставит.</p></div>
+    <div class="case"><h4>Плохие новости, рынок падает</h4><p><code>/stop</code> — новые сделки не откроются. Если нужно выйти из всего — <code>/closeall</code> и «✅ Да»: бот продаст все позиции по рынку и оставит стоп-кран включённым.</p></div>
+    <div class="case"><h4>Хочу закрыть одну позицию</h4><p><code>/close SBER</code> и «✅ Да». Бот снимет стоп-заявки и продаст по рынку. Позиция пропадёт из счёта; стратегия на бумаге продолжит её вести.</p></div>
+    <div class="case"><h4>Бот молчит на команды</h4><p>Проверьте, что пишете в группе «forexmodel», а не в личке. Если и там тишина — скажите Денису: служба бота перезапускается сама, но сервер мог перезагрузиться или пропасть связь.</p></div>
+    <div class="case"><h4>Хочу торговать S46 или S48</h4><p>Сейчас на деньги только S42 (решение 26.10). Включить — <code>/strategy S46 on</code>, но сначала обсудить: на 15 тыс. ₽ набор из трёх стратегий даёт тот же доход при большей просадке (разбор 27.10).</p></div>
+    <div class="case"><h4>Сигнал в субботу</h4><p>Торги выходного дня на счёт не берём (решение 26.10): придёт «ℹ️ Сигнал не взят: выходные». Включить — <code>/set weekends on</code>.</p></div>
+    <div class="case"><h4>Пополнили счёт — когда начнём?</h4><p>Когда решим вместе: <code>/resume</code> и «✅ Да». Сигналы пойдут со следующего часа. Больше 15 тыс. ₽ на пробном этапе не кладём.</p></div>
+  </div>
+</section>
+
+<!-- 7. устройство -->
+<section class="page tight">
+  <div class="kicker">Раздел 6 · для Дениса</div>
+  <h2>Как это устроено</h2>
+  <p class="lead">Три части работают на сервере независимо: почасовой контур считает, бот разговаривает и исполняет, брокер держит стопы. Общее состояние счёта меняется под блокировкой, чтобы бот и контур не писали его одновременно.</p>
+  <div class="arch">
+    <div class="box"><h4>Почасовой контур · cron :05</h4><ul>
+      <li>минутки Т-Инвестиций (запасной источник — ISS биржи)</li>
+      <li>S42 — <code>live_signals.py</code>; S46, S48 — <code>live_iterator.py</code></li>
+      <li>счёт — <code>live_account.py</code>: слоты, «ОТКРЫТЬ», «ЗАКРЫТЬ», тревоги</li>
+      <li>23:00 — сверка с симуляцией и сводка</li></ul></div>
+    <div class="box b"><h4>Бот · служба forexmodel-bot</h4><ul>
+      <li><code>live_bot.py</code> — команды и кнопки группы</li>
+      <li><code>live_exec.py</code> — заявки: лимит, повторы, стопы</li>
+      <li>каждые 5 минут — цены открытых позиций</li>
+      <li>перезапускается сам; журнал — journalctl</li></ul></div>
+    <div class="box"><h4>Брокер · Т-Инвестиции</h4><ul>
+      <li>заявки на покупку и продажу (API)</li>
+      <li>стоп-лосс и трейлинг-стоп у брокера</li>
+      <li>позиции, деньги, портфель — для /status и /balance</li>
+      <li>токен — <code>configs/tinvest_token</code>, права 600</li></ul></div>
+  </div>
+  <h3>Обслуживание</h3>
+  <table>
+    <tr><th>что</th><th>команда или файл</th></tr>
+    <tr><td>состояние службы</td><td><code>systemctl --user status forexmodel-bot</code></td></tr>
+    <tr><td>перезапуск после правок</td><td><code>systemctl --user restart forexmodel-bot</code></td></tr>
+    <tr><td>журнал бота</td><td><code>journalctl --user -u forexmodel-bot -n 100</code></td></tr>
+    <tr><td>все уведомления</td><td><code>reports/live/notifications.log</code></td></tr>
+    <tr><td>состояние счёта</td><td><code>reports/live/account_state.json</code> (меняется под блокировкой)</td></tr>
+    <tr><td>заявки через API</td><td><code>reports/live/orders.csv</code></td></tr>
+    <tr><td>сделки и не взятые сигналы</td><td><code>reports/live/account_trades.csv</code>, <code>alt_journal.csv</code></td></tr>
+    <tr><td>настройки</td><td><code>configs/account.yaml</code>; токен и группа — <code>configs/telegram.yaml</code> (не в git)</td></tr>
+    <tr><td>стоп-кран вручную</td><td>файл <code>reports/live/STOP</code> — есть: включён</td></tr>
+    <tr><td>песочница для проверки</td><td><code>broker: sandbox</code> в настройках — заявки не уходят на биржу</td></tr>
+  </table>
+  <h3>Безопасность</h3>
+  <table>
+    <tr><th>что</th><th>как защищено</th></tr>
+    <tr><td>Чужие люди</td><td>бот слушает только группу «forexmodel»; в личке и других чатах не отвечает</td></tr>
+    <tr><td>Случайное нажатие</td><td>опасные команды — только с «✅ Да», подтверждение живёт 10 минут; кнопки сигнала исчезают после нажатия</td></tr>
+    <tr><td>Цена убежала</td><td>покупка только лимитом не дороже цены сигнала + 0.3%</td></tr>
+    <tr><td>Слишком много денег</td><td>капитал командой не поднять выше 15 000 ₽ — лимит пробного этапа</td></tr>
+    <tr><td>Без стопа</td><td>стоп ставится сразу после покупки; не встал — громкое сообщение в группу</td></tr>
+    <tr><td>Токены</td><td>в файлах с доступом только у владельца, в git не попадают и в сообщения не выводятся</td></tr>
+  </table>
+</section>
+
+</body>
+</html>

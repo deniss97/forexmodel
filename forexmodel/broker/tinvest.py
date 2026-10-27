@@ -194,6 +194,29 @@ class TInvest:
                                   "direction": "ORDER_DIRECTION_BUY" if buy else "ORDER_DIRECTION_SELL",
                                   "orderType": "ORDER_TYPE_MARKET", "orderId": str(uuid.uuid4())})
 
+    def limit(self, account: str, share: Share, lots: int, price, buy: bool) -> dict:
+        """Лимитная заявка: покупка не дороже price (цена — вниз до шага), продажа — не дешевле. Ответ брокера:
+        orderId, executionReportStatus, lotsExecuted, executedOrderPrice (средняя цена одной бумаги), executedCommission."""
+        svc, m = ("SandboxService", "PostSandboxOrder") if self.sandbox else ("OrdersService", "PostOrder")
+        return self.call(svc, m, {"instrumentId": share.uid, "quantity": str(int(lots)), "accountId": account,
+                                  "price": d2q(share.round_price(price, down=buy)),
+                                  "direction": "ORDER_DIRECTION_BUY" if buy else "ORDER_DIRECTION_SELL",
+                                  "orderType": "ORDER_TYPE_LIMIT", "orderId": str(uuid.uuid4())})
+
+    def order_state(self, account: str, order_id: str) -> dict:
+        svc, m = ("SandboxService", "GetSandboxOrderState") if self.sandbox else ("OrdersService", "GetOrderState")
+        return self.call(svc, m, {"accountId": account, "orderId": order_id})
+
+    def cancel_order(self, account: str, order_id: str) -> None:
+        svc, m = ("SandboxService", "CancelSandboxOrder") if self.sandbox else ("OrdersService", "CancelOrder")
+        self.call(svc, m, {"accountId": account, "orderId": order_id})
+
+    def portfolio(self, account: str) -> dict:
+        """Портфель счёта: totalAmountPortfolio, totalAmountCurrencies, expectedYield, positions[] (instrumentUid, quantity,
+        averagePositionPrice, currentPrice, expectedYield) — для статуса в боте."""
+        svc, m = ("SandboxService", "GetSandboxPortfolio") if self.sandbox else ("OperationsService", "GetPortfolio")
+        return self.call(svc, m, {"accountId": account, "currency": "RUB"})
+
     def _stop(self, account: str, body: dict) -> str:
         svc, m = ("SandboxService", "PostSandboxStopOrder") if self.sandbox else ("StopOrdersService", "PostStopOrder")
         body = {"accountId": account, "expirationType": "STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL",
