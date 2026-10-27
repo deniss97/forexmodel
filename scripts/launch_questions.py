@@ -1,5 +1,6 @@
 """Разбор вопросов созвона 26.10 к отчёту № 4: почему портфель S42 + S46 + S48 даёт меньше одного S42, правило счёта
-15 тыс. ₽ на истории, худшие сделки S42 (стопы и плечо) и сделки через крупные дивидендные отсечки.
+15 тыс. ₽ на истории, худшие сделки S42 (стопы и плечо), сделки через крупные дивидендные отсечки и позиция по стопу
+(предложение 27.10: акций столько, чтобы потеря на стопе была 10% капитала) против слота 5 тыс.
 
 Сделки — те же, что в H67 (scripts/launch_portfolio.py): S42 на SBER, GAZP, LKOH, S46 и S48 на 19 акциях, открытые до
 мая 2026. Правило счёта — функция allocate из scripts/live_account.py, тот же код, что в контуре: слот 5 тыс. ₽ вниз до
@@ -134,6 +135,66 @@ def worst_trades(parts: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
     return pd.DataFrame(rows), worst
 
 
+def risk_run(t: pd.DataFrame, risk_rub: float, max_lev: float, cfg: dict, lots: dict) -> dict:
+    """Позиция по риску (предложение 27.10): акций столько, чтобы потеря на стопе была risk_rub; все позиции вместе —
+    не больше max_lev капиталов (плечо брокера); меньше лота — сделка пропускается."""
+    cap = cfg["capital"]
+    held, rows, skipped = [], [], 0
+    for r in t.itertuples():
+        while held and held[0][0] <= r.open_dt:
+            heapq.heappop(held)
+        room = max_lev * cap - sum(a for _, _, a in held)
+        want = min(risk_rub / r.d, room)
+        cost = lots.get(r.instrument.upper(), 1) * r.raw_open
+        amount = np.floor(max(want, 0) / cost) * cost
+        if amount <= 0:
+            skipped += 1
+            continue
+        heapq.heappush(held, (r.close_dt, len(rows), amount))
+        rows.append({"close_dt": r.close_dt, "amount": amount, "pnl": amount * r.unit / 100, "capped": risk_rub / r.d > room,
+                     "exposure": (sum(a for _, _, a in held)) / cap})
+    x = pd.DataFrame(rows).sort_values("close_dt")
+    eq = x["pnl"].cumsum().to_numpy()
+    under = eq - np.maximum.accumulate(np.maximum(eq, 0))
+    streak = run = 0
+    for p in x["pnl"]:
+        run = run + 1 if p < 0 else 0
+        streak = max(streak, run)
+    return {"взято": len(x), "пропущено": skipped, "итог ₽": x["pnl"].sum(), "итог %": x["pnl"].sum() / cap * 100,
+            "без лучшей сделки ₽": x["pnl"].sum() - x["pnl"].max(), "лучшая сделка ₽": x["pnl"].max(),
+            "просадка %": under.min() / cap * 100, "дно просадки": x["close_dt"].iloc[int(under.argmin())].date(),
+            "худшая сделка ₽": x["pnl"].min(), "позиция, медиана ₽": x["amount"].median(), "позиция, макс ₽": x["amount"].max(),
+            "упёрлись в лимит, %": x["capped"].mean() * 100, "все позиции, макс × капитала": x["exposure"].max(),
+            "убытков подряд, макс": streak}
+
+
+def risk_table(parts: dict) -> pd.DataFrame:
+    """S42 на счёте 15 тыс. ₽: слот 5 тыс. (сейчас) против позиции по риску 10% / 5% / 2% капитала при плече 1, 2, 4."""
+    cfg = yaml.safe_load((ROOT / "configs" / "account.yaml").read_text(encoding="utf-8"))
+    lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text(encoding="utf-8")).items()}
+    t = parts["S42"][0].copy()
+    t["raw_open"] = raw_prices(t)["open_price"].to_numpy()
+    t["unit"] = t["profit_pct"] / (t["size"].fillna(1.0) if "size" in t else 1.0)
+    t["d"] = 6 * t["atr_at_entry"] / t["open_price"]         # стоп 6 ATR от входа, доля цены
+    rows = []
+    for per, (a, b) in PERIODS.items():
+        x = t[(t["open_dt"] >= a) & (t["open_dt"] < b)].sort_values("open_dt")
+        took, _ = account_run(parts, ["S42"], per, cfg, lots)
+        eq = took.sort_values("close_dt")["pnl"].cumsum().to_numpy()
+        rows.append({"правило": "слот 5 тыс. (сейчас)", "период": per, "взято": len(took), "итог ₽": took["pnl"].sum(),
+                     "итог %": took["pnl"].sum() / cfg["capital"] * 100,
+                     "без лучшей сделки ₽": took["pnl"].sum() - took["pnl"].max(), "лучшая сделка ₽": took["pnl"].max(),
+                     "просадка %": (eq - np.maximum.accumulate(np.maximum(eq, 0))).min() / cfg["capital"] * 100,
+                     "худшая сделка ₽": took["pnl"].min(), "позиция, медиана ₽": took["сумма"].median()})
+        for risk in (0.10, 0.05, 0.02):
+            for lev in (1, 2, 4):
+                r = risk_run(x, risk * cfg["capital"], lev, cfg, lots)
+                rows.append({"правило": f"риск {risk:.0%} капитала, плечо до {lev}", "период": per, **r})
+    out = pd.DataFrame(rows)
+    out["в год %"] = out["итог %"] / out["период"].map(years)
+    return out
+
+
 def dividend_crossings(parts: dict) -> pd.DataFrame:
     """Сделки через дивидендную отсечку: на графике журнала (сырые цены) и в итоге (цены с поправкой) — разный знак."""
     _, exps = load_catalog()
@@ -207,6 +268,8 @@ def main() -> int:
     acc, runs = account_table(parts)
     worst, worst8 = worst_trades(parts)
     div = dividend_crossings(parts)
+    risk = risk_table(parts)
+    risk.to_csv(OUT / "risk_sizing.csv", index=False)
     res.to_csv(OUT / "strategies.csv", index=False)
     acc.to_csv(OUT / "account.csv", index=False)
     worst.to_csv(OUT / "s42_losses.csv", index=False)
@@ -215,7 +278,7 @@ def main() -> int:
     plot_equity(curves, k)
     plot_account(runs)
     pd.set_option("display.width", 250, "display.max_columns", 40, "display.precision", 2)
-    for title, df in (("стратегии", res), ("счёт", acc), ("S42 убытки", worst), ("S42 худшие", worst8)):
+    for title, df in (("стратегии", res), ("счёт", acc), ("S42 убытки", worst), ("S42 худшие", worst8), ("позиция по риску", risk)):
         print(f"\n== {title}\n{df.to_string(index=False)}")
     print(f"\n== отсечки: сделок через отсечку {len(div)}; по экспериментам\n{div.groupby('эксперимент').size().to_string()}")
     flip = div[(div["на графике %"] < 0) & (div["в итоге %"] > 0)].sort_values("дивиденд %", ascending=False)
