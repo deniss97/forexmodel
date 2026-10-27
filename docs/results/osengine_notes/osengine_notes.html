@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Гайд OsEngine — что взять нам</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&family=Noto+Color+Emoji&display=block" rel="stylesheet">
+<style>
+:root {
+  --ink: #15233b; --ink2: #4a5568; --muted: #6b7280; --line: #e2ddd2; --paper: #f6f4ef;
+  --blue: #2459b3; --blue-soft: #e6edf8; --blue-line: #b9cbe8; --orange: #a9521a; --orange-soft: #fbeee4;
+  --green: #1e7a4f; --green-soft: #e3f2ea; --red: #b3261e; --red-soft: #fbe9e7; --tg: #e9eef3;
+}
+@page { size: A4; margin: 15mm 15mm 17mm 15mm;
+  @bottom-left { content: "Гайд OsEngine: что пригодится нам · 28.10.2026"; font: 7.5pt "IBM Plex Sans", sans-serif; color: #8a93a0; }
+  @bottom-right { content: counter(page) " / " counter(pages); font: 7.5pt "IBM Plex Sans", sans-serif; color: #8a93a0; } }
+@page :first { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 9.6pt/1.5 "IBM Plex Sans", "DejaVu Sans", sans-serif, "Noto Color Emoji"; color: var(--ink); background: #fff; }
+h1, h2, h3 { font-family: "Manrope", "IBM Plex Sans", sans-serif; letter-spacing: -0.01em; margin: 0; }
+h2 { font-size: 19pt; font-weight: 800; margin: 0 0 3mm; }
+h3 { font-size: 11.5pt; font-weight: 700; margin: 5mm 0 2mm; }
+p { margin: 0 0 2.4mm; }
+.kicker { font: 600 7.6pt "IBM Plex Sans", sans-serif; letter-spacing: 0.16em; text-transform: uppercase; color: var(--orange); margin-bottom: 1.5mm; }
+.lead { font-size: 10.6pt; color: var(--ink2); max-width: 165mm; margin-bottom: 5mm; }
+.page { break-before: page; }
+.mono, code { font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace; font-size: 8.6pt; }
+code { background: var(--paper); border: 1px solid var(--line); border-radius: 3px; padding: 0 3px; }
+.emoji { font-family: "Noto Color Emoji", sans-serif; }
+
+/* обложка */
+.cover { height: 297mm; padding: 22mm 20mm 18mm; background: var(--ink); color: #fff; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.cover::after { content: ""; position: absolute; right: -40mm; top: -40mm; width: 150mm; height: 150mm; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(36,89,179,.55), rgba(36,89,179,0) 70%); }
+.cover .kicker { color: #f0b48a; }
+.cover h1 { font-size: 40pt; font-weight: 800; line-height: 1.05; margin: 6mm 0 5mm; max-width: 150mm; position: relative; z-index: 1; }
+.cover .sub { font-size: 12.5pt; color: #c9d3e3; max-width: 140mm; position: relative; z-index: 1; }
+.cover .meta { margin-top: 9mm; display: flex; gap: 6mm; flex-wrap: wrap; position: relative; z-index: 1; }
+.pill { border: 1px solid rgba(255,255,255,.28); border-radius: 30px; padding: 1.6mm 4.5mm; font-size: 9pt; color: #e8edf5; }
+.cover .cards { margin-top: auto; display: grid; grid-template-columns: 1.15fr 1fr; gap: 6mm; position: relative; z-index: 1; }
+.ccard { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16); border-radius: 4mm; padding: 6mm 6.5mm; }
+.ccard h3 { color: #fff; margin: 0 0 3mm; font-size: 12pt; }
+.ccard dl { margin: 0; display: grid; grid-template-columns: 31mm 1fr; row-gap: 2mm; column-gap: 3mm; font-size: 9.3pt; }
+.ccard dt { color: #9fb0c8; }
+.ccard dd { margin: 0; color: #fff; }
+.ccard ol { margin: 0; padding-left: 5mm; font-size: 9.3pt; color: #e8edf5; }
+.ccard ol li { margin-bottom: 2.4mm; }
+.ccard b { color: #fff; }
+.warn-dot { display: inline-block; width: 2.2mm; height: 2.2mm; border-radius: 50%; background: #f07a6a; margin-right: 1.5mm; vertical-align: 0.2mm; }
+
+/* схема сделки */
+.flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin: 4mm 0 5mm; }
+.step { position: relative; background: var(--blue-soft); border: 1px solid var(--blue-line); border-radius: 3mm; padding: 3.5mm 3mm 3mm; margin-right: 5mm; min-height: 33mm; }
+.step:last-child { margin-right: 0; }
+.step:not(:last-child)::after { content: "→"; position: absolute; right: -4.6mm; top: 12mm; color: var(--blue); font-weight: 700; font-size: 12pt; }
+.step .n { font: 800 15pt "Manrope", sans-serif; color: var(--blue); line-height: 1; }
+.step .t { font-weight: 600; margin: 1.5mm 0 1mm; font-size: 9.4pt; }
+.step .d { font-size: 8.2pt; color: var(--ink2); line-height: 1.4; }
+.step.alt { background: var(--paper); border-color: var(--line); }
+.step.alt .n { color: var(--orange); }
+
+/* сообщения Telegram */
+.chat { background: var(--tg); border-radius: 4mm; padding: 4mm; }
+.msg { background: #fff; border-radius: 3mm 3mm 3mm 1mm; padding: 2.6mm 3.4mm; font-size: 8.7pt; line-height: 1.45; white-space: pre-wrap; box-shadow: 0 0.4mm 0.8mm rgba(21,35,59,.12); max-width: 118mm; }
+.msg .from { display: block; font-weight: 600; color: var(--blue); font-size: 8pt; margin-bottom: 0.6mm; white-space: normal; }
+.msg + .msg, .kb + .msg { margin-top: 2.6mm; }
+.kb { display: grid; gap: 1mm; margin-top: 1mm; max-width: 118mm; }
+.kb .row { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1mm; }
+.kb span { background: rgba(255,255,255,.75); border-radius: 2mm; text-align: center; padding: 1.4mm 2mm; font-size: 8.3pt; font-weight: 600; color: var(--ink); }
+.pair { display: grid; grid-template-columns: 120mm 1fr; gap: 6mm; align-items: start; margin-bottom: 5mm; break-inside: avoid; }
+.note { font-size: 8.8pt; color: var(--ink2); }
+.note b { color: var(--ink); }
+
+/* таблицы */
+table { width: 100%; border-collapse: collapse; font-size: 8.8pt; margin: 1mm 0 4mm; }
+th { text-align: left; font: 600 7.4pt "IBM Plex Sans", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+  border-bottom: 1.5px solid var(--ink); padding: 0 3mm 1.6mm 0; }
+td { border-bottom: 1px solid var(--line); padding: 1.9mm 3mm 1.9mm 0; vertical-align: top; }
+tr { break-inside: avoid; }
+td:first-child { white-space: nowrap; }
+.tag { display: inline-block; border-radius: 1.4mm; padding: 0.2mm 1.8mm; font-size: 7.6pt; font-weight: 600; }
+.tag.ok { background: var(--green-soft); color: var(--green); }
+.tag.c { background: var(--orange-soft); color: var(--orange); }
+.tag.r { background: var(--red-soft); color: var(--red); }
+
+/* ситуации */
+.cases { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.case { border: 1px solid var(--line); border-radius: 3mm; padding: 3.5mm 4mm; break-inside: avoid; background: #fff; }
+.case h4 { font: 700 9.8pt "Manrope", sans-serif; margin: 0 0 1.5mm; }
+.case p { font-size: 8.7pt; color: var(--ink2); margin: 0; }
+.case p + p { margin-top: 1.4mm; }
+.callout { border-left: 1.2mm solid var(--blue); background: var(--blue-soft); padding: 3mm 4mm; border-radius: 0 2mm 2mm 0; margin: 2mm 0 4mm; font-size: 9pt; }
+.callout.o { border-color: var(--orange); background: var(--orange-soft); }
+
+/* устройство */
+.arch { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; margin: 3mm 0 5mm; }
+.box { border: 1px solid var(--line); border-radius: 3mm; padding: 3.5mm; background: var(--paper); }
+.box h4 { font: 700 9.6pt "Manrope", sans-serif; margin: 0 0 1.5mm; }
+.box ul { margin: 0; padding-left: 4mm; font-size: 8.5pt; color: var(--ink2); }
+.box li { margin-bottom: 0.8mm; }
+.box.b { background: var(--blue-soft); border-color: var(--blue-line); }
+.tight td { padding: 1.25mm 3mm 1.25mm 0; }
+.tight h3 { margin: 3.5mm 0 1.5mm; }
+.tight .lead { margin-bottom: 3mm; }
+.tight .arch { margin: 2mm 0 3mm; }
+</style>
+<style>
+.a { color: var(--blue); text-decoration: none; }
+.src { font-size: 8.2pt; color: var(--muted); }
+.st { display: inline-block; border-radius: 1.4mm; padding: 0.1mm 1.6mm; font-size: 7.4pt; font-weight: 600; white-space: nowrap; }
+.st.ok { background: var(--green-soft); color: var(--green); }
+.st.todo { background: var(--orange-soft); color: var(--orange); }
+.st.risk { background: var(--red-soft); color: var(--red); }
+.st.later { background: var(--paper); color: var(--ink2); border: 1px solid var(--line); }
+.top { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
+.top .case h4 { display: flex; gap: 2mm; align-items: baseline; }
+.top .case .n { font: 800 13pt "Manrope", sans-serif; color: var(--orange); }
+td.w { width: 34%; }
+.links td:first-child { white-space: normal; width: 44%; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="kicker">forexmodel · конспект источника</div>
+  <h1>Алготрейдинг через Т&#8209;Инвестиции: что взять из гайда OsEngine</h1>
+  <div class="sub">Систематизация оглавления «Гайд по алгоритмической торговле от OsEngine» (smart-lab.ru) под нашу связку: акции Мосбиржи, API Т-Инвестиций, свой бот, импульс S42.</div>
+  <div class="meta">
+    <span class="pill">источник: smart-lab.ru/company/os_engine/blog/1024149.php</span>
+    <span class="pill">для Дениса и Тимура</span>
+    <span class="pill">28.10.2026</span>
+  </div>
+  <div class="cards">
+    <div class="ccard">
+      <h3>Что это за источник</h3>
+      <dl>
+        <dt>Что</dt><dd>оглавление ~150 статей и видеолекций OsEngine (C#, открытая платформа для роботов)</dd>
+        <dt>Автор</dt><dd>Алексей Ван, блог OsEngine; обновляется с 2024 года</dd>
+        <dt>Полезно нам</dt><dd>Т-Инвестиции, исполнение и стопы, риск, налоги, тестирование, данные</dd>
+        <dt>Не про нас</dt><dd>интерфейсы OsEngine, C#, криптобиржи, HFT, сетки, опционы</dd>
+        <dt>Оговорка</dt><dd>многие статьи — анонсы видео; ниже — то, что есть в тексте, плюс наши цифры</dd>
+      </dl>
+    </div>
+    <div class="ccard">
+      <h3>Главное для нас</h3>
+      <ol>
+        <li><b>Тариф решает всё.</b> Базовый «Инвестор» — 0.3% за сделку: импульс S42 на нём в минусе. У нашего счёта «Премиум» — сверить комиссию по первой сделке.</li>
+        <li><b>Дивидендная отсечка бьёт по стопу у брокера.</b> Бэктест на скорректированных ценах этого не видит.</li>
+        <li><b>Плечо и налоги</b> в наших расчётах пока не учтены — сначала посчитать, потом решать.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="kicker">Раздел 1</div>
+  <h2>Восемь пунктов, которые стоит сделать</h2>
+  <p class="lead">Отобрано из источника и сверено с нашим контуром. Статус: <span class="st ok">есть</span> — уже работает, <span class="st todo">сделать</span> — предлагаю добавить, <span class="st risk">риск</span> — проверить до первых сделок, <span class="st later">потом</span> — после пробного этапа.</p>
+  <div class="top">
+    <div class="case"><h4><span class="n">1</span>Тариф и комиссия <span class="st risk">риск</span></h4>
+      <p>Источник: базовый тариф «Инвестор» — 0.3% за сделку, 0.6% на круг; у трендовых скринеров средняя сделка ≈ 0.9%. По умолчанию тариф не годится для активной торговли.</p>
+      <p><b>У нас:</b> средняя сделка S42 на проверке +0.41% до налога — на 0.3% за сделку она ушла бы в минус. У счёта …2903 тариф <b>«Премиум»</b> (проверено через API). В бэктесте заложено 0.05% комиссии на сторону. Сверить с фактической комиссией первой сделки и проверить, нет ли абонплаты за «Премиум» — на 15 тыс. ₽ она съела бы доход.</p></div>
+    <div class="case"><h4><span class="n">2</span>Дивидендная отсечка и стоп <span class="st todo">сделать</span></h4>
+      <p>Источник: после отсечки цена падает примерно на дивиденд; чтобы попасть в реестр, купить нужно не позже чем за один рабочий день до отсечки (T+1).</p>
+      <p><b>У нас:</b> S42 считает цены с поправкой на дивиденды, а стоп у брокера стоит на реальной цене. На разрыве в день отсечки стоп сработает, хотя бэктест держал бы. Таких сделок у S42 — 10 за 10 лет (дивиденд 2–11%), в бэктесте они дали +33% из +328% суммы всех сделок. <b>Предложение:</b> в бот — ближайшие отсечки из API Т-Инвестиций (GetDividends) и тревога за 2 дня по открытой позиции: опустить стоп на величину дивиденда или закрыть.</p></div>
+    <div class="case"><h4><span class="n">3</span>Стопы — на стороне брокера <span class="st ok">есть</span></h4>
+      <p>Источник: серверный стоп Т-Инвестиций работает при выключенном роботе. Сработавший стоп приходит со статусом «Cancel», исполнение — дочерней заявкой. Цену серверного стопа изменить нельзя — только снять и выставить заново.</p>
+      <p><b>У нас:</b> «Исполнить» ставит стоп-лосс и трейлинг у брокера; закрытие бот видит по исчезновению позиции. Стоп у нас по рынку: при разрыве цены исполнится хуже уровня — это заложено в бэктест («стоп по гэпу»).</p></div>
+    <div class="case"><h4><span class="n">4</span>Сверка позиций с брокером <span class="st todo">сделать</span></h4>
+      <p>Источник: расхождения робота и портфеля возникают из-за ручных сделок в приложении, сбоев обновления и сервера. Лечится сверкой и ручной правкой позиции робота.</p>
+      <p><b>У нас:</b> раз в час контур видит бумаги, которых нет у него, и несостоявшиеся покупки. <b>Добавить:</b> сверку <i>количества</i> по открытым позициям — частично проданное в приложении сейчас не заметим.</p></div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="kicker">Раздел 1 · продолжение</div>
+  <h2>Ещё четыре пункта</h2>
+  <p class="lead">Деньги вокруг стратегии: плечо, налоги, свободный кэш и момент старта.</p>
+  <div class="top">
+    <div class="case"><h4><span class="n">5</span>Плата за плечо <span class="st risk">риск</span></h4>
+      <p>Источник: у Т-Инвестиций плата за маржинальную торговлю списывается каждую ночь, если позиции больше депозита; в тестах её надо вычитать (в OsEngine есть отдельный «робот-плательщик»).</p>
+      <p><b>У нас:</b> в расчётах плеча (разбор 28.10, раздел 7) плата не учтена. До решения о плече — взять ставку Т-Инвестиций и пересчитать.</p></div>
+    <div class="case"><h4><span class="n">6</span>Налоги <span class="st todo">сделать</span></h4>
+      <p>Источник: в тестах налог с годовой прибыли списывается в начале следующего года; убыточный год налога не даёт.</p>
+      <p><b>У нас:</b> все итоги — до налога. НДФЛ с прибыли 13% (15% с дохода свыше 2.4 млн ₽ в год), с дивидендов 13%; брокер удерживает сам — по итогам года или при выводе денег. Добавить строку «после налога» в отчёты.</p></div>
+    <div class="case"><h4><span class="n">7</span>Свободные деньги — в фонд денежного рынка <span class="st later">потом</span></h4>
+      <p>Источник: робот на ночь переводит свободный кэш в TMON (фонд ликвидности УК «Т-Капитал», без комиссии, доходность близка к ставке ЦБ).</p>
+      <p><b>У нас:</b> деньги счёта больше половины времени не в бумагах. Идея после пробного этапа: уточнить расчёты фонда (успеет ли продаться к сигналу) и посчитать прибавку к доходу.</p></div>
+    <div class="case"><h4><span class="n">8</span>Не запускать на эйфории <span class="st ok">есть</span></h4>
+      <p>Источник: запуск роботов и пополнение счёта на пике кривой доходности (FOMO) чаще ведёт к разочарованию; лучше заранее знать, где «безопасные» зоны старта.</p>
+      <p><b>У нас:</b> последние 4 месяца S42 были удачнее 78% таких периодов — нормально, если следующие будут хуже. Пороги «внимание −8% / стоп −12%» заданы заранее (разбор 28.10).</p></div>
+  </div>
+</section>
+
+<section class="page tight">
+  <div class="kicker">Раздел 2</div>
+  <h2>Т-Инвестиции, исполнение, риск</h2>
+  <p class="lead">Что говорит источник и где это у нас. Ссылки — на статьи оглавления.</p>
+  <h3>Брокер и API</h3>
+  <table>
+    <tr><th>тема</th><th>источник</th><th>у нас</th></tr>
+    <tr><td>Подключение и токен</td><td class="w">токен создаётся в кабинете; первую сделку проверить вручную; SMS-подтверждение сделок для алготрейдинга отключить</td><td>токен с правом торговли, в файле с доступом только у владельца; путь «купить → стопы → закрыть» проверен в песочнице. <span class="st risk">проверить</span>, что заявкам по API не нужно подтверждение</td></tr>
+    <tr><td>Лимиты API</td><td class="w">не раскрыты в статьях</td><td>по нашему токену — от 15 до 200 запросов в минуту на метод; контур делает десятки в час — запас большой <span class="st ok">есть</span></td></tr>
+    <tr><td>Бумажная торговля</td><td class="w">эмулятор: торговля без денег на реальных данных</td><td>бумажный режим S42, S46, S48 и журнал альтернативных сделок <span class="st ok">есть</span></td></tr>
+    <tr><td>Удалённый сервер</td><td class="w">роботы — на удалённом сервере, а не на домашнем ПК</td><td>сервер работает круглосуточно, бот — служба с автоперезапуском <span class="st ok">есть</span></td></tr>
+    <tr><td>Уведомления</td><td class="w">рассылка от робота в Telegram или VK</td><td>группа «forexmodel», кнопки и команды <span class="st ok">есть</span></td></tr>
+  </table>
+  <h3>Исполнение</h3>
+  <table>
+    <tr><th>тема</th><th>источник</th><th>у нас</th></tr>
+    <tr><td>Проскальзывание</td><td class="w">параметр Slippage помогает надёжнее входить лимитными заявками</td><td>лимит не дороже цены сигнала + 0.3%, 3 попытки <span class="st ok">есть</span></td></tr>
+    <tr><td>Стоп-лимит или стоп-маркет</td><td class="w">для стоп-лимита цену заявки ставить с запасом, иначе может не исполниться</td><td>стоп по рынку — исполнится всегда, но при разрыве хуже уровня <span class="st ok">есть</span></td></tr>
+    <tr><td>Сдвиг стопа</td><td class="w">серверный стоп не меняется — снять и выставить заново</td><td>трейлинг двигает брокер; ручной сдвиг (отсечка, пункт 2) — снять и поставить <span class="st todo">сделать</span></td></tr>
+    <tr><td>Выход лимитками</td><td class="w">последовательный и одновременный выход заранее выставленными лимитками</td><td>не нужен для S42: выход стопом, трейлингом или по сроку <span class="st later">потом</span></td></tr>
+  </table>
+  <h3>Риск</h3>
+  <table>
+    <tr><th>тема</th><th>источник</th><th>у нас</th></tr>
+    <tr><td>Риск-менеджер</td><td class="w">лимит просадки к депозиту «внутри дня»; при превышении — закрыть всё и выключить, оповестить или ничего</td><td>стоп-кран и <code>/closeall</code>; пороги просадки −8% / −12% предложены — добавить уведомлением <span class="st todo">сделать</span></td></tr>
+    <tr><td>Распределение капитала</td><td class="w">не делить поровну между похожими роботами: сгруппировать по корреляции доходностей и делить между группами; иерархический риск-паритет (веса обратно волатильности)</td><td>пока одна стратегия на деньгах; к портфелю S42 + S46 + S48 вернуться так <span class="st later">потом</span></td></tr>
+    <tr><td>Депозит и терпение</td><td class="w">отдельная лекция для инвесторов (видео)</td><td>пробный этап — до 15 тыс. ₽ <span class="st ok">есть</span></td></tr>
+  </table>
+</section>
+
+<section class="page tight">
+  <div class="kicker">Раздел 3</div>
+  <h2>Тестирование, устойчивость, данные</h2>
+  <p class="lead">Здесь источник в основном подтверждает то, что мы уже делаем. Есть пара идей на будущее.</p>
+  <table>
+    <tr><th>тема</th><th>источник</th><th>у нас</th></tr>
+    <tr><td>Погрешности тестирования</td><td class="w">свеча — 4 цены: стоп и профит в одной свече дают ошибку; маркет-заявки — по закрытию или открытию; векторный тест рискует «заглянуть в будущее», событийный — нет. Погрешность неизбежна</td><td>S42 — минутный симулятор со стопом по гэпу; у движка перебора есть сделки нулевой длины (T45) — тот самый случай «стоп и вход в одной свече» <span class="st todo">T45</span></td></tr>
+    <tr><td>Walk-forward и робастность</td><td class="w">лучший робот на InSample должен оставаться в лидерах на OutOfSample; числовая оценка WFRM 0–100%</td><td>выбор 2016–2020 → проверка 2021–2026, сравнение со случайными входами <span class="st ok">есть</span></td></tr>
+    <tr><td>Кросс-тесты</td><td class="w">проверка на других бумагах против переоптимизации</td><td>H66: 16 новых акций вне выборки <span class="st ok">есть</span></td></tr>
+    <tr><td>Портфельные тесты</td><td class="w">роботы проверяются вместе, а не по одному</td><td>H67 и правило счёта на истории <span class="st ok">есть</span></td></tr>
+    <tr><td>Метрики журнала</td><td class="w">Profit Factor, Sharpe, Recovery Factor (итог к просадке)</td><td>PF, без 2 лучших, итог к просадке, t месяцев <span class="st ok">есть</span></td></tr>
+    <tr><td>Налоги и плата за плечо в тестах</td><td class="w">отдельные «роботы» списывают налог раз в год и плату за плечо каждую ночь</td><td>не учтены <span class="st todo">сделать</span> (пункты 5–6)</td></tr>
+    <tr><td>Дивиденды в тестах</td><td class="w">робот, державший бумагу в ночь перед отсечкой, получает дивиденд; деньги приходят позже (в их модели — через неделю)</td><td>цены с поправкой на дивиденды (дивиденд — в результате); задержка денег и налог 13% не учтены <span class="st todo">сделать</span></td></tr>
+  </table>
+  <h3>Данные</h3>
+  <table>
+    <tr><th>источник данных</th><th>что говорит гайд</th><th>у нас</th></tr>
+    <tr><td>Т-Инвестиции</td><td class="w">онлайн-данные через тот же API</td><td>минутки каждый час, без задержки <span class="st ok">есть</span></td></tr>
+    <tr><td>MOEX ISS</td><td class="w">бесплатные данные биржи</td><td>запасной источник минуток, свечи фьючерсов, FUTOI <span class="st ok">есть</span></td></tr>
+    <tr><td>ALGOPACK</td><td class="w">сервис и API Мосбиржи: онлайн и история бесплатно (нужна регистрация и ключи), стаканы — по подписке</td><td>в нашем банке источников отмечен «только по подписке» — <span class="st todo">уточнить</span>; пригодится как второй онлайн-источник по ТЗ</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <div class="kicker">Раздел 4</div>
+  <h2>Идеи и план</h2>
+  <p class="lead">Что из гайда стоит записать в банк гипотез и в каком порядке делать пункты раздела 1.</p>
+  <h3>Идеи стратегий из гайда — в банк гипотез</h3>
+  <table>
+    <tr><th>идея</th><th>суть</th><th>связь с нами</th></tr>
+    <tr><td>Ротация по волатильности</td><td class="w">торговать бумаги в «правильной» стадии волатильности (ATR, индикатор стадий)</td><td>у S46 уже есть фильтр ATR14 / ATR100 > 1; стадии — как фильтр к S42</td></tr>
+    <tr><td>Дивидендные стратегии</td><td class="w">захват дивиденда с фильтром тренда; тренд в дивидендно сильных бумагах; порог «сильных» — от 2%</td><td>отдельная стратегия на наших 19 акциях; история отсечек у нас уже есть (data/dividends)</td></tr>
+    <tr><td>Ребалансинг</td><td class="w">классический, по качеству дивидендов, по моментуму; золото, фонды</td><td>не алго-сигналы, а распределение денег — к вопросу «куда свободные деньги»</td></tr>
+    <tr><td>Индекс как фильтр</td><td class="w">вход по бумаге с фильтром по индексу (IMOEX)</td><td>фильтр к S42: не входить против падающего индекса</td></tr>
+  </table>
+  <h3>Что из этого делать и когда</h3>
+  <table>
+    <tr><th>когда</th><th>что</th></tr>
+    <tr><td>до первой сделки</td><td>проверить: комиссия «Премиума» и нет ли абонплаты; заявкам по API не нужно SMS-подтверждение</td></tr>
+    <tr><td>на пробном этапе</td><td>тревога о дивидендной отсечке по открытой позиции (пункт 2); сверка количества бумаг с брокером (пункт 4); уведомления о просадке −8% / −12%</td></tr>
+    <tr><td>до решения о плече</td><td>плата за плечо в расчётах (пункт 5)</td></tr>
+    <tr><td>в отчётах</td><td>итог после налога и задержка дивидендов (пункт 6)</td></tr>
+    <tr><td>после пробного этапа</td><td>фонд денежного рынка для свободных денег (пункт 7); ALGOPACK; идеи стратегий — в банк гипотез</td></tr>
+  </table>
+</section>
+
+<section class="page tight">
+  <div class="kicker">Раздел 5</div>
+  <h2>Что открыть в первую очередь</h2>
+  <p class="lead">Короткий список из оглавления — только то, что касается нас. Большинство материалов — видеолекции.</p>
+  <table class="links">
+    <tr><th>материал</th><th>зачем нам</th></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1289066.php">О тарифах в Т-Инвестиции. Что выбрать алготрейдеру?</a></td><td>тариф и комиссия — пункт 1; видео с расчётом, с какого депозита нужен премиальный тариф</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1321328.php">Нюансы OsEngine и алготрейдинга в Т-Банке</a></td><td>курс из шести лекций: подключение, рассинхрон позиций, тарифы, эмулятор, момент запуска</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1288038.php">Решение популярных проблем при подключении к API Т-Инвестиций</a></td><td>чек-лист перед первой реальной сделкой</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1288564.php">Синхронизация позиций робота и портфеля брокера</a></td><td>пункт 4 — откуда берутся расхождения</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1040830.php">Механика Stop и Profit приказов для открытых позиций</a></td><td>как серверные стопы Т-Инвестиций ведут себя при срабатывании и перезапуске</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1241857.php">Тестер. Плата брокеру за маржинальную торговлю</a></td><td>пункт 5 — как учитывать плату за плечо</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1240644.php">Тестер. Робот для уплаты налогов</a> и <a class="a" href="https://smart-lab.ru/company/os_engine/blog/1286289.php">Лекция 10: TMON, налоги и маржа</a></td><td>пункты 6–7</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1331542.php">Дивиденды в алготрейдинге №1</a> и серия №2–4</td><td>пункт 2 и дивидендные стратегии</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1285761.php">Автоинвестирование в TMON на ночь</a></td><td>пункт 7 — свободные деньги</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1291103.php">Когда запускать роботов и пополнять депо?</a></td><td>пункт 8 — момент старта</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1028838.php">Risk Manager</a></td><td>лимит просадки «внутри дня» — к нашим порогам</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1366102.php">Аллокация капитала между роботами</a></td><td>к портфелю S42 + S46 + S48: группы по корреляции, риск-паритет</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1026240.php">Погрешности тестирования</a></td><td>свечи против минуток, «заглядывание в будущее»</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1028198.php">Численный показатель робастности (WFRM)</a></td><td>ещё одна оценка устойчивости для отбора стратегий</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1015742.php">ALGOPACK</a> и <a class="a" href="https://smart-lab.ru/company/os_engine/blog/1094407.php">MOEX ISS</a></td><td>второй онлайн-источник данных по ТЗ</td></tr>
+    <tr><td><a class="a" href="https://smart-lab.ru/company/os_engine/blog/1150744.php">Ротация по волатильности</a> (серия из пяти)</td><td>идея фильтра для S42</td></tr>
+  </table>
+  <p class="src">Источник — оглавление «Гайд по алгоритмической торговле от OsEngine», smart-lab.ru/company/os_engine/blog/1024149.php, и статьи по ссылкам из него (прочитаны 28.10.2026). Цифры «у нас» — из docs/results/launch_questions.md и проверок контура.</p>
+</section>
+
+</body>
+</html>
