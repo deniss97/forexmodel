@@ -18,7 +18,10 @@ scripts/live_iterator.py → reports/live/iterator_state.json):
      уведомление «сделка не открыта»; бумаги на счёте, которых нет у контура, — тоже;
   6. выходные (weekends: false, созвон 26.10): сигналы торгов выходного дня на счёт не берём — в журнал альтернативных;
   7. тревоги ТЗ: сигнал не взят из-за лимита (нет слота или денег) и повышенная волатильность — ход последнего часа
-     в volatility_x раз больше обычного (медиана часов за 20 дней), раз в день на бумагу.
+     в volatility_x раз больше обычного (медиана часов за 20 дней), раз в день на бумагу;
+  8. пробный этап (28.10): количество бумаг у брокера против позиции счёта (бумаг нет — позиция закрывается в счёте);
+     отсечка дивидендов по позиции за dividend_days дней (стоп у брокера сработает на разрыве, бэктест держал бы);
+     просадка результата счёта от пика — «внимание» dd_warn_pct и «стоп» dd_stop_pct % депозита; мало места на диске.
 Состояние — reports/live/account_state.json (меняет и бот — под общей блокировкой state_lock), история сделок счёта —
 reports/live/account_trades.csv.
 
@@ -30,6 +33,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import shutil
 import sys
 import time
 from contextlib import contextmanager
@@ -49,6 +53,8 @@ ALT = OUT / "alt_journal.csv"
 STOP_FILE = OUT / "STOP"
 STRATEGY_STOP = OUT / "strategy_stop.json"
 LOCK = OUT / ".account.lock"
+DISK_WARN_GB = 3.0                  # меньше — тревога раз в день (почасовая дописка минуток встанет при 1 ГБ, moex_data)
+LEVELS = {"внимание": 1, "стоп": 2}  # пороги просадки счёта, по возрастанию
 LIVE_FILES = {"SBER": "live/SBER_1m_live.csv", "GAZP": "live/GAZP_1m_live.csv", "LKOH": "live/LKOH_1m_live.csv"}  # остальные — moex/<T>_1m.csv
 REASON = {"stop_loss": "стоп-лосс", "trailing_stop": "трейлинг-стоп", "timeout": "по сроку", "signal": "сигнал выхода стратегии",
           "take_profit": "тейк"}
@@ -228,6 +234,63 @@ def close_buttons(p: dict) -> list[list[tuple[str, str]]]:
     return [[("🔴 Закрыть через API", "c:" + k), ("👌 Закрыл сам", "cm:" + k)]]
 
 
+def num(q) -> float:
+    """MoneyValue / Quotation брокера → число."""
+    return int(q.get("units", 0) or 0) + int(q.get("nano", 0) or 0) / 1e9 if q else 0.0
+
+
+def dividend_alert(p: dict, d: dict, now: pd.Timestamp, days: int = 3) -> str | None:
+    """Отсечка по позиции счёта: последний день покупки в ближайшие days дней → тревога. В бэктесте цены с поправкой на
+    дивиденды и разрыва нет, а стоп у брокера стоит на реальной цене и на разрыве в день отсечки сработает."""
+    last_buy = pd.Timestamp(d["lastBuyDate"]).tz_convert(None) if pd.Timestamp(d["lastBuyDate"]).tzinfo else pd.Timestamp(d["lastBuyDate"])
+    if not (now.normalize() <= last_buy <= now.normalize() + pd.Timedelta(days=days)):
+        return None
+    amount, price = num(d.get("dividendNet")), float(p.get("цена_входа") or p["цена"])
+    stop = max(float(p["стоп"]), float(p.get("стоп стратегии") or 0))
+    gap, room = amount / price * 100, (1 - stop / price) * 100
+    head = (f"📅 Отсечка {p['бумага']} ({p['стратегия']}): последний день покупки {last_buy:%d.%m}, дивиденд {amount:g} ₽ ≈ "
+            f"{gap:.1f}% цены. На следующий день цена откроется примерно на дивиденд ниже.")
+    if gap < room:
+        return head + f" Стоп {stop:g} ({room:.1f}% от входа) дальше разрыва — можно держать, дивиденд придёт."
+    return (head + f" Стоп {stop:g} всего в {room:.1f}% от входа — на разрыве он сработает, хотя бэктест держал бы позицию. "
+            f"Решите до {last_buy:%d.%m}: опустить стоп на {amount:g} ₽ (в приложении: снять и поставить заново) — "
+            f"как в бэктесте, дивиденд придёт; или закрыть до отсечки — /close {p['бумага']}.")
+
+
+def account_pnl(trades: pd.DataFrame | None, positions: list[dict], prices: dict) -> float:
+    """Результат счёта в рублях: закрытые сделки счёта (вход → выход) и открытые позиции по последней цене. Пополнения и
+    выводы денег не влияют — в отличие от стоимости портфеля у брокера."""
+    total = 0.0
+    if trades is not None and len(trades) and "цена выхода" in trades:
+        t = trades[trades["цена выхода"].notna()]
+        entry = t["цена_входа"].fillna(t["цена"]) if "цена_входа" in t else t["цена"]
+        total += float(((t["цена выхода"].astype(float) - entry.astype(float)) * t["штук"].astype(float)).sum())
+    for p in positions:
+        if p.get("статус") == "открыта" and p["бумага"] in prices:
+            total += (prices[p["бумага"]] - float(p.get("цена_входа") or p["цена"])) * float(p["штук"])
+    return total
+
+
+def drawdown_alert(pnl: float, st: dict, cfg: dict) -> str | None:
+    """Просадка от пика результата в % депозита: «внимание» и «стоп» (разбор 28.10, раздел 7) — по одному разу, пока
+    результат не обновит пик. Решение остановиться — за людьми: бот только сообщает."""
+    peak = max(float(st.get("пик_результата", 0.0)), pnl)
+    st["пик_результата"] = peak
+    if pnl >= peak:
+        st["просадка_уровень"] = None
+        return None
+    dd = (peak - pnl) / cfg["capital"] * 100
+    hit = next((lv for lv, key in (("стоп", "dd_stop_pct"), ("внимание", "dd_warn_pct")) if dd >= float(cfg.get(key, 12 if lv == "стоп" else 8))), None)
+    if not hit or LEVELS[hit] <= LEVELS.get(st.get("просадка_уровень") or "", 0):
+        return None
+    st["просадка_уровень"] = hit
+    head = f"Просадка счёта −{dd:.1f}% депозита: результат {pnl:+,.0f} ₽ при пике {peak:+,.0f} ₽.".replace(",", " ")
+    if hit == "внимание":
+        return f"🟠 {head} Порог «внимание» (−{cfg.get('dd_warn_pct', 8)}%): проверить исполнение и данные — /status, /journal. Торгуем дальше."
+    return (f"🔴 {head} Порог «стоп» (−{cfg.get('dd_stop_pct', 12)}%). По договорённости: /stop и разбор за 1–2 дня — исполнение и данные, "
+            f"сверка с бэктестом в 23:00, рынок. Если всё исправно — /resume (разбор 28.10, раздел 7).")
+
+
 def tail_minutes(path: Path, nbytes: int = 3_500_000) -> pd.DataFrame:
     """Хвост файла минуток (≈ 40 торговых дней) — без чтения всего файла."""
     with open(path, "rb") as fh:
@@ -342,6 +405,8 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
     it_state = json.loads((OUT / "iterator_state.json").read_text(encoding="utf-8")) if (OUT / "iterator_state.json").exists() else {}
     sig42, pos42 = s42_signals(s42_state, allowed.get("S42", []))
     sig_it, pos_it = iterator_signals(it_state, allowed)
+    prices = {**{k.upper(): float(v["цена"]) for k, v in (s42_state.get("решения") or {}).items() if v and v.get("цена") is not None},
+              **{k: float(v["цена"]) for k, v in (it_state.get("данные") or {}).items() if v.get("цена") is not None}}
     st = load_state()
     msgs: list[tuple[str, list | None]] = []
 
@@ -402,11 +467,55 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
                                                            "Открыть по рынку или отменить: файл reports/live/account_state.json."),
                                      open_buttons(p) if button else None))
                         p["напомнили"] = True
+                elif p.get("статус") == "открыта" and have != p["штук"]:
+                    k = f"количество {pid(p)} {have}"
+                    if have == 0:              # стоп у брокера или продали в приложении: позиции нет — закрываем в счёте
+                        p["статус"] = "нет у брокера"
+                        msgs.append((f"🔔 {p['стратегия']} {p['бумага']}: у брокера бумаг больше нет — сработал стоп или продано вручную. "
+                                     f"Позиция закрыта в счёте контура.", None))
+                    elif st["алерты"].get(k) != str(now.date()):
+                        msgs.append((f"⚠️ {p['стратегия']} {p['бумага']}: у брокера {have} шт., у контура {p['штук']} — "
+                                     + ("часть продана вручную? Остаток закрыть — /close, или докупить в приложении." if have < p["штук"]
+                                        else "докуплено вручную? Лишнее контур не ведёт: стопы стоят только на его часть."), None))
+                        st["алерты"][k] = str(now.date())
+            gone = [p for p in positions if p.get("статус") == "нет у брокера"]
+            append_csv(TRADES, [{**p, "выход": now, "причина": "нет у брокера (стоп или продано вручную)", "цена выхода": prices.get(p["бумага"]),
+                                 "закрыто": now} for p in gone])          # цена выхода — последняя цена данных, приближённо
+            positions = [p for p in positions if p.get("статус") != "нет у брокера"]
             extra = set(b["бумаги"]) - {p["бумага"] for p in positions}
             key = "лишние " + ",".join(sorted(extra))
             if extra and st["алерты"].get(key) != str(now.date()):
                 msgs.append(("⚠️ На счёте бумаги, которых нет у контура: " + ", ".join(f"{t} {b['бумаги'][t]} шт." for t in sorted(extra)), None))
                 st["алерты"][key] = str(now.date())
+
+    # 3а. отсечки дивидендов по позициям счёта — из API Т-Инвестиций, раз в день на позицию
+    todo = [p for p in positions if st["алерты"].get("дивиденды " + pid(p)) != str(now.date())]
+    if use_broker and todo and now.hour >= 8:
+        try:
+            from forexmodel.broker.tinvest import TInvest
+
+            api, days = TInvest(sandbox=cfg.get("broker") == "sandbox"), int(cfg.get("dividend_days", 3))
+            for p in todo:
+                for d in api.dividends(api.share(p["бумага"]).uid, now - pd.Timedelta(days=1), now + pd.Timedelta(days=days + 7)):
+                    m = dividend_alert(p, d, now, days)
+                    if m:
+                        msgs.append((m, None))
+                st["алерты"]["дивиденды " + pid(p)] = str(now.date())
+        except Exception as e:                 # нет токена или сеть — проверим в следующий час
+            print(f"[счёт] дивиденды не проверены: {str(e)[:150]}")
+
+    # 3б. просадка счёта по его сделкам: «внимание» и «стоп» (решение остановиться — за людьми)
+    st["результат"] = account_pnl(pd.read_csv(TRADES) if TRADES.exists() else None, positions, prices)
+    m = drawdown_alert(st["результат"], st, cfg)
+    if m:
+        msgs.append((m, None))
+
+    # 3в. место на диске: при 1 ГБ контур перестанет дописывать минутки (28.10 его съели соседние проекты)
+    free = shutil.disk_usage(ROOT).free / 1024 ** 3
+    if free < DISK_WARN_GB and st["алерты"].get("диск") != str(now.date()):
+        msgs.append((f"💾 На диске сервера свободно {free:.1f} ГБ. При меньше 1 ГБ контур перестанет дописывать минутки и считать сигналы. "
+                     f"Место занимают и соседние проекты на сервере.", None))
+        st["алерты"]["диск"] = str(now.date())
 
     # 4. свежесть данных и волатильность в торговое время (будни 07–23 ч по Москве)
     data = {**{k.upper(): ts(v.get("данные_до")) for k, v in (s42_state.get("решения") or {}).items() if v},

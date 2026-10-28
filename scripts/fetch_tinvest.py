@@ -19,7 +19,7 @@ import pandas as pd
 
 from forexmodel.broker.tinvest import MSK, TInvest, to_moex_minutes
 from fetch_moex_iss import COLS, LIVE, RAW, ROOT, SOURCES
-from moex_data import check_disk, last_begin
+from moex_data import MIN_FREE_APPEND_GB, check_disk, last_begin
 
 
 def update(api: TInvest, ticker: str, out=None) -> None:
@@ -38,7 +38,7 @@ def update(api: TInvest, ticker: str, out=None) -> None:
     new = to_moex_minutes(c, share.lot) if len(c) else pd.DataFrame(columns=COLS)   # ночью и в закрытую биржу свечей нет
     new = new[pd.to_datetime(new["begin"]) > last]
     if len(new):
-        check_disk(out.parent)
+        check_disk(out.parent, MIN_FREE_APPEND_GB)             # дописка — сотни килобайт, порог ниже, чем у выгрузки истории
         new[COLS].to_csv(out, mode="a", header=False, index=False)
     end = new["begin"].iloc[-1] if len(new) else last
     print(f"[{ticker}] +{len(new)} минут из Т-Инвестиций, данные до {end} → {out.relative_to(ROOT)}", flush=True)

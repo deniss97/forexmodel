@@ -27,8 +27,9 @@ flock -n 9 || exit 0                                  # предыдущий з�
     .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
   fi
   .venv/bin/python scripts/live_signals.py --only sber gazp lkoh
-  .venv/bin/python -W ignore scripts/live_iterator.py || .venv/bin/python scripts/notify.py "⚠️ Контур: сигналы S46/S48 не посчитаны — см. reports/live/logs"
-  .venv/bin/python -W ignore scripts/live_account.py || .venv/bin/python scripts/notify.py "⚠️ Контур: счёт не обновлён — см. reports/live/logs"
+  # при сбое — причина из последней строки лога (её только что дописал упавший шаг)
+  .venv/bin/python -W ignore scripts/live_iterator.py || .venv/bin/python scripts/notify.py "⚠️ Контур: сигналы S46/S48 не посчитаны — $(tail -n 1 $LOG/$(date +%Y-%m-%d).log | cut -c1-300)"
+  .venv/bin/python -W ignore scripts/live_account.py || .venv/bin/python scripts/notify.py "⚠️ Контур: счёт не обновлён — $(tail -n 1 $LOG/$(date +%Y-%m-%d).log | cut -c1-300)"
   # раз в день после вечерней сессии (часы сервера +05, торги — по Москве)
   if [ "$(TZ=Europe/Moscow date +%H)" = "23" ]; then
     .venv/bin/python scripts/live_health.py

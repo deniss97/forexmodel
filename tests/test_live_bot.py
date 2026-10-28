@@ -101,3 +101,41 @@ def test_append_csv_aligns_columns(tmp_path):
     la.append_csv(p, [{"a": 5, "c": 6}])                              # новое поле — файл переписан
     d = pd.read_csv(p)
     assert d["a"].tolist() == [1, 4, 5] and d["b"].tolist()[:2] == [2, 3] and np.isnan(d["b"].iloc[2]) and d["c"].iloc[2] == 6
+
+
+NOW = pd.Timestamp("2026-07-15 12:05")
+
+
+def div(amount: float, last_buy: str) -> dict:
+    return {"dividendNet": {"units": int(amount), "nano": round((amount - int(amount)) * 1e9)}, "lastBuyDate": last_buy + "T00:00:00Z"}
+
+
+def test_dividend_alert_warns_when_gap_beats_stop():
+    p = {"стратегия": "S42", "бумага": "SBER", "цена": 300.0, "стоп": 294.0, "стоп стратегии": 290.0}
+    m = la.dividend_alert(p, div(34.84, "2026-07-17"), NOW, days=3)
+    assert "сработает" in m and "34.84" in m and "/close SBER" in m
+    assert la.dividend_alert(p, div(34.84, "2026-07-20"), NOW, days=3) is None          # дальше трёх дней
+    assert "можно держать" in la.dividend_alert(p, div(3.0, "2026-07-16"), NOW, days=3)  # 1% при стопе в 2%
+
+
+def test_account_pnl_counts_closed_and_open():
+    trades = pd.DataFrame([{"цена": 100.0, "цена выхода": 110.0, "штук": 10},
+                           {"цена": 199.0, "цена_входа": 200.0, "цена выхода": 190.0, "штук": 5},
+                           {"цена": 50.0, "цена выхода": None, "штук": 3}])          # без цены выхода — не считается
+    open_ = [{"бумага": "GAZP", "статус": "открыта", "цена": 50.0, "штук": 10}, {"бумага": "LKOH", "статус": "к исполнению", "цена": 1.0, "штук": 1}]
+    assert la.account_pnl(trades, open_, {"GAZP": 55.0, "LKOH": 9.0}) == pytest.approx(100 - 50 + 50)
+
+
+def test_drawdown_alert_levels_once_until_new_peak():
+    st, cfg = {}, {"capital": 15000, "dd_warn_pct": 8, "dd_stop_pct": 12}
+    seen = [la.drawdown_alert(x, st, cfg) for x in (0, 600, -700, -800, -1300, -1500, 700, -700)]
+    kinds = [None if m is None else ("стоп" if m.startswith("🔴") else "внимание") for m in seen]
+    assert kinds == [None, None, "внимание", None, "стоп", None, None, "внимание"]
+
+
+def test_append_threshold_is_separate(tmp_path):
+    import moex_data
+    moex_data.check_disk(tmp_path, 0)                                   # дописка: порог задан явно
+    with pytest.raises(OSError, match="запись данных остановлена"):
+        moex_data.check_disk(tmp_path, 1e9)
+    assert moex_data.MIN_FREE_APPEND_GB < moex_data.MIN_FREE_GB

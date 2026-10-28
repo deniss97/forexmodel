@@ -47,14 +47,22 @@ PATHS = {"shares": "engines/stock/markets/shares/boards/{board}/securities/{seci
          "futures": "engines/futures/markets/forts/securities/{secid}",
          "index": "engines/stock/markets/index/securities/{secid}"}
 OUT = Path(__file__).resolve().parents[1] / "data" / "raw" / "moex"
-# на сервере свободно ~20 ГБ (24.10): выгрузка останавливается, если на диске осталось меньше этого; докачка — с того же места
+# на сервере свободно ~20 ГБ (24.10): выгрузка истории (гигабайты) останавливается, если на диске осталось меньше этого;
+# докачка — с того же места. Почасовая дописка живого контура — сотни килобайт: у неё свой порог (28.10: диск съели
+# соседние проекты, контур с порогом 10 ГБ встал на полдня)
 MIN_FREE_GB = float(os.environ.get("FOREXMODEL_MIN_FREE_GB", "10"))
+MIN_FREE_APPEND_GB = float(os.environ.get("FOREXMODEL_MIN_FREE_APPEND_GB", "1"))
 
 
-def check_disk(path: Path) -> None:
-    free = shutil.disk_usage(path if path.exists() else path.parent).free / 1024 ** 3
-    if free < MIN_FREE_GB:
-        raise OSError(f"на диске свободно {free:.1f} ГБ — меньше {MIN_FREE_GB:g} ГБ (FOREXMODEL_MIN_FREE_GB): выгрузка остановлена")
+def free_gb(path: Path) -> float:
+    return shutil.disk_usage(path if path.exists() else path.parent).free / 1024 ** 3
+
+
+def check_disk(path: Path, min_gb: float | None = None) -> None:
+    need = MIN_FREE_GB if min_gb is None else min_gb
+    free = free_gb(path)
+    if free < need:
+        raise OSError(f"на диске свободно {free:.1f} ГБ — меньше {need:g} ГБ: запись данных остановлена")
 
 
 def get_json(path: str, retries: int = 4, **params) -> dict:

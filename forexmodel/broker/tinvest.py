@@ -152,6 +152,12 @@ class TInvest:
                              "low": [float(q2d(c["low"])) for c in rows], "close": [float(q2d(c["close"])) for c in rows],
                              "volume_lots": [int(c.get("volume", 0)) for c in rows]})
 
+    def dividends(self, uid: str, start: pd.Timestamp, end: pd.Timestamp) -> list[dict]:
+        """Дивиденды бумаги с датой фиксации реестра в [start, end] (UTC): dividendNet, lastBuyDate, recordDate,
+        paymentDate, closePrice, yieldValue — известные и объявленные (для тревоги об отсечке в счёте)."""
+        r = self.call("InstrumentsService", "GetDividends", {"instrumentId": uid, "from": ts(start), "to": ts(end)})
+        return r.get("dividends", [])
+
     def last_price(self, uid: str) -> Decimal:
         r = self.call("MarketDataService", "GetLastPrices", {"instrumentId": [uid]})
         return q2d(r["lastPrices"][0]["price"])
