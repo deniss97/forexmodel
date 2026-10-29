@@ -135,6 +135,21 @@ def iterator_signals(state: dict, allowed: dict) -> tuple[list[dict], dict]:
 
 # ---------------------------------------------------------------- решения счёта (без брокера — тесты)
 
+def busy_note(allowed: dict, s42_state: dict, it_state: dict) -> str:
+    """Бумаги стратегий счёта, где стратегия уже в позиции: свежего «ОТКРЫТЬ» по ним не будет, пока позиция не закроется
+    (29.10: после /resume ждали сигналов, а S42 держал все три бумаги с 23–26.10)."""
+    busy = [f"S42 {inst.upper()} (с {pd.Timestamp(m['вход']):%d.%m}, закрыть не позже {pd.Timestamp(m['срок']):%d.%m})"
+            for inst, m in (s42_state.get("решения") or {}).items()
+            if inst in allowed.get("S42", []) and m and m.get("вход") and m.get("решение") == "держать" and m.get("срок")]
+    busy += [f"{p['стратегия']} {p['бумага']} (с {pd.Timestamp(p['open_dt']):%d.%m})" for p in it_state.get("позиции", [])
+             if p["бумага"].lower() in allowed.get(p["стратегия"], [])]
+    if not busy:
+        return ""
+    return (" Сейчас стратегии уже в позициях: " + ", ".join(busy) + ". На счёт берём только свежие сигналы, как в бэктесте, — "
+            "в сделку, открытую стратегией раньше по другой цене, не входим. «ОТКРЫТЬ» по этим бумагам придёт, когда стратегия "
+            "закроет позицию и найдёт новый вход.")
+
+
 def fixed_reserve(cfg: dict, lots: dict, held: set, prices: dict | None, skip: str | None = None) -> tuple[float, list[str]]:
     """Деньги под бумаги с фиксированным числом лотов (fixed_lots), которых ещё нет в позиции: другим сигналам их не
     отдаём, иначе сигнал по такой бумаге пропустился бы из-за денег. Цена — последняя известная, с запасом 2%."""
@@ -451,7 +466,7 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
     stop_on = bool(cfg.get("stop")) or STOP_FILE.exists()
     if stop_on != st.get("стоп_кран", False):
         msgs.append(("⛔ Стоп-кран включён: новые сделки не открываются. Открытые позиции: " + (", ".join(f"{p['стратегия']} {p['бумага']}" for p in still) or "нет")
-                     if stop_on else "✅ Стоп-кран выключен: контур снова берёт сигналы.", None))
+                     if stop_on else "✅ Стоп-кран выключен: контур снова берёт сигналы." + busy_note(allowed, s42_state, it_state), None))
     disabled = set(json.loads(STRATEGY_STOP.read_text())) if STRATEGY_STOP.exists() else set()
     seen = {(p["стратегия"], p["бумага"], str(p["вход_в"])) for p in st["позиции"]}
     for path in (ALT, TRADES):               # не взятые и уже закрытые (в том числе через бот) повторно не берём

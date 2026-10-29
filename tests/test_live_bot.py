@@ -182,3 +182,12 @@ def test_chart_positions_order_and_empty_dashboard(tmp_path, monkeypatch):
     monkeypatch.setattr(lc, "CHARTS", tmp_path / "charts")
     path, caption = lc.dashboard()                                   # пустое состояние — картинка всё равно собирается
     assert path.exists() and path.stat().st_size > 10_000 and "позиций на счёте 0" in caption
+
+
+def test_busy_note_explains_why_no_signals():
+    s42 = {"решения": {"sber": {"решение": "держать", "вход": "2026-10-26 15:01", "срок": "2026-11-05 15:01"},
+                       "gazp": {"решение": "ничего"}}}
+    it = {"позиции": [{"стратегия": "S46", "бумага": "AFKS", "open_dt": "2026-10-28 11:01"}]}
+    note = la.busy_note({"S42": ["sber", "gazp"], "S46": []}, s42, it)
+    assert "S42 SBER (с 26.10, закрыть не позже 05.11)" in note and "GAZP" not in note and "AFKS" not in note
+    assert la.busy_note({"S42": ["gazp"]}, s42, it) == ""

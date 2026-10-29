@@ -521,7 +521,10 @@ def do_resume(tg: Telegram, name: str) -> None:
     cfg = load_cfg()
     if cfg.get("stop"):
         write_cfg(set_setting(la.CFG.read_text(encoding="utf-8"), "stop", "false"))
-    tg.say(f"✅ Стоп-кран снят — {name}. Новые сигналы берутся на счёт со следующего часового запуска (в :05).")
+    lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text()).items()}
+    states = [json.loads((OUT / n).read_text(encoding="utf-8")) if (OUT / n).exists() else {} for n in ("s42_state.json", "iterator_state.json")]
+    tg.say(f"✅ Стоп-кран снят — {name}. Новые сигналы берутся на счёт со следующего часового запуска (в :05)."
+           + la.busy_note(la.allowed_stocks(cfg, lots), *states))
 
 
 def do_stop(tg: Telegram, name: str, why: str = "") -> None:
