@@ -135,13 +135,30 @@ def iterator_signals(state: dict, allowed: dict) -> tuple[list[dict], dict]:
 
 # ---------------------------------------------------------------- решения счёта (без брокера — тесты)
 
+def fixed_reserve(cfg: dict, lots: dict, held: set, prices: dict | None, skip: str | None = None) -> tuple[float, list[str]]:
+    """Деньги под бумаги с фиксированным числом лотов (fixed_lots), которых ещё нет в позиции: другим сигналам их не
+    отдаём, иначе сигнал по такой бумаге пропустился бы из-за денег. Цена — последняя известная, с запасом 2%."""
+    on = {s.upper() for v in allowed_stocks(cfg, lots).values() for s in v}
+    total, names = 0.0, []
+    for t, n in ((k.upper(), int(v)) for k, v in (cfg.get("fixed_lots") or {}).items()):
+        px = (prices or {}).get(t)
+        if t in held or t == skip or t not in on or not px:
+            continue
+        total += n * int(lots.get(t, 1)) * float(px) * 1.02
+        names.append(t)
+    return total, names
+
+
 def allocate(signals: list[dict], positions: list[dict], cfg: dict, lots: dict, stop_on: bool = False,
-             disabled: set | frozenset = frozenset()) -> tuple[list[dict], list[dict]]:
-    """Какие сигналы берём на счёт: (взятые с лотами, суммой и стопом; не взятые — с причиной)."""
+             disabled: set | frozenset = frozenset(), prices: dict | None = None) -> tuple[list[dict], list[dict]]:
+    """Какие сигналы берём на счёт: (взятые с лотами, суммой и стопом; не взятые — с причиной). fixed_lots (29.10, Денис):
+    по этим бумагам всегда ровно столько лотов, сколько бы ни стоил лот относительно слота (LKOH — 1 лот ≈ 6 тыс. ₽ при
+    слоте 5 тыс.); пока такой бумаги нет в позиции, деньги на неё зарезервированы (prices — последние цены)."""
     cash = cfg["capital"] - sum(p["сумма"] for p in positions)
     held = {p["бумага"] for p in positions}
     free = cfg["max_positions"] - len(positions)
     rank = {s: k for k, s in enumerate(cfg.get("priority", []))}
+    fixed = {k.upper(): int(v) for k, v in (cfg.get("fixed_lots") or {}).items()}
     take, alt = [], []
     for s in sorted(signals, key=lambda s: (s["вход_в"], rank.get(s["стратегия"], 99))):
         lot = int(lots.get(s["бумага"], 1))
@@ -157,12 +174,19 @@ def allocate(signals: list[dict], positions: list[dict], cfg: dict, lots: dict, 
             reason = "бумага уже в позиции"
         elif free <= 0:
             reason = "нет свободного слота"
-        else:
-            n = int(min(cfg["slot"], cash) // cost)
-            if n == 0 and cfg.get("lot_over_slot", True) and cash >= cost:
-                n = 1
+        elif s["бумага"] in fixed:             # ровно fixed лотов, слот не важен
+            n = fixed[s["бумага"]] if cash >= fixed[s["бумага"]] * cost else 0
             if n == 0:
                 reason = f"не хватает денег на лот: лот {f(cost, 0)} ₽, свободно {f(cash, 0)} ₽"
+        else:
+            reserve, names = fixed_reserve(cfg, lots, held, prices, skip=s["бумага"])
+            avail = cash - reserve
+            n = int(min(cfg["slot"], avail) // cost) if avail > 0 else 0
+            if n == 0 and cfg.get("lot_over_slot", True) and avail >= cost:
+                n = 1
+            if n == 0:
+                reason = (f"не хватает денег на лот: лот {f(cost, 0)} ₽, свободно {f(cash, 0)} ₽"
+                          + (f", из них {f(reserve, 0)} ₽ — резерв под {', '.join(names)}" if reserve else ""))
         if reason:
             alt.append({**s, "причина": reason})
             continue
@@ -435,7 +459,7 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
             old = pd.read_csv(path)
             seen |= set(zip(old["стратегия"], old["бумага"], old["вход_в"].astype(str)))
     fresh = [s for s in sig42 + sig_it if (s["стратегия"], s["бумага"], str(s["вход_в"])) not in seen]
-    take, alt = allocate(fresh, still, cfg, lots, stop_on, disabled)
+    take, alt = allocate(fresh, still, cfg, lots, stop_on, disabled, prices)
     for p in take:
         p.update({"статус": "к исполнению", "назначено": now})
         msgs.append((msg_open(p, cfg), open_buttons(p) if button else None))

@@ -139,3 +139,46 @@ def test_append_threshold_is_separate(tmp_path):
     with pytest.raises(OSError, match="запись данных остановлена"):
         moex_data.check_disk(tmp_path, 1e9)
     assert moex_data.MIN_FREE_APPEND_GB < moex_data.MIN_FREE_GB
+
+
+def facts(**kw):
+    t = pd.Timestamp("2026-10-29 12:10")
+    base = {"now": t, "run": t - pd.Timedelta(minutes=5), "run_error": False, "stop_on": True, "data42": t - pd.Timedelta(minutes=10),
+            "data_it": t - pd.Timedelta(minutes=10), "trading": True, "cfg": {"capital": 15000, "slot": 5000, "mode": "button", "broker": "live"},
+            "allowed": {"S42": ["sber"], "S46": []}, "positions": [], "strategy_stop": [], "disk_gb": 27.0, "yadisk": True,
+            "archive": t - pd.Timedelta(hours=10), "cron_hourly": True, "cron_archive": True, "traded": False, "broker": True,
+            "tariff": "premium", "account": "2000000002903", "access": "ACCOUNT_ACCESS_LEVEL_FULL_ACCESS", "money": 15000.0,
+            "foreign": {}, "stop_orders": 0, "no_api": []}
+    return {**base, **kw}
+
+
+def test_check_items_flags_what_matters():
+    kinds = {text.split(":")[0]: k for k, text in lb.check_items(facts())}
+    assert kinds["Контур"] == "ok" and kinds["Данные S42 (SBER, GAZP, LKOH)"] == "ok" and kinds["Токен и счёт …2903"] == "ok"
+    assert [k for k, t in lb.check_items(facts()) if t.startswith("Стоп-кран")] == ["warn"]
+    bad = lambda **kw: {t.split(":")[0] for k, t in lb.check_items(facts(**kw)) if k == "bad"}  # noqa: E731
+    assert "Контур" in bad(run=pd.Timestamp("2026-10-29 10:00"))
+    assert "Данные S42 (SBER, GAZP, LKOH)" in bad(data42=pd.Timestamp("2026-10-29 08:00"))
+    assert not bad(data42=pd.Timestamp("2026-10-29 08:00"), trading=False)      # ночью старые данные — норма
+    assert "Брокер" in bad(broker=False, broker_error="HTTP 401")
+    assert "Через API нельзя торговать" in bad(no_api=["LKOH"])
+    readonly = {t.split(":")[0]: k for k, t in lb.check_items(facts(access="ACCOUNT_ACCESS_LEVEL_READ_ONLY"))}
+    assert readonly["Токен и счёт …2903"] == "warn"
+
+
+def test_split_text_keeps_paragraphs_under_limit():
+    parts = lb.split_text("\n".join(["строка " * 40] * 30), size=1000)
+    assert len(parts) > 1 and all(len(p) <= 1100 for p in parts)
+
+
+def test_chart_positions_order_and_empty_dashboard(tmp_path, monkeypatch):
+    import live_charts as lc
+    acc = {"позиции": [{"стратегия": "S42", "бумага": "SBER", "цена": 300.0, "стоп": 294.0, "вход_в": "2026-10-28 12:01", "статус": "открыта"}]}
+    s42 = {"решения": {"gazp": {"решение": "держать", "вход": "2026-10-23 17:01", "цена_входа": 113.4, "стоп": 114.7, "цена": 117.0}}}
+    it = {"позиции": [{"стратегия": "S46", "бумага": "AFKS", "open_dt": "2026-10-28 10:01", "open_price": 8.1, "стоп": 7.9}]}
+    order = [p["бумага"] for p in lc.positions(acc, s42, it)]
+    assert order == ["SBER", "GAZP", "AFKS"]                         # счёт, S42, остальные — даже если они свежее
+    monkeypatch.setattr(lc, "OUT", tmp_path)
+    monkeypatch.setattr(lc, "CHARTS", tmp_path / "charts")
+    path, caption = lc.dashboard()                                   # пустое состояние — картинка всё равно собирается
+    assert path.exists() and path.stat().st_size > 10_000 and "позиций на счёте 0" in caption

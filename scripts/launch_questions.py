@@ -89,7 +89,7 @@ def account_run(parts: dict, names: list[str], per: str, cfg: dict, lots: dict) 
 
 
 def account_table(parts: dict) -> tuple[pd.DataFrame, dict]:
-    cfg = {**yaml.safe_load((ROOT / "configs" / "account.yaml").read_text(encoding="utf-8")), "weekends": True}  # разбор 27.10 — без правила выходных
+    cfg = {**yaml.safe_load((ROOT / "configs" / "account.yaml").read_text(encoding="utf-8")), "weekends": True, "fixed_lots": {}}  # разбор 27.10 — без правил выходных и фиксированных лотов
     lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text(encoding="utf-8")).items()}
     rows, runs = [], {}
     for name, names in {"S42 один": ["S42"], "S42 + S46": ["S42", "S46"], "S42 + S46 + S48": ["S42", "S46", "S48"]}.items():
@@ -170,7 +170,7 @@ def risk_run(t: pd.DataFrame, risk_rub: float, max_lev: float, cfg: dict, lots: 
 
 def risk_table(parts: dict) -> pd.DataFrame:
     """S42 на счёте 15 тыс. ₽: слот 5 тыс. (сейчас) против позиции по риску 10% / 5% / 2% капитала при плече 1, 2, 4."""
-    cfg = {**yaml.safe_load((ROOT / "configs" / "account.yaml").read_text(encoding="utf-8")), "weekends": True}  # разбор 27.10 — без правила выходных
+    cfg = {**yaml.safe_load((ROOT / "configs" / "account.yaml").read_text(encoding="utf-8")), "weekends": True, "fixed_lots": {}}  # разбор 27.10 — без правил выходных и фиксированных лотов
     lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text(encoding="utf-8")).items()}
     t = parts["S42"][0].copy()
     t["raw_open"] = raw_prices(t)["open_price"].to_numpy()

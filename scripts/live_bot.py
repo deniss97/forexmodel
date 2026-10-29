@@ -8,7 +8,11 @@
   /close SBER — закрыть позицию через API; /closeall — закрыть всё и включить стоп-кран (оба — с подтверждением);
   /risk — настройки риска; /set slot 4000 — изменить настройку; /strategy S46 on|off — стратегия на счёте
             (с подтверждением; капитал на пробном этапе — не больше 15 тыс. ₽, созвон 26.10);
-  /journal — последние сделки счёта, заявки и альтернативные сигналы; /help.
+  /journal — последние сделки счёта, заявки и альтернативные сигналы; /help;
+  /check — проверка перед торговлей: контур, данные, токен и права, деньги, тариф, стоп-кран, диск, архив, расписание;
+  /ask вопрос — вопрос о контуре, сделках, рисках: отвечает Claude Code на этом сервере (claude -p в папке проекта,
+            только чтение файлов — ничего не меняет и не торгует), по одному вопросу за раз;
+  /chart — картинка «состояние контура» (scripts/live_charts.py; сама приходит каждый день в 23 ч).
 Кнопки: под «ОТКРЫТЬ» — «Исполнить» (покупка через API: scripts/live_exec.py — лимит с допуском проскальзывания, повторы,
 стоп-лосс и трейлинг у брокера), «Купил сам», «Пропустить»; под «ЗАКРЫТЬ» — «Закрыть через API», «Закрыл сам».
 Раз в monitor_min минут — цены открытых позиций: близко к стопу, цена дошла до стопа, включился трейлинг; позиция,
@@ -22,6 +26,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
+import threading
 import time
 import traceback
 import urllib.error
@@ -57,7 +64,9 @@ STRATEGY_ON = {"S42": "[sber, gazp, lkoh]", "S46": "all", "S48": "all"}
 COMMANDS = [("status", "Счёт, позиции, стоп-кран"), ("balance", "Деньги и бумаги у брокера"), ("stop", "Включить стоп-кран"),
             ("resume", "Снять стоп-кран"), ("close", "Закрыть позицию: /close SBER"), ("closeall", "Закрыть всё и включить стоп-кран"),
             ("risk", "Настройки риска"), ("set", "Изменить настройку: /set slot 4000"),
-            ("strategy", "Стратегия на счёте: /strategy S46 off"), ("journal", "Последние сделки и сигналы"), ("help", "Что умеет бот")]
+            ("strategy", "Стратегия на счёте: /strategy S46 off"), ("journal", "Последние сделки и сигналы"),
+            ("check", "Проверка перед торговлей"), ("ask", "Вопрос о контуре: /ask почему нет сделок?"),
+            ("chart", "Картинка: состояние контура"), ("help", "Что умеет бот")]
 HELP = """🤖 Бот контура forexmodel
 
 Сигналы приходят сами: «🟢 ОТКРЫТЬ» с кнопками «Исполнить» (бот купит через API и поставит стоп), «Купил сам», «Пропустить»; «🔴 ЗАКРЫТЬ» — «Закрыть через API» или «Закрыл сам».
@@ -71,10 +80,26 @@ HELP = """🤖 Бот контура forexmodel
 /risk — настройки риска; /set slot 4000 — изменить
 /strategy S46 on — стратегия на счёте (off — выключить)
 /journal — последние сделки и сигналы
+/check — проверка перед торговлей
+/chart — картинка: позиции, результат, стратегии (сама — каждый день в 23:00)
+/ask вопрос — спросить Claude о контуре, сделках, рисках (например: /ask почему сегодня не было сделок?)
 
 Тревоги: близко к стопу, цена у стопа, включился трейлинг, отсечка дивидендов, бумаг у брокера не столько, сколько у контура, просадка счёта (−8% / −12%), лимит сделок, волатильность, данные не обновляются, мало места на диске.
 Опасные команды — с кнопкой подтверждения; капитал пробного этапа — не больше 15 000 ₽."""
 _shares: dict = {}
+CLAUDE = os.path.expanduser("~/.local/bin/claude")
+ASKING = threading.Lock()
+ASK_RULES = """Ты отвечаешь в Telegram-группе «forexmodel» (Денис и Тимур) на вопрос о живом торговом контуре проекта forexmodel:
+стратегия S42 (импульс) на SBER, GAZP, LKOH через Т-Инвестиции, S46 и S48 — на бумаге, бот @MeLan_ITB_1_bot.
+Правила: только читать файлы (Read, Grep, Glob) — ничего не меняй, не торгуй, команды не запускай. Отвечай по-русски,
+простыми словами и коротко (до 1500 знаков), без таблиц и разметки Markdown — Telegram покажет текст как есть.
+Цифры бери из файлов и не выдумывай; если данных нет — так и скажи и подскажи, где их взять или какую команду бота нажать.
+Где смотреть: reports/live/account_state.json (счёт), s42_state.json и iterator_state.json (стратегии),
+alt_journal.csv (не взятые сигналы), account_trades.csv (сделки счёта), orders.csv (заявки через API),
+notifications.log (что бот писал в группу), logs/<дата>.log (почасовые запуски), deviation.md (сверка с бэктестом),
+configs/account.yaml (настройки), docs/results/inference_tz.md (как устроен контур), docs/results/bot_guide/bot_guide.html
+(инструкция к боту), docs/results/launch_questions.md (разборы: портфель, стопы, плечо, просадки),
+docs/meetings/ (протоколы созвонов), docs/hypotheses.md (банк гипотез)."""
 
 
 def now() -> pd.Timestamp:
@@ -179,6 +204,9 @@ def risk_text(cfg: dict) -> str:
     for k, (_, _, _, what) in SETTINGS.items():
         v = cfg.get(k)
         lines.append(f"• {k} = {('on' if v else 'off') if isinstance(v, bool) else v} — {what}")
+    if cfg.get("fixed_lots"):
+        lines.append("• всегда ровно: " + ", ".join(f"{t} — {n} лот" for t, n in cfg["fixed_lots"].items())
+                     + " (лот дороже слота; деньги на него зарезервированы, пока бумаги нет в позиции; меняется только в configs/account.yaml)")
     on = {c: v for c, v in (cfg.get("strategies") or {}).items()}
     lines.append("• стратегии: " + ", ".join(f"{c} {'выкл' if not v else ('все бумаги' if v == 'all' else ', '.join(map(str, v)).upper())}"
                                             for c, v in on.items()))
@@ -333,6 +361,157 @@ def journal_text() -> str:
         for _, r in d.iterrows():
             lines.append("• " + " · ".join(str(r[c])[:40] for c in cols if c in r and pd.notna(r[c])))
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- проверка перед торговлей, вопросы, картинка
+
+def check_facts(cfg: dict) -> dict:
+    """Всё, что нужно для /check: контур, данные, брокер (только чтение), диск, архив, расписание."""
+    t = now()
+    with la.state_lock():
+        st = la.load_state()
+    s42 = json.loads((OUT / "s42_state.json").read_text(encoding="utf-8")) if (OUT / "s42_state.json").exists() else {}
+    it = json.loads((OUT / "iterator_state.json").read_text(encoding="utf-8")) if (OUT / "iterator_state.json").exists() else {}
+    log = OUT / "logs" / f"{pd.Timestamp.now():%Y-%m-%d}.log"
+    last_block = log.read_text(encoding="utf-8", errors="ignore").split("\n20")[-1] if log.exists() else ""
+    d42 = [la.ts(m.get("данные_до")) for m in (s42.get("решения") or {}).values() if m and m.get("данные_до")]
+    dit = [la.ts(v.get("до")) for v in (it.get("данные") or {}).values() if v.get("до")]
+    man = OUT / "yadisk_manifest.json"
+    ups = [y.get("uploaded") for v in (json.loads(man.read_text(encoding="utf-8")) if man.exists() else {}).values() for y in v.values()]
+    try:
+        cron = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10).stdout
+    except Exception:
+        cron = ""
+    lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text()).items()}
+    f = {"now": t, "run": la.ts(st.get("запуск")), "run_error": "Traceback" in last_block, "stop_on": stop_on(cfg),
+         "data42": max(d42) if d42 else None, "data_it": max(dit) if dit else None, "trading": t.weekday() < 5 and 7 <= t.hour < 24,
+         "cfg": cfg, "allowed": la.allowed_stocks(cfg, lots), "positions": st["позиции"],
+         "strategy_stop": json.loads(la.STRATEGY_STOP.read_text()) if la.STRATEGY_STOP.exists() else [],
+         "disk_gb": shutil.disk_usage(ROOT).free / 1024 ** 3, "yadisk": os.path.ismount(os.path.expanduser("~/yadisk")),
+         "archive": pd.Timestamp(max(ups)) if ups else None, "cron_hourly": "live_hourly.sh" in cron, "cron_archive": "yadisk_nightly.sh" in cron,
+         "traded": la.TRADES.exists() or any(p.get("исполнение") for p in st["позиции"])}
+    try:
+        api, acc = broker(cfg)
+        info = api.call("UsersService", "GetInfo")
+        accs = {a["id"]: a for a in api.accounts()}
+        held = api.positions(acc)
+        tickers = sorted({x.upper() for v in f["allowed"].values() for x in v})
+        uids = {share(api, t2).uid: t2 for t2 in tickers}
+        mine = {p["бумага"] for p in st["позиции"]}
+        foreign = {uids.get(u, u[:8]): q for u, q in held.items() if q and uids.get(u) not in mine}   # бумаги вне позиций контура
+        f.update({"broker": True, "tariff": info.get("tariff"), "account": acc, "access": accs.get(acc, {}).get("accessLevel", ""),
+                  "money": float(api.money(acc)), "foreign": foreign, "stop_orders": len(api.stop_orders(acc)),
+                  "no_api": [t2 for t2 in tickers if not share(api, t2).api_trade]})
+    except Exception as e:
+        f.update({"broker": False, "broker_error": str(e)[:150]})
+    return f
+
+
+def check_items(f: dict) -> list[tuple[str, str]]:
+    """Факты → строки проверки: ok — в порядке, warn — заметить, bad — поправить до торговли, hand — проверить руками."""
+    cfg, t, out = f["cfg"], f["now"], []
+    if f["run"] is None or (t - f["run"]) > pd.Timedelta(minutes=75):
+        out.append(("bad", f"Контур: последний запуск {f['run']:%d.%m %H:%M} — больше часа назад" if f["run"] else "Контур: ещё не запускался"))
+    else:
+        out.append(("warn" if f["run_error"] else "ok", f"Контур: последний запуск {f['run']:%H:%M}" + (", в логе ошибка — см. reports/live/logs" if f["run_error"] else ", без ошибок")))
+    for name, d in (("S42 (SBER, GAZP, LKOH)", f["data42"]), ("S46/S48 (19 бумаг)", f["data_it"])):
+        stale = d is None or (f["trading"] and t - d > pd.Timedelta(hours=2))
+        out.append(("bad" if stale else "ok", f"Данные {name}: до {d:%d.%m %H:%M}" if d is not None else f"Данные {name}: нет"))
+    if not f.get("broker"):
+        out.append(("bad", f"Брокер: не ответил — {f.get('broker_error', '')}"))
+    else:
+        full = "FULL" in str(f["access"])
+        out.append(("ok" if full else "warn", f"Токен и счёт …{str(f['account'])[-4:]}: " + ("полный доступ — «Исполнить» сможет покупать" if full
+                                                                                    else f"доступ {f['access'] or 'неизвестен'} — «Исполнить» не сработает, «Купил сам» — да")))
+        out.append(("ok", f"Тариф: {f['tariff']}" + ("; комиссию сверим по первой сделке" if not f["traded"] else "")))
+        cap = float(cfg["capital"])
+        out.append(("ok" if f["money"] >= cap * 0.98 else "warn", f"Деньги на счёте: {la.f(f['money'], 0)} ₽ при капитале в настройках {la.f(cap, 0)} ₽"))
+        out.append(("ok" if not f["foreign"] else "warn", "Посторонних бумаг на счёте нет" if not f["foreign"]
+                    else "На счёте бумаги вне контура: " + ", ".join(f"{k} {v} шт." for k, v in f["foreign"].items())))
+        out.append(("ok" if not f["no_api"] else "bad", "Торговля через API по бумагам стратегий доступна" if not f["no_api"]
+                    else "Через API нельзя торговать: " + ", ".join(f["no_api"])))
+    on = [c for c, v in f["allowed"].items() if v]
+    out.append(("ok", f"Настройки: на счёт {', '.join(on) or 'ничего'}, капитал {la.f(float(cfg['capital']), 0)} ₽, слот {la.f(float(cfg['slot']), 0)} ₽, "
+                f"режим {cfg.get('mode')}, {'песочница' if cfg.get('broker') == 'sandbox' else 'боевой счёт'}, выходные {'берём' if cfg.get('weekends', True) else 'нет'}"
+                + "".join(f", {t} — всегда {n} лот" for t, n in (cfg.get("fixed_lots") or {}).items())))
+    if f["strategy_stop"]:
+        out.append(("warn", "Сверка с бэктестом остановила: " + ", ".join(f["strategy_stop"])))
+    out.append(("warn" if f["stop_on"] else "ok", "Стоп-кран включён — сделки на счёт не берутся (снять: /resume)" if f["stop_on"] else "Стоп-кран выключен — торгуем"))
+    out.append(("bad" if f["disk_gb"] < 1 else "warn" if f["disk_gb"] < 3 else "ok", f"Диск сервера: свободно {f['disk_gb']:.0f} ГБ"))
+    fresh = f["archive"] is not None and t - f["archive"] < pd.Timedelta(hours=30)
+    out.append(("ok" if f["yadisk"] and fresh else "warn", ("Яндекс Диск подключён" if f["yadisk"] else "Яндекс Диск не подключён")
+                + (f", архив минуток обновлён {f['archive']:%d.%m %H:%M}" if f["archive"] is not None else ", архива минуток ещё нет")))
+    out.append(("ok" if f["cron_hourly"] and f["cron_archive"] else "bad", "Расписание: почасовой контур и ночной архив стоят" if f["cron_hourly"] and f["cron_archive"]
+                else "Расписание: нет " + ", ".join(n for n, ok in (("почасового контура", f["cron_hourly"]), ("ночного архива", f["cron_archive"])) if not ok)))
+    out.append(("hand", "Проверить руками в приложении: заявкам по API не нужно SMS-подтверждение; за «Премиум» нет абонплаты"))
+    return out
+
+
+def check_text(cfg: dict) -> str:
+    items = check_items(check_facts(cfg))
+    icon = {"ok": "✅", "warn": "⚠️", "bad": "❌", "hand": "☑️"}
+    bad, warn = [x for k, x in items if k == "bad"], [x for k, x in items if k == "warn"]
+    if bad:
+        verdict = "❌ До торговли поправить: " + "; ".join(x.split(":")[0] for x in bad)
+    elif stop_on(cfg):
+        verdict = "Всё готово, кроме решения: торговля начнётся после /resume (вместе)" + (" — и посмотрите замечания" if len(warn) > 1 else "")
+    else:
+        verdict = "Работает" + (", есть замечания" if warn else ", замечаний нет")
+    return f"🩺 Проверка перед торговлей · {now():%d.%m %H:%M}\n\n" + "\n".join(f"{icon[k]} {x}" for k, x in items) + f"\n\n{verdict}"
+
+
+def split_text(text: str, size: int = 3800) -> list[str]:
+    parts, cur = [], ""
+    for para in text.split("\n"):
+        if len(cur) + len(para) + 1 > size and cur:
+            parts.append(cur)
+            cur = ""
+        cur += para + "\n"
+    return parts + ([cur] if cur.strip() else [])
+
+
+def ask_claude(question: str, name: str) -> str:
+    """Вопрос → Claude Code на этом сервере (claude -p в папке проекта), только чтение файлов."""
+    prompt = f"Вопрос от {name}: {question}\n\nСостояние контура сейчас (вывод /status):\n{status_text(load_cfg())}"
+    r = subprocess.run([CLAUDE, "-p", prompt, "--append-system-prompt", ASK_RULES, "--no-session-persistence", "--strict-mcp-config",
+                        "--allowedTools", "Read,Grep,Glob", "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task",
+                        "--output-format", "text"], cwd=ROOT, capture_output=True, text=True, timeout=300)
+    return r.stdout.strip() or "Ответа нет: " + ((r.stderr.strip().splitlines() or ["пусто"])[-1])[:300]
+
+
+def do_ask(tg: Telegram, question: str, name: str) -> None:
+    if not question.strip():
+        tg.say("Напишите вопрос после команды, например: /ask почему сегодня не было сделок?")
+        return
+    if not ASKING.acquire(blocking=False):
+        tg.say("Ещё отвечаю на предыдущий вопрос — подождите минуту.")
+        return
+    tg.say(f"🤔 Думаю над вопросом — {name}. Обычно 1–2 минуты: читаю файлы контура.")
+
+    def work():
+        try:
+            answer = ask_claude(question, name)
+        except subprocess.TimeoutExpired:
+            answer = "Не успел ответить за 5 минут — попробуйте вопрос покороче."
+        except Exception as e:
+            answer = f"Не получилось ответить: {str(e)[:200]}"
+        finally:
+            ASKING.release()
+        for i, chunk in enumerate(split_text(answer)):
+            tg.say(("💬 " if i == 0 else "") + chunk)
+
+    threading.Thread(target=work, daemon=True).start()
+
+
+def do_chart(tg: Telegram) -> None:
+    """Картинка отдельным процессом: matplotlib не раздувает память бота; отправляет сам скрипт."""
+    def work():
+        r = subprocess.run([str(ROOT / ".venv" / "bin" / "python"), "-W", "ignore", str(ROOT / "scripts" / "live_charts.py"), "--send"],
+                           cwd=ROOT, capture_output=True, text=True, timeout=180)
+        if "доставлено" not in r.stdout or "не доставлено" in r.stdout:
+            tg.say("Картинка не получилась: " + ((r.stderr or r.stdout).strip().splitlines() or ["без подробностей"])[-1][:300])
+
+    threading.Thread(target=work, daemon=True).start()
 
 
 # ---------------------------------------------------------------- действия
@@ -542,6 +721,12 @@ def on_command(tg: Telegram, bst: dict, text: str, name: str) -> None:
         on = args[1].lower() == "on"
         ask(tg, bst, "strategy", {"code": code, "on": on},
             f"{'Включить' if on else 'Выключить'} {code} на счёте?" + (" (созвон 26.10: пока на деньги только S42)" if on and code != "S42" else ""), name)
+    elif cmd == "check":
+        tg.say(check_text(cfg))
+    elif cmd == "ask":
+        do_ask(tg, text.split(maxsplit=1)[1] if len(text.split(maxsplit=1)) > 1 else "", name)
+    elif cmd == "chart":
+        do_chart(tg)
     elif cmd == "journal":
         tg.say(journal_text())
     else:

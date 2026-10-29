@@ -3,7 +3,8 @@
 Берёт историю data/raw/<TICKER>_1m_*.csv, докачивает минуты после её последней свечи с
 iss.moex.com (режим TQBR, тот же формат колонок: open, close, high, low, value, volume, begin, end)
 и пишет историю + свежие минуты в data/raw/live/<TICKER>_1m_live.csv. Исходные файлы не меняются;
-при повторном запуске докачивается только новое.
+при повторном запуске докачивается только новое и дописывается в конец файла (29.10: раньше файл ~180 МБ переписывался
+целиком каждый час, когда контур переключался на ISS).
 
     python scripts/fetch_moex_iss.py                 # SBER GAZP LKOH
     python scripts/fetch_moex_iss.py SBER MOEX
@@ -19,6 +20,7 @@ from pathlib import Path
 
 import _bootstrap  # noqa: F401
 import pandas as pd
+from moex_data import MIN_FREE_APPEND_GB, check_disk, last_begin
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw"
@@ -46,16 +48,16 @@ def fetch(ticker: str, since: pd.Timestamp) -> pd.DataFrame:
 def update(ticker: str) -> Path:
     LIVE.mkdir(parents=True, exist_ok=True)
     out = LIVE / f"{ticker}_1m_live.csv"
-    hist = pd.read_csv(out if out.exists() else RAW / SOURCES[ticker])[COLS]   # у GAZP в истории лишняя колонка-индекс
-    last = pd.Timestamp(hist["begin"].iloc[-1])
+    if not out.exists():
+        pd.read_csv(RAW / SOURCES[ticker])[COLS].to_csv(out, index=False)    # у GAZP в истории лишняя колонка-индекс
+    last = last_begin(out)                                                   # по хвосту файла
     new = fetch(ticker, last.normalize())
     new = new[pd.to_datetime(new["begin"]) > last]
     if len(new):
-        hist = pd.concat([hist, new], ignore_index=True)
-        hist.to_csv(out, index=False)
-    elif not out.exists():
-        hist.to_csv(out, index=False)
-    print(f"[{ticker}] +{len(new)} минут, данные до {hist['begin'].iloc[-1]} → {out.relative_to(ROOT)}", flush=True)
+        check_disk(out.parent, MIN_FREE_APPEND_GB)
+        new[COLS].to_csv(out, mode="a", header=False, index=False)
+    end = new["begin"].iloc[-1] if len(new) else last
+    print(f"[{ticker}] +{len(new)} минут, данные до {end} → {out.relative_to(ROOT)}", flush=True)
     return out
 
 

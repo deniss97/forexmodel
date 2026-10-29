@@ -34,5 +34,6 @@ flock -n 9 || exit 0                                  # предыдущий з�
   if [ "$(TZ=Europe/Moscow date +%H)" = "23" ]; then
     .venv/bin/python scripts/live_health.py
     .venv/bin/python -W ignore scripts/live_deviation.py
+    .venv/bin/python -W ignore scripts/live_charts.py --send      # картинка «состояние контура» в группу (29.10)
   fi
 } >> $LOG/$(date +%Y-%m-%d).log 2>&1

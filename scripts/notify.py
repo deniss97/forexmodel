@@ -56,5 +56,29 @@ def send(text: str, retries: int = 3, buttons: list[list[tuple[str, str]]] | Non
     return ok
 
 
+def photo(path: Path, caption: str = "", retries: int = 3) -> bool:
+    """Картинка в группу (sendPhoto, multipart без внешних библиотек); True — доставлено. В журнал — подпись."""
+    cfg = yaml.safe_load(CFG.read_text(encoding="utf-8")) if CFG.exists() else None
+    ok = False
+    if cfg and cfg.get("token") and cfg.get("chat_id"):
+        boundary = "----forexmodel" + str(int(time.time() * 1000))
+        parts = [(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n').encode()
+                 for k, v in (("chat_id", cfg["chat_id"]), ("caption", caption[:1000]))]
+        parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="{Path(path).name}"\r\n'
+                       f'Content-Type: image/png\r\n\r\n').encode() + Path(path).read_bytes() + b"\r\n")
+        body = b"".join(parts) + f"--{boundary}--\r\n".encode()
+        req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['token']}/sendPhoto", body,
+                                     {"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        for k in range(retries):
+            try:
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    ok = bool(json.load(r).get("ok"))
+                    break
+            except Exception:
+                time.sleep(3 * (k + 1))
+    _log(f"[картинка {Path(path).name}] {caption}", ok)
+    return ok
+
+
 if __name__ == "__main__":
     print("доставлено" if send(" ".join(sys.argv[1:]) or "проверка связи") else f"не доставлено — см. {LOG.relative_to(ROOT)}")

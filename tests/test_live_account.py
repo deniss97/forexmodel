@@ -78,3 +78,33 @@ def test_exits_follow_strategy_trades():
     by = {p["бумага"]: p for p in closed}
     assert by["SBER"]["причина"] == "trailing_stop" and by["SBER"]["цена выхода"] == 310.0
     assert by["NVTK"]["причина"] == "позиция стратегии не найдена"
+
+
+# 29.10 (Денис): LKOH — всегда ровно 1 лот, деньги на него зарезервированы, пока его нет в позиции
+FIX = {**CFG, "fixed_lots": {"LKOH": 1}, "strategies": {"S42": ["sber", "gazp", "lkoh"]}}
+LOTS3 = {"SBER": 1, "GAZP": 10, "LKOH": 1}
+PRICES = {"SBER": 298.0, "GAZP": 117.0, "LKOH": 6300.0}
+
+
+def three():
+    m = pd.Timedelta(minutes=1)
+    return [sig("S42", "SBER", 298.0, 290.0, T), sig("S42", "GAZP", 117.0, 114.0, T + m), sig("S42", "LKOH", 6300.0, 6100.0, T + 2 * m)]
+
+
+def test_without_fixed_lots_lkoh_is_squeezed_out():
+    take, alt = allocate(three(), [], {**FIX, "fixed_lots": {}}, LOTS3, prices=PRICES)
+    assert [p["бумага"] for p in take] == ["SBER", "GAZP"] and alt[0]["бумага"] == "LKOH"
+
+
+def test_fixed_lkoh_always_one_lot_and_all_three_fit():
+    take, alt = allocate(three(), [], FIX, LOTS3, prices=PRICES)
+    assert not alt and [p["бумага"] for p in take] == ["SBER", "GAZP", "LKOH"]
+    assert take[2]["лоты"] == 1 and take[2]["сумма"] == 6300.0
+    assert take[1]["лоты"] == 3                                     # GAZP ужат резервом под LKOH: 3 лота, не 4
+    assert sum(p["сумма"] for p in take) <= FIX["capital"]
+
+
+def test_reserve_released_when_lkoh_held():
+    held = [{**pos("LKOH", 6300.0, "S42"), "бумага": "LKOH"}]
+    take, _ = allocate([sig("S42", "SBER", 298.0, 290.0)], held, FIX, LOTS3, prices=PRICES)
+    assert take[0]["штук"] == 16                                    # полный слот 5 тыс.: резерв больше не нужен

@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -319,6 +320,7 @@ def main(argv=None) -> int:
         q.add_argument("--till", dest="end")
         q.add_argument("--interval", type=int, default=1, choices=sorted(NAMES))
         q.add_argument("--out", type=Path, default=OUT)
+        q.add_argument("--yadisk", action="store_true", help="после выгрузки перенести файлы на Яндекс Диск (~/bin/yd archive --link), на сервере — ссылка")
         if name == "futures":
             q.add_argument("--continuous", action="store_true", help="ещё и склеенный ряд <серия>_<интервал>_cont.csv")
             q.add_argument("--roll-days", type=int, default=5)
@@ -327,21 +329,25 @@ def main(argv=None) -> int:
     q.add_argument("--from", dest="start", default="2020-01-03")
     q.add_argument("--till", dest="end")
     q.add_argument("--out", type=Path, default=OUT)
+    q.add_argument("--yadisk", action="store_true", help="после выгрузки перенести файлы на Яндекс Диск, на сервере — ссылка")
     q = sub.add_parser("list")
     q.add_argument("kind", choices=["shares", "futures"])
     a = p.parse_args(argv)
     if a.cmd == "futoi":
-        for code in a.codes:
-            futoi(code, a.start, a.end, a.out / f"futoi_{code.lower()}.csv")
-        return 0
+        done = [futoi(code, a.start, a.end, a.out / f"futoi_{code.lower()}.csv") for code in a.codes]
+        return to_yadisk(done) if a.yadisk else 0
     if a.cmd == "list":
         with pd.option_context("display.max_rows", 500, "display.width", 160):
             print(tickers(a.kind).to_string(index=False))
         return 0
+    done = []
     for code in a.codes:
         if a.cmd == "shares":
-            print(check(download(code, a.start, a.end, a.interval, out=a.out / f"{code}_{NAMES[a.interval]}.csv")))
+            f = a.out / f"{code}_{NAMES[a.interval]}.csv"
+            print(check(download(code, a.start, a.end, a.interval, out=f)))
+            done.append(f)
         else:
+            done.append(a.out / code)
             w = download_futures(code, a.start, a.end, a.interval, a.out / code)
             print(f"[{code}] контрактов: {len(w)} ({w['secid'].iloc[0]} … {w['secid'].iloc[-1]})" if len(w) else f"[{code}] контрактов нет")
             if a.continuous and len(w):
@@ -349,7 +355,18 @@ def main(argv=None) -> int:
                 f = a.out / f"{code}_{NAMES[a.interval]}_cont.csv"
                 c.to_csv(f, index=False)
                 print(f"[{code}] склеено {len(c)} свечей → {f}", check(c))
-    return 0
+                done.append(f)
+    return to_yadisk(done) if a.yadisk else 0
+
+
+def to_yadisk(paths: list[Path]) -> int:
+    """Готовые выгрузки — на Яндекс Диск (yadisk:server-archive/<путь от домашней папки>), на сервере — ссылка: программы
+    находят файл по прежнему пути, а место на сервере не занято (29.10: диск сервера заполняли большие выгрузки)."""
+    yd = Path.home() / "bin" / "yd"
+    if not yd.exists():
+        print("~/bin/yd не найден — файлы остались на сервере")
+        return 1
+    return subprocess.run([str(yd), "archive", "--link", *map(str, paths)]).returncode
 
 
 if __name__ == "__main__":
