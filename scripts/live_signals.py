@@ -89,7 +89,9 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_m
     last = pd.Timestamp(head) if now is None else min(pd.Timestamp(head), now)
     now = now or last + pd.Timedelta(minutes=1)
     cfg = instrument_cfg(spec, live, last - pd.Timedelta(days=WINDOW_DAYS), last + pd.Timedelta(days=1))
-    ds = build_dataset(cfg)
+    # без разметки: в test свечи без метки отбрасываются, а метка свежей свечи появляется, лишь когда цена дойдёт до
+    # барьера, — 26.10–01.11 все пять входов S42 контур увидел на 1–3 дня позже и ни одного «ОТКРЫТЬ» не дал
+    ds = build_dataset(cfg, with_labels=False)
     sig = build_signal_column(ds.test.copy(), cfg)
     minute = ds.minute_slice("test")
     minute = minute[minute[tcol] <= last]
