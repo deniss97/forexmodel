@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Отчёт № 5 · 27.10–02.11.2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=block" rel="stylesheet">
+<style>
+:root { --ink: #15233b; --ink2: #4a5568; --muted: #7a8391; --line: #e2ddd2; --paper: #f6f4ef;
+  --blue: #2459b3; --blue-soft: #e6edf8; --orange: #a9521a; --green: #1e7a4f; --green-soft: #e3f2ea; --red: #b3261e; --red-soft: #fbe9e7; }
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 19px/1.45 "IBM Plex Sans", "DejaVu Sans", sans-serif; color: var(--ink); background: var(--paper); }
+.slide { width: 1280px; height: 720px; padding: 50px 64px 40px; position: relative; overflow: hidden; break-after: page; background: var(--paper); display: flex; flex-direction: column; }
+.slide:last-child { break-after: auto; }
+h1, h2 { font-family: "Manrope", sans-serif; letter-spacing: -0.015em; margin: 0; }
+h2 { font-size: 36px; font-weight: 800; line-height: 1.12; margin-bottom: 8px; }
+.kicker { font: 600 13px "IBM Plex Sans", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--orange); margin-bottom: 10px; }
+.lead { font-size: 20px; color: var(--ink2); margin: 0 0 18px; max-width: 1100px; }
+.foot { position: absolute; left: 64px; right: 64px; bottom: 16px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+img.chart { width: 100%; border-radius: 6px; }
+code { font-family: "JetBrains Mono", monospace; font-size: .85em; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+b { font-weight: 600; }
+ul { margin: 0; padding-left: 22px; } li { margin: 0 0 7px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.note { font-size: 17px; color: var(--ink2); }
+/* обложка */
+.cover { background: var(--ink); color: #fff; padding: 70px 80px; }
+.cover::after { content: ""; position: absolute; right: -160px; top: -160px; width: 620px; height: 620px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(36,89,179,.6), rgba(36,89,179,0) 70%); }
+.cover .kicker { color: #f0b48a; }
+.cover h1 { font-size: 64px; font-weight: 800; line-height: 1.04; margin: 22px 0 22px; max-width: 900px; position: relative; z-index: 1; }
+.cover .sub { font-size: 23px; color: #c9d3e3; max-width: 900px; position: relative; z-index: 1; }
+.cover .meta { margin-top: auto; display: flex; gap: 14px; position: relative; z-index: 1; }
+.pill { border: 1px solid rgba(255,255,255,.3); border-radius: 30px; padding: 7px 18px; font-size: 16px; color: #e8edf5; }
+/* было / стало */
+.bs { display: grid; grid-template-columns: 210px 1fr 1fr; border-top: 2px solid var(--ink); }
+.bs > div { padding: 13px 16px 13px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
+.bs .h { font: 600 13px "IBM Plex Sans"; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
+.bs .k { font-weight: 600; }
+.bs .now { color: var(--ink); } .bs .was { color: var(--ink2); }
+.tag { display: inline-block; font: 600 13px "IBM Plex Sans"; border-radius: 4px; padding: 1px 7px; margin-right: 6px; }
+.tag.g { background: var(--green-soft); color: var(--green); } .tag.r { background: var(--red-soft); color: var(--red); } .tag.b { background: var(--blue-soft); color: var(--blue); }
+/* таблица */
+table { border-collapse: collapse; width: 100%; font-size: 16.5px; }
+th { text-align: left; font: 600 12.5px "IBM Plex Sans"; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 6px 12px 6px 0; }
+td { border-bottom: 1px solid var(--line); padding: 8px 12px 8px 0; vertical-align: top; }
+td.d { white-space: nowrap; font-weight: 600; width: 78px; }
+.box { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 18px 22px; }
+.box.r { border-left: 5px solid var(--red); } .box.g { border-left: 5px solid var(--green); } .box.b { border-left: 5px solid var(--blue); }
+.big { font: 800 44px "Manrope"; line-height: 1; margin-bottom: 6px; }
+.big.r { color: var(--red); } .big.g { color: var(--green); } .big.b { color: var(--blue); }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<section class="slide cover">
+  <div class="kicker">forexmodel · еженедельный отчёт № 5</div>
+  <h1>Неделя запуска: бот, счёт — и почему не было ни одной сделки</h1>
+  <div class="sub">27.10 – 02.11.2026. Бот в группе торгует кнопками, стоп-кран снят 29.10. За неделю на счёте — ноль сделок: контур видел входы S42 на 1–3 дня позже. Причина найдена и исправлена 03.11.</div>
+  <div class="meta"><span class="pill">27.10 – 02.11.2026</span><span class="pill">счёт 15 000 ₽ · только S42</span><span class="pill">созвоны 26.10 и 30.10</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Главное</div>
+  <h2>Было → стало за неделю</h2>
+  <div class="bs" style="margin-top:14px">
+    <div class="h"></div><div class="h">было 26.10</div><div class="h">стало 02.11</div>
+    <div class="k">Бот</div><div class="was">нет — уведомления только в журнал</div><div class="now"><span class="tag g">готов</span>@MeLan_ITB_1_bot: «Исполнить» через API со стопом у брокера, 14 команд, тревоги, картинка каждый вечер</div>
+    <div class="k">Счёт</div><div class="was">стоп-кран включён</div><div class="now"><span class="tag g">снят 29.10</span>15 тыс. ₽, только S42 (SBER, GAZP, LKOH), без выходных, LKOH — всегда 1 лот</div>
+    <div class="k">Сделки на счёте</div><div class="was">—</div><div class="now"><span class="tag r">0</span>S42 видел каждый вход на 27–75 часов позже, а «ОТКРЫТЬ» живёт 30 минут. Исправлено 03.11</div>
+    <div class="k">Бумага S42</div><div class="was">2 позиции (23.10)</div><div class="now"><span class="tag b">4 сделки</span>3 в плюсе, сумма −0.1%</div>
+    <div class="k">Бумага S46/S48</div><div class="was">в работе с 26.10</div><div class="now"><span class="tag r">8 из 8 в минус</span>S46 −5.5%, S48 −7.8% — на деньги не включаем</div>
+    <div class="k">Как торговать</div><div class="was">вопросы Тимура</div><div class="now"><span class="tag b">ответ</span>S42 без плеча; пороги просадки −8% «внимание», −12% «стоп»</div>
+  </div>
+  <div class="foot"><span>Отчёт № 5 · 27.10–02.11.2026</span><span>2</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Что сделали</div>
+  <h2>По дням</h2>
+  <table style="margin-top:10px">
+    <tr><th>дата</th><th>что</th><th>зачем</th></tr>
+    <tr><td class="d">27.10</td><td>Протокол созвона 26.10; разбор слайда «Ровнее, но меньше»; правило счёта 15 тыс. ₽ на истории</td><td>на деньги — один S42 (T50): с S46/S48 та же доходность, но просадка −29% против −17%</td></tr>
+    <tr><td class="d">28.10</td><td>Ответы Тимуру «как торговать»: плечо, пороги просадки, возобновление; сделки выходного дня (T51)</td><td>пробный этап — S42 без плеча; стоп при −12% — повод разобраться, а не механика</td></tr>
+    <tr><td class="d">28.10</td><td>Бот по ТЗ Тимура + инструкция PDF; исполнение через API (лимит ≤ сигнал + 0.3%, стоп и трейлинг у брокера)</td><td>торговать по кнопке, не руками в терминале</td></tr>
+    <tr><td class="d">28.10</td><td>Конспект гайда OsEngine (Smart-Lab); тревоги: дивидендная отсечка, сверка бумаг с брокером, просадка счёта, место на диске</td><td>соседние проекты заняли диск — контур полдня не считал S46/S48</td></tr>
+    <tr><td class="d">29.10</td><td>Архив минуток на Яндекс Диске (ночью, 227 файлов, 652 МБ); команды <code>/check</code>, <code>/ask</code>, <code>/chart</code>; LKOH — всегда 1 лот</td><td>место на сервере; вопросы Claude прямо из группы</td></tr>
+    <tr><td class="d">29.10</td><td>Стоп-кран снят (Денис); сообщения о снятии показывают, где стратегия уже в позиции</td><td>было непонятно, почему нет «ОТКРЫТЬ»</td></tr>
+    <tr><td class="d">03.11</td><td>Найдена и исправлена задержка входов S42; протокол созвона 30.10</td><td>без этого контур не дал бы ни одной сделки</td></tr>
+  </table>
+  <div class="foot"><span>Отчёт № 5 · 27.10–02.11.2026</span><span>3</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Главная находка недели</div>
+  <h2>Каждый вход S42 контур видел на 1–3 дня позже</h2>
+  <p class="lead">«ОТКРЫТЬ» приходит, только если вход случился не раньше 30 минут назад. Все пять входов всплыли задним числом и сразу ушли в «держать».</p>
+  <img class="chart" src="s42_delay.png">
+  <div class="foot"><span>Первое появление позиции в почасовых логах контура · reports/live/logs</span><span>4</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Почему и что исправили</div>
+  <h2>Свежая свеча выпадала до «разметки»</h2>
+  <div class="cols" style="margin-top:16px">
+    <div>
+      <div class="box r" style="margin-bottom:16px"><b>Причина.</b> Сигналы S42 считались на данных вместе с разметкой «дошла ли цена до барьера». Свечи без разметки выбрасывались, а у самой свежей свечи разметка появляется через часы или дни. Вход «всплывал», когда цена уже ушла.</div>
+      <div class="box g" style="margin-bottom:16px"><b>Исправление 03.11.</b> Контур считает без разметки — свежая свеча на месте. Тест — <code>tests/test_live_signals.py</code>. Уже работает: «ОТКРЫТЬ» придёт в :05–:07 после входа.</div>
+      <div class="box b"><b>С бэктестом не расходится.</b> На всей истории без разметки только хвост файла (и 4 свечи GAZP 30.03.2025, вне окна контура).</div>
+    </div>
+    <div>
+      <div class="box"><b>Проверка на 30.10 18:05</b> — минутки, какими они были у контура в тот момент:
+        <table style="margin-top:10px"><tr><th></th><th>старый код</th><th>исправленный</th></tr>
+        <tr><td>GAZP</td><td>ничего</td><td><b>ОТКРЫТЬ</b> по 117.3, стоп 112.1</td></tr>
+        <tr><td>LKOH</td><td>ничего</td><td><b>ОТКРЫТЬ</b> по 6302, стоп 6134</td></tr></table></div>
+      <p class="note" style="margin-top:16px"><b>Почему не поймали раньше.</b> Бумажный прогон 22.10 («33 сделки из 33») считал на полном файле, где будущие минуты уже есть и разметка известна. Для живого режима это не доказательство — повторим честно, обрезая данные по каждому часу.</p>
+      <p class="note"><b>Чего стоило.</b> На счёт попали бы только входы 30.10 (стоп-кран снят 29.10): LKOH закрыт по стопу −2.7%, GAZP сейчас −2.2% — около −270 ₽. В этот раз ошибка уберегла от убытка, но без исправления сделок не было бы вовсе.</p>
+    </div>
+  </div>
+  <div class="foot"><span>scripts/live_signals.py · docs/meetings/2026-10-30_timur.md</span><span>5</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Бумажный режим</div>
+  <h2>S42 около нуля, S46 и S48 — все сделки в минус</h2>
+  <p class="lead">Закрытые сделки 27.10–02.11, % на сделку. S42 — по SBER, GAZP, LKOH; S46 и S48 — по 19 акциям, на бумаге.</p>
+  <img class="chart" src="paper_week.png">
+  <p class="note" style="margin-top:8px">8 сделок — мало для выводов: сверка с бэктестом пишет «мало сделок». Но и на свежих месяцах 12.06–24.10 S46 был в минусе (32 сделки, −5.1%), S48 около нуля. На деньги их не включаем.</p>
+  <div class="foot"><span>reports/live/s42_journal.csv, iterator_journal.csv</span><span>6</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Ответ Тимуру: как торговать</div>
+  <h2>Плечо умножает просадку так же, как доход</h2>
+  <p class="lead">Взять все сигналы на 15 тыс. ₽. Проверка 2021–2026, % депозита, без платы брокеру за плечо.</p>
+  <img class="chart" src="leverage_dd.png">
+  <p class="note" style="margin-top:8px">S42 берёт все сделки уже при плече 2, но просадка −31%; при плече 4 — −66%. Лучшее соотношение — S42 + S46 с плечом до 4, но S46 сейчас в минусе. <b>Пробный этап — S42 без плеча.</b></p>
+  <div class="foot"><span>docs/results/launch_questions.md, раздел 7 · scripts/launch_rules.py</span><span>7</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Когда останавливаться</div>
+  <h2>Пороги просадки и тревоги — уже в боте</h2>
+  <div class="kpis">
+    <div class="box"><div class="big b">−8%</div>«внимание»: хуже бывает лишь в 5% полугодий S42 без плеча (1 200 ₽)</div>
+    <div class="box"><div class="big r">−12%</div>«стоп»: хуже — в 1% полугодий (1 800 ₽). <code>/stop</code> и разбор за 1–2 дня</div>
+    <div class="box"><div class="big g">1.4–2.2×</div>во столько раз меньше итог при механической остановке — без выигрыша в просадке</div>
+  </div>
+  <ul style="margin-top:22px">
+    <li><b>Тревоги бота:</b> близко к стопу и у стопа, трейлинг, позиция пропала у брокера, сверка количества бумаг, дивидендная отсечка за 3 дня, повышенная волатильность, мало места на диске.</li>
+    <li><b>Возобновлять</b>, если причина понятна: исполнение совпадает с расчётом, а просадка в пределах истории.</li>
+    <li>Пороги меняются командой <code>/set</code>, текущее состояние — <code>/status</code>, <code>/check</code>, <code>/chart</code>.</li>
+  </ul>
+  <div class="foot"><span>Перестановки месяцев проверки 20 000 раз · docs/results/launch_rules/</span><span>8</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Что не сработало</div>
+  <h2>Чему научила неделя</h2>
+  <ul style="margin-top:14px; font-size:20px">
+    <li><b>Ни одной сделки на счёте.</b> Задержка входов S42 — ошибка живого режима, которую бэктест и бумажный прогон на полном файле не видят. Вывод: любой прогон контура — только на данных, обрезанных по моменту запуска.</li>
+    <li><b>Диск 28.10.</b> Соседние проекты опустили свободное место ниже порога — минутки перестали дописываться, S46/S48 полдня не считались. Теперь свой порог 1 ГБ, тревога при &lt; 3 ГБ, архив на Яндекс Диске.</li>
+    <li><b>S46 и S48 на бумаге — 8 из 8 в минус.</b> Подтверждает решение 26.10 не брать их на деньги.</li>
+    <li><b>Стопы 3–5% у S42 (T46)</b> не посчитаны — неделя ушла на бота и запуск. Переносим.</li>
+    <li><b>Путаница со стоп-краном 29.10:</b> после снятия ждали сигналов, а S42 уже держал все три бумаги. Сообщения теперь это поясняют.</li>
+  </ul>
+  <div class="foot"><span>Отчёт № 5 · 27.10–02.11.2026</span><span>9</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Планы 03–08.11</div>
+  <h2>Цель недели — первая сделка на счёте, без задержки</h2>
+  <table style="margin-top:10px">
+    <tr><th>№</th><th>задача</th><th>готово, когда</th></tr>
+    <tr><td>1</td><td>Первая сделка по кнопке. SBER и LKOH свободны, GAZP в позиции S42 до 09.11</td><td>сделка записана в журнал счёта</td></tr>
+    <tr><td>2</td><td>Честный бумажный прогон 12.06–30.10: данные обрезаны по каждому часу, как у живого контура</td><td>таблица «вход — когда увидели»</td></tr>
+    <tr><td>3</td><td>Меньше задержка: S42 первым шагом в :01–:02, S46/S48 после</td><td>«ОТКРЫТЬ» в группе до :03</td></tr>
+    <tr><td>4</td><td>Стопы 3/4/5% от входа у S42 (T46)</td><td>отчёт с графиком</td></tr>
+    <tr><td>5</td><td>Гипотезы из банка — Claude параллельно, в журнале экспериментов</td><td>вердикты по PF с графиком</td></tr>
+    <tr><td>6</td><td>Тагир — банк источников знаний и классификация стратегий</td><td>список источников в банке</td></tr>
+  </table>
+  <div class="foot"><span>Протокол созвона 30.10 · docs/meetings/2026-10-30_timur.md</span><span>10</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Где всё лежит</div>
+  <h2>Файлы недели</h2>
+  <table style="margin-top:10px">
+    <tr><td style="width:46%"><code>docs/results/bot_guide.pdf</code></td><td>инструкция к боту</td></tr>
+    <tr><td><code>docs/results/launch_questions.md</code></td><td>разбор вопросов 26–28.10: счёт, плечо, просадка</td></tr>
+    <tr><td><code>docs/results/inference_tz.md</code></td><td>ТЗ инференса: контур, тревоги, диск, архив</td></tr>
+    <tr><td><code>docs/results/osengine_notes.pdf</code></td><td>конспект гайда OsEngine под нашу связку</td></tr>
+    <tr><td><code>docs/meetings/2026-10-26_timur.md</code>, <code>2026-10-30_timur.md</code></td><td>протоколы созвонов</td></tr>
+    <tr><td><code>scripts/live_bot.py</code>, <code>live_account.py</code>, <code>live_exec.py</code></td><td>бот, счёт, исполнение через API</td></tr>
+    <tr><td><code>scripts/live_signals.py</code></td><td>сигналы S42 (исправлена задержка)</td></tr>
+    <tr><td><code>docs/results/weekly/2026-11-02/</code></td><td>графики этого отчёта (<code>scripts/weekly_charts.py --week 2026-11-02</code>)</td></tr>
+  </table>
+  <div class="foot"><span>Отчёт № 5 · 27.10–02.11.2026</span><span>11</span></div>
+</section>
+
+</body>
+</html>

@@ -14,6 +14,7 @@
     python scripts/weekly_charts.py --week 2026-10-12      # отчёт № 2: база B01 и разбор недели
     python scripts/weekly_charts.py --week 2026-10-19      # отчёт № 3: набор для запуска, вторая стратегия, тренд-фильтр
     python scripts/weekly_charts.py --week 2026-10-26      # отчёт № 4: новые акции, портфель для запуска, металлы
+    python scripts/weekly_charts.py --week 2026-11-02      # отчёт № 5: задержка S42, бумажный режим недели, плечо
 """
 
 from __future__ import annotations
@@ -757,9 +758,122 @@ def week4(out: Path) -> None:
     print("H68 металлы:", metals_pf(out))
 
 
+# ---------------------------------------------------------------- отчёт № 5 (27.10–02.11): запуск, бот, задержка S42
+
+LIVE = ROOT / "reports" / "live"
+RED, AQUA = "#b3261e", "#199e70"
+
+
+def s42_delay(out: Path) -> list[dict]:
+    """Вход S42 — и когда контур впервые его показал (первая строка «держать … лонг с <вход>» в почасовых логах)."""
+    import re
+
+    seen: dict[tuple[str, str], pd.Timestamp] = {}
+    for log in sorted((LIVE / "logs").glob("2026-*.log")):
+        run = None
+        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+            if re.match(r"^[A-Z][a-z]{2} [A-Z][a-z]{2} +\d+ .* \+05 \d{4}$", line):
+                p = line.split()                                     # Sun Nov 1 04:05:01 PM +05 2026
+                run = pd.Timestamp(f"{p[1]} {p[2]} {p[-1]} {p[3]} {p[4]}") - pd.Timedelta(hours=2)      # сервер +05 → МСК
+            m = re.match(r"^\[(sber|gazp|lkoh)\] держать.* лонг с (\S+ \S+)", line)
+            if m and run is not None:
+                seen.setdefault((m.group(1).upper(), m.group(2)), run)
+    rows = [{"бумага": k[0], "вход": pd.Timestamp(k[1]), "увидели": v} for k, v in seen.items()
+            if pd.Timestamp(k[1]) >= pd.Timestamp("2026-10-23")]
+    rows.sort(key=lambda r: (r["вход"], r["бумага"]))
+    f, ax = figure(1600, 560)
+    style(ax)
+    y = np.arange(len(rows))[::-1]
+    for yy, r in zip(y, rows):
+        h = (r["увидели"] - r["вход"]).total_seconds() / 3600
+        r["часов"] = round(h, 1)
+        ax.barh(yy, h, 0.5, color=RED)
+        ax.text(h + 1.2, yy, f"{h:.0f} ч — увидели {r['увидели']:%d.%m %H:%M}", va="center", fontsize=FS, color=INK)
+    ax.axvline(0.5, color=AQUA, linewidth=3)
+    ax.text(1.2, y[0] + 0.45, "окно «ОТКРЫТЬ» — 30 минут", fontsize=FS - 1, color=AQUA, va="bottom")
+    ax.set_yticks(y)
+    ax.set_yticklabels([f"{r['бумага']}  вход {r['вход']:%d.%m %H:%M}" for r in rows], fontsize=FS, color=INK)
+    ax.set_xlim(0, max(r["часов"] for r in rows) * 1.45)
+    ax.set_ylim(-0.6, len(rows) - 0.2)
+    ax.set_xlabel("часов от входа до первого показа в контуре", fontsize=FS, color=INK2)
+    ax.grid(axis="y", visible=False)
+    f.tight_layout()
+    save(f, out, "s42_delay.png")
+    return [{k: (str(v) if isinstance(v, pd.Timestamp) else v) for k, v in r.items()} for r in rows]
+
+
+def paper_week(out: Path) -> dict:
+    """Закрытые за неделю сделки бумажного режима: S42 (SBER, GAZP, LKOH) и S46/S48 (19 акций), % на сделку."""
+    s42 = pd.read_csv(LIVE / "s42_journal.csv", parse_dates=["вход", "выход"])
+    s42["результат %"] = (s42["цена выхода"] / s42["цена входа"] - 1) * 100
+    it = pd.read_csv(LIVE / "iterator_journal.csv", parse_dates=["вход", "выход"]).dropna(subset=["выход"])
+    t = pd.concat([s42[["стратегия", "бумага", "вход", "выход", "результат %"]],
+                   it[["стратегия", "бумага", "вход", "выход", "результат %"]]], ignore_index=True)
+    t = t[(t["выход"] >= "2026-10-27") & (t["выход"] < "2026-11-03")].sort_values(["стратегия", "выход"])
+    f, ax = figure(1600, 560)
+    style(ax)
+    res, x, ticks, labels = {}, 0, [], []
+    for strat, g in t.groupby("стратегия", sort=True):
+        k = np.arange(x, x + len(g))
+        v = g["результат %"].to_numpy()
+        ax.bar(k, v, 0.7, color=[AQUA if z > 0 else RED for z in v])
+        for kk, z, b in zip(k, v, g["бумага"]):
+            ax.text(kk, z + (0.12 if z > 0 else -0.12), f"{z:+.1f}".replace("-", "−"), ha="center", va="bottom" if z > 0 else "top", fontsize=FS - 3, color=INK)
+            ax.text(kk, 0.35 if z < 0 else -0.35, b, ha="center", va="bottom" if z < 0 else "top", fontsize=FS - 5, color=INK2, rotation=90)
+        ticks.append(k.mean())
+        labels.append(f"{strat}: {len(g)} сд., сумма {v.sum():+.1f}%".replace("-", "−"))
+        res[strat] = {"сделок": len(g), "сумма %": round(float(v.sum()), 2), "в плюсе": int((v > 0).sum())}
+        x += len(g) + 1
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labels, fontsize=FS - 1, color=INK)
+    ax.set_ylabel("результат сделки, %", fontsize=FS, color=INK2)
+    ax.set_ylim(-3.6, 2.2)
+    ax.grid(axis="x", visible=False)
+    f.tight_layout()
+    save(f, out, "paper_week.png")
+    return res
+
+
+def leverage_dd(out: Path) -> dict:
+    """Ответ Тимуру 28.10: доход в год и просадка на проверке 2021–2026 по вариантам «взять все сделки»."""
+    a = pd.read_csv(DOCS / "launch_rules" / "all_trades.csv")
+    a = a[a["период"] == "проверка"]
+    pick = [("S42", 1, "S42 без плеча\n(сейчас)"), ("S42", 2, "S42\nплечо до 2"), ("S42", 4, "S42\nплечо до 4"),
+            ("S42 + S46", 4, "S42 + S46\nплечо до 4")]
+    f, ax = figure(1600, 560)
+    style(ax)
+    k = np.arange(len(pick))
+    res = {}
+    for kk, (s, lev, name) in zip(k, pick):
+        r = a[(a["набор"] == s) & (a["плечо до"] == lev)].iloc[0]
+        inc, dd = float(r["в год % депозита"]), float(r["просадка % депозита"])
+        ax.bar(kk - 0.18, inc, 0.34, color=BLUE, label="доход в год" if kk == 0 else None)
+        ax.bar(kk + 0.18, dd, 0.34, color=RED, label="наибольшая просадка" if kk == 0 else None)
+        ax.text(kk - 0.18, inc + 1.5, f"+{inc:.0f}%", ha="center", va="bottom", fontsize=FS, fontweight="bold", color=INK)
+        ax.text(kk + 0.18, dd - 1.5, f"{dd:.0f}%".replace("-", "−"), ha="center", va="top", fontsize=FS, fontweight="bold", color=INK)
+        res[name.replace("\n", " ")] = (round(inc, 1), round(dd, 1))
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_xticks(k)
+    ax.set_xticklabels([p[2] for p in pick], fontsize=FS - 1, color=INK)
+    ax.set_ylim(-80, 55)
+    ax.set_ylabel("% депозита, проверка 2021–2026", fontsize=FS, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.legend(frameon=False, fontsize=FS - 1, labelcolor=INK, loc="lower left")
+    f.tight_layout()
+    save(f, out, "leverage_dd.png")
+    return res
+
+
+def week5(out: Path) -> None:
+    print("S42: вход → увидели:", s42_delay(out))
+    print("бумага за неделю:", paper_week(out))
+    print("плечо:", leverage_dd(out))
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1), 2026-10-12 (№ 2), 2026-10-19 (№ 3), 2026-10-26 (№ 4)")
+    ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1), 2026-10-12 (№ 2), 2026-10-19 (№ 3), 2026-10-26 (№ 4), 2026-11-02 (№ 5)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
     logging.disable(logging.WARNING)
@@ -773,6 +887,9 @@ def main(argv=None) -> int:
         return 0
     if args.week == "2026-10-26":
         week4(out)
+        return 0
+    if args.week == "2026-11-02":
+        week5(out)
         return 0
     st = equity(out)
     for k, v in st.items():
