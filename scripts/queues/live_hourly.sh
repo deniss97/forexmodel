@@ -10,12 +10,13 @@
 # Раз в день, в 23 ч по Москве: здоровье S42 против порогов H43 (live_health.py) и сверка живой торговли с симуляцией
 # (live_deviation.py: «стоп» — стратегия перестаёт брать сигналы).
 #
-# cron — каждый час в :01, все дни (утренняя сессия с 07:00 и торги выходного дня тоже; вне торгов новых минут нет —
-# решения не меняются). S42 — первым шагом и сразу счёт: в HH:01 час уже закрыт (Т-Инвестиции отдают только
-# завершённые минуты), вход стратегии в HH:01 ещё впереди — «ОТКРЫТЬ» приходит в :02–:03, а не в :07 (план 03.11).
-# Если минуты часа ещё не все, вход возьмёт следующий запуск по окну 30 минут (ENTRY_GRACE). Потом S46/S48 на
-# 19 бумагах (~1 мин) и счёт ещё раз — для их сигналов (повторы не шлются: сигналы и тревоги помнятся в состоянии):
-#   1 * * * *  /home/dev/forexmodel/scripts/queues/live_hourly.sh
+# cron — каждый час в :00, все дни (утренняя сессия с 07:00 и торги выходного дня тоже; вне торгов новых минут нет —
+# решения не меняются). S42 — первым шагом и сразу счёт: fetch_tinvest.py --wait-close ждёт до 45 с, пока брокер
+# отдаст минуту HH:59 (только завершённые минуты), — час закрыт, вход стратегии в HH:01 ещё впереди, «ОТКРЫТЬ»
+# приходит примерно в HH:00:30 (03.11; до этого — :01, ещё раньше — :05, ≈ HH:07). Не пришла минута — вход возьмёт
+# следующий запуск по окну 65 минут (ENTRY_GRACE). Потом S46/S48 на 19 бумагах (~1 мин) и счёт ещё раз — для их
+# сигналов (повторы не шлются: сигналы и тревоги помнятся в состоянии):
+#   0 * * * *  /home/dev/forexmodel/scripts/queues/live_hourly.sh
 cd /home/dev/forexmodel || exit 1
 LOG=reports/live/logs; mkdir -p $LOG
 exec 9> reports/live/.hourly.lock
@@ -24,7 +25,7 @@ flock -n 9 || exit 0                                  # предыдущий з�
   date
   # минутки: Т-Инвестиции без задержки, если есть токен (созвон 18.10); иначе бесплатный ISS Мосбиржи
   if [ -n "$TINVEST_TOKEN" ] || grep -qsv '^[[:space:]]*\(#\|$\)' configs/tinvest_token "$HOME/.config/forexmodel/tinvest_token"; then
-    .venv/bin/python scripts/fetch_tinvest.py SBER GAZP LKOH || .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
+    .venv/bin/python scripts/fetch_tinvest.py SBER GAZP LKOH --wait-close 45 || .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
   else
     .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
   fi

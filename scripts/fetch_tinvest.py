@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 
 import _bootstrap  # noqa: F401
 import pandas as pd
@@ -44,14 +45,31 @@ def update(api: TInvest, ticker: str, out=None) -> None:
     print(f"[{ticker}] +{len(new)} минут из Т-Инвестиций, данные до {end} → {out.relative_to(ROOT)}", flush=True)
 
 
+def waiting(lasts: dict, hour: pd.Timestamp) -> list[str]:
+    """Бумаги, у которых последняя минута прошлого часа ещё не отдана: торги шли до конца часа (последняя минута —
+    HH:56–HH:58), а HH:59 брокер ещё не закрыл. Торги кончились раньше (18:49, 23:49) или их не было — не ждём."""
+    end = hour - pd.Timedelta(minutes=1)
+    return [t for t, last in lasts.items() if end - pd.Timedelta(minutes=3) <= last < end]
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("tickers", nargs="*", default=["SBER", "GAZP", "LKOH"])
     ap.add_argument("--sandbox", action="store_true", help="токен песочницы (рыночные данные те же)")
+    ap.add_argument("--wait-close", type=float, default=0, metavar="СЕК",
+                    help="запуск в HH:00 (03.11): до стольких секунд ждать, пока брокер отдаст минуту HH:59 прошлого часа")
     a = ap.parse_args(argv)
     api = TInvest(sandbox=a.sandbox)
-    for t in a.tickers:
-        update(api, t.upper())
+    hour = pd.Timestamp.now("Europe/Moscow").tz_localize(None).floor("h")
+    deadline = time.monotonic() + a.wait_close
+    todo = [t.upper() for t in a.tickers]
+    while True:
+        for t in todo:
+            update(api, t)
+        todo = waiting({t: last_begin(LIVE / f"{t}_1m_live.csv") for t in todo}, hour) if a.wait_close else []
+        if not todo or time.monotonic() >= deadline:
+            break
+        time.sleep(3)
     return 0
 
 
