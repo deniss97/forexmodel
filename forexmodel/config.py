@@ -494,6 +494,8 @@ class SimulationConfig:
     # стоп ближе — early_stop_atr ATR от входа (0 — выключен); потом обычный стоп sl_atr
     early_stop_atr: float = 0.0
     early_stop_hours: float = 0.0
+    # потолок убытка сделки (H71, trailing): стоп не дальше max_loss_pct % от входа; 0 — выключен (как у счёта max_loss_pct)
+    max_loss_pct: float = 0.0
     atr_col: str = "atr_14"
     # вход
     signal_source: str = "ensemble"      # ensemble | cb | nn | meta | rule | impulse | pattern

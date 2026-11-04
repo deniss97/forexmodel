@@ -21,7 +21,11 @@ scripts/live_iterator.py → reports/live/iterator_state.json):
      в volatility_x раз больше обычного (медиана часов за 20 дней), раз в день на бумагу;
   8. пробный этап (28.10): количество бумаг у брокера против позиции счёта (бумаг нет — позиция закрывается в счёте);
      отсечка дивидендов по позиции за dividend_days дней (стоп у брокера сработает на разрыве, бэктест держал бы);
-     просадка результата счёта от пика — «внимание» dd_warn_pct и «стоп» dd_stop_pct % депозита; мало места на диске.
+     просадка результата счёта от пика — «внимание» dd_warn_pct и «стоп» dd_stop_pct % депозита; мало места на диске;
+  9. проба P42 (созвон 04.11): правило S42 с порогом входа trial_impulse_atr (1.5 вместо 3 ATR) — чтобы проверить весь путь
+     «сигнал → ОТКРЫТЬ → покупка → стопы у брокера → закрытие» на настоящем счёте, когда S42 сам не открывает сделку.
+     Сигналы — reports/live/trial_state.json (live_signals.py --tag trial), ровно trial_lots лотов, в сообщениях «ПРОБА».
+     Включается так же, как другие стратегии: strategies: P42: [...] или /strategy P42 on в боте.
 Состояние — reports/live/account_state.json (меняет и бот — под общей блокировкой state_lock), история сделок счёта —
 reports/live/account_trades.csv.
 
@@ -100,8 +104,12 @@ def allowed_stocks(cfg: dict, lots: dict) -> dict[str, list[str]]:
 
 # ---------------------------------------------------------------- сигналы и позиции стратегий
 
-def s42_signals(state: dict, stocks: list[str]) -> tuple[list[dict], dict]:
-    """Решения S42 → свежие сигналы «открыть» и состояние позиций стратегии по бумагам."""
+TRIAL = "P42"                       # проба: правило S42 с порогом входа ниже (созвон 04.11)
+TRIAL_STATE = OUT / "trial_state.json"
+
+
+def s42_signals(state: dict, stocks: list[str], code: str = "S42") -> tuple[list[dict], dict]:
+    """Решения S42 (или пробы P42 — тот же формат) → свежие сигналы «открыть» и состояние позиций стратегии по бумагам."""
     sig, pos = [], {}
     for inst, m in (state.get("решения") or {}).items():
         if inst not in stocks or not m:
@@ -110,7 +118,7 @@ def s42_signals(state: dict, stocks: list[str]) -> tuple[list[dict], dict]:
         if r == "открыть":
             at = ts(m.get("вход_в"))
             srok = ts(m.get("срок")) or at + pd.Timedelta(hours=float(m.get("срок_часов", 240)))
-            sig.append({"стратегия": "S42", "бумага": inst.upper(), "вход_в": at, "цена": float(m["цена"]), "стоп": float(m["стоп"]),
+            sig.append({"стратегия": code, "бумага": inst.upper(), "вход_в": at, "цена": float(m["цена"]), "стоп": float(m["стоп"]),
                         "срок": srok, "активация": m.get("активация"), "отступ": m.get("отступ")})
         if r in ("держать", "открыть") and m.get("вход") is not None:
             pos[inst.upper()] = {"открыта": True, "вход": ts(m["вход"]), "стоп": m.get("стоп")}
@@ -189,6 +197,10 @@ def allocate(signals: list[dict], positions: list[dict], cfg: dict, lots: dict, 
             reason = "бумага уже в позиции"
         elif free <= 0:
             reason = "нет свободного слота"
+        elif s["стратегия"] == TRIAL:          # проба: ровно trial_lots лотов, слот и резервы не важны
+            n = int(cfg.get("trial_lots", 1))
+            if cash < n * cost:
+                n, reason = 0, f"не хватает денег на пробу: {n} лот. по {f(cost, 0)} ₽, свободно {f(cash, 0)} ₽"
         elif s["бумага"] in fixed:             # ровно fixed лотов, слот не важен
             n = fixed[s["бумага"]] if cash >= fixed[s["бумага"]] * cost else 0
             if n == 0:
@@ -214,12 +226,12 @@ def allocate(signals: list[dict], positions: list[dict], cfg: dict, lots: dict, 
     return take, alt
 
 
-def exits(positions: list[dict], s42: dict, it: dict) -> tuple[list[dict], list[dict]]:
+def exits(positions: list[dict], s42: dict, it: dict, trial: dict | None = None) -> tuple[list[dict], list[dict]]:
     """Позиции счёта → (ещё открытые с текущим стопом стратегии, закрытые с причиной и ценой выхода)."""
     still, closed = [], []
     for p in positions:
-        if p["стратегия"] == "S42":
-            q = s42.get(p["бумага"])
+        if p["стратегия"] in ("S42", TRIAL):
+            q = (s42 if p["стратегия"] == "S42" else (trial or {})).get(p["бумага"])
             same = q is not None and q.get("вход") == p["вход_в"]
         else:
             q = it.get((p["стратегия"], p["бумага"], p["вход_в"]))
@@ -244,13 +256,17 @@ def msg_open(p: dict, cfg: dict | None = None) -> str:
     trail = (f"\nТрейлинг-стоп: включение {f(p['активация'])}, отступ {f(p['отступ'])} — выставить у брокера."
              if p.get("активация") else "")
     cap = "" if p["стоп"] == p["стоп стратегии"] else f" (стоп стратегии {f(p['стоп стратегии'])} дальше −10% — ставим потолок)"
-    text = (f"🟢 ОТКРЫТЬ {p['стратегия']} · {p['бумага']}\nКупить {p['штук']} шт. ({p['лоты']} лот.) по рынку ≈ {f(p['цена'])} ₽ "
+    head = ("🧪 ПРОБА — ОТКРЫТЬ" if p["стратегия"] == TRIAL else "🟢 ОТКРЫТЬ")
+    text = (f"{head} {p['стратегия']} · {p['бумага']}\nКупить {p['штук']} шт. ({p['лоты']} лот.) по рынку ≈ {f(p['цена'])} ₽ "
             f"на {f(p['сумма'], 0)} ₽.\nСтоп-лосс: {f(p['стоп'])} ({(p['стоп'] / p['цена'] - 1) * 100:+.1f}%){cap}.{trail}\n"
             f"Вход стратегии {p['вход_в']:%d.%m %H:%M}; закрыть не позже {p['срок']:%d.%m %H:%M}.")
     if cfg and cfg.get("mode") == "button":
         lim = p["цена"] * (1 + float(cfg.get("max_slippage_pct", 0.3)) / 100)
         text += (f"\n\n«Исполнить» — бот купит через API не дороже {f(lim)} ₽ (допуск {cfg.get('max_slippage_pct', 0.3)}%) и сам "
                  f"поставит стоп{' и трейлинг' if p.get('активация') else ''}. «Купил сам» — если покупаете в приложении.")
+    if p["стратегия"] == TRIAL:
+        text += (f"\n\nЭто проверка пути сделки, а не стратегия: правило S42 с порогом входа {cfg.get('trial_impulse_atr', 1.5) if cfg else 1.5} ATR "
+                 f"вместо 3. Проверить: покупка, стоп и трейлинг у брокера — затем закрыть: /close {p['бумага']}.")
     return text
 
 
@@ -443,6 +459,10 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
     s42_state = json.loads((OUT / "s42_state.json").read_text(encoding="utf-8")) if (OUT / "s42_state.json").exists() else {}
     it_state = json.loads((OUT / "iterator_state.json").read_text(encoding="utf-8")) if (OUT / "iterator_state.json").exists() else {}
     sig42, pos42 = s42_signals(s42_state, allowed.get("S42", []))
+    trial_state = json.loads(TRIAL_STATE.read_text(encoding="utf-8")) if TRIAL_STATE.exists() else {}
+    sig_tr, pos_tr = s42_signals(trial_state, allowed.get(TRIAL, []), TRIAL)
+    # файл пробы мог остаться от прошлого (упал расчёт, ручной прогон с --now) — старые «открыть» не берём
+    sig42 = sig42 + [s for s in sig_tr if now - s["вход_в"] <= pd.Timedelta(hours=2)]
     sig_it, pos_it = iterator_signals(it_state, allowed)
     prices = {**{k.upper(): float(v["цена"]) for k, v in (s42_state.get("решения") or {}).items() if v and v.get("цена") is not None},
               **{k: float(v["цена"]) for k, v in (it_state.get("данные") or {}).items() if v.get("цена") is not None}}
@@ -450,7 +470,7 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
     msgs: list[tuple[str, list | None]] = []
 
     # 1. выходы: не исполненный сигнал просто снимается, открытая позиция — «ЗАКРЫТЬ» с кнопками
-    still, closed = exits(st["позиции"], pos42, pos_it)
+    still, closed = exits(st["позиции"], pos42, pos_it, pos_tr)
     for p in closed:
         if p.get("статус") == "к исполнению":
             msgs.append((f"⏹ Сигнал {p['стратегия']} {p['бумага']} снят: сделка стратегии уже закрылась, а позиция не открывалась — "

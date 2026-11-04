@@ -249,7 +249,7 @@ def _resolve_exit(sim, side, entry_price, atr, high, low, close, early_bars=0):
     if sim.exit_mode == "trailing":
         return trailing_exit(
             high, low, close, side, entry_price, atr, sim.sl_atr, sim.trail_atr, sim.activate_atr,
-            sim.early_stop_atr, early_bars,
+            sim.early_stop_atr, early_bars, sim.max_loss_pct,
         )
 
     if sim.exit_mode == "atr":

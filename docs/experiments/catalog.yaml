@@ -1059,6 +1059,73 @@ experiments:
     sources:
       silvfut: [silvfut_wt4__eng]
       goldfut: [goldfut_wt4__eng]
+  - id: S60
+    family: strategy
+    title: "S42 на акциях с потолком убытка 5%"
+    kind: variation
+    main: все
+    hypothesis: H71
+    change: "стоп = ближний из «6 ATR» и «5% от входа» (simulation.max_loss_pct = 5); остальное как у S42 на GAZP, SBER, LKOH в лонг"
+    baseline: S42
+    verdict: 'как S42: на проверке +50.8% и PF 1.37 (S42 — те же), на выборе чуть хуже; потолок 5% затрагивает мало сделок'
+    doc: results/h71_stop_caps.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      lkoh: [lkoh_lo_cap5__impulse_6_3_long]
+      gazp: [gazp_lo_cap5__impulse_6_3_long]
+      sber: [sber_lo_cap5__impulse_6_3_long]
+  - id: S61
+    family: strategy
+    title: "S42 на акциях с потолком убытка 4%"
+    kind: variation
+    main: все
+    hypothesis: H71
+    change: "стоп = ближний из «6 ATR» и «4% от входа» (simulation.max_loss_pct = 4); остальное как у S42 на GAZP, SBER, LKOH в лонг"
+    baseline: S42
+    verdict: 'на проверке чуть лучше S42 (+52.7%, PF 1.39, просадка −17.1 против −18.7), на выборе хуже (+47.4 против +53.4)'
+    doc: results/h71_stop_caps.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      lkoh: [lkoh_lo_cap4__impulse_6_3_long]
+      gazp: [gazp_lo_cap4__impulse_6_3_long]
+      sber: [sber_lo_cap4__impulse_6_3_long]
+  - id: S62
+    family: strategy
+    title: "S42 на акциях с потолком убытка 3%"
+    kind: variation
+    main: все
+    hypothesis: H71
+    change: "стоп = ближний из «6 ATR» и «3% от входа» (simulation.max_loss_pct = 3); остальное как у S42 на GAZP, SBER, LKOH в лонг"
+    baseline: S42
+    verdict: 'итог тот же, риск меньше: проверка +54.2% против +50.8%, просадка −13.3 против −18.7, PF 1.41; выбор +50.0 против +53.4 при той же просадке'
+    doc: results/h71_stop_caps.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      lkoh: [lkoh_lo_cap3__impulse_6_3_long]
+      gazp: [gazp_lo_cap3__impulse_6_3_long]
+      sber: [sber_lo_cap3__impulse_6_3_long]
+  - id: S63
+    family: trend
+    title: "Сделки по трёхслойному фильтру с трейлингом 6 ATR"
+    zones: tl
+    kind: variation
+    main: все
+    hypothesis: H59
+    change: "как S49 (вход — фильтр включил направление, выход — фильтр вышел), плюс трейлинг 6 ATR от лучшей цены; лучший по выбору из 44 вариантов раннего выхода (стоп 2/3 ATR, трейлинг 2–6 ATR, EMA 5 после +1/+2 ATR)"
+    baseline: S49
+    verdict: 'хуже S49: PF 1.00 на выборе и 0.90 на проверке против 1.02 и 1.00; ни один из 44 ранних выходов не лучше S49 ни в одном периоде'
+    doc: results/h59_trend_exits.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      silver: [silver_tf3x__follow]
+      gold: [gold_tf3x__follow]
+      lkoh: [lkoh_tf3x__follow]
+      gazp: [gazp_tf3x__follow]
+      sber: [sber_tf3x__follow]
 
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01

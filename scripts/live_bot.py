@@ -59,8 +59,12 @@ SETTINGS = {                              # ключ: (тип, от, до, чт�
     "dd_warn_pct": (float, 2, 50, "просадка счёта от пика, % депозита: тревога «внимание»"),
     "dd_stop_pct": (float, 3, 60, "просадка счёта от пика, % депозита: тревога «стоп» (/stop — решение за вами)"),
     "dividend_days": (int, 1, 10, "за сколько дней предупреждать об отсечке дивидендов по позиции"),
+    "trial_impulse_atr": (float, 0.5, 3, "проба P42: порог входа, ATR за 6 ч (у S42 — 3)"),
+    "trial_lots": (int, 1, 5, "проба P42: лотов в сделке"),
+    "trial_gate": (bool, None, None, "проба P42: с тренд-гейтом (off — входы и при нисходящем тренде)"),
 }
-STRATEGY_ON = {"S42": "[sber, gazp, lkoh]", "S46": "all", "S48": "all"}
+STRATEGY_ON = {"S42": "[sber, gazp, lkoh]", "S46": "all", "S48": "all",
+               "P42": "[sber, gazp, lkoh]"}     # проба: правило S42 с порогом trial_impulse_atr (созвон 04.11)
 COMMANDS = [("status", "Счёт, позиции, стоп-кран"), ("balance", "Деньги и бумаги у брокера"), ("stop", "Включить стоп-кран"),
             ("resume", "Снять стоп-кран"), ("close", "Закрыть позицию: /close SBER"), ("closeall", "Закрыть всё и включить стоп-кран"),
             ("risk", "Настройки риска"), ("set", "Изменить настройку: /set slot 4000"),
@@ -719,11 +723,17 @@ def on_command(tg: Telegram, bst: dict, text: str, name: str) -> None:
     elif cmd == "strategy":
         code = args[0].upper() if args else ""
         if code not in STRATEGY_ON or len(args) < 2 or args[1].lower() not in ("on", "off"):
-            tg.say("Например: /strategy S46 on или /strategy S46 off (есть S42, S46, S48)")
+            tg.say("Например: /strategy S46 on или /strategy S46 off (есть S42, S46, S48 и проба P42)")
             return
         on = args[1].lower() == "on"
-        ask(tg, bst, "strategy", {"code": code, "on": on},
-            f"{'Включить' if on else 'Выключить'} {code} на счёте?" + (" (созвон 26.10: пока на деньги только S42)" if on and code != "S42" else ""), name)
+        note = ""
+        if on and code == "P42":
+            note = (f" Проба: правило S42 с порогом входа {cfg.get('trial_impulse_atr', 1.5)} ATR вместо 3, по {cfg.get('trial_lots', 1)} лоту, "
+                    f"{'с тренд-гейтом' if cfg.get('trial_gate', True) else 'без тренд-гейта'}. Сигналы — со следующего часа; "
+                    f"после проверки сделки — /close и /strategy P42 off.")
+        elif on and code != "S42":
+            note = " (созвон 26.10: пока на деньги только S42)"
+        ask(tg, bst, "strategy", {"code": code, "on": on}, f"{'Включить' if on else 'Выключить'} {code} на счёте?" + note, name)
     elif cmd == "check":
         tg.say(check_text(cfg))
     elif cmd == "ask":

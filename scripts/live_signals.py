@@ -63,7 +63,7 @@ def instrument_cfg(spec: dict, live: dict, start: pd.Timestamp, end: pd.Timestam
     c.simulation.use_expected_value_filter = False
     c.simulation.signal_source = "impulse"
     c.simulation.impulse_bars, c.simulation.impulse_atr = int(parts[1]), float(parts[2])
-    c.simulation.use_trend_filter = True
+    c.simulation.use_trend_filter = bool(live["rule"].get("gate", True))    # gate: false — проба без тренд-гейта
     return c
 
 
@@ -144,7 +144,8 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_m
         entry_at = a[tcol] + pd.Timedelta(minutes=sim.open_delay_minutes)
         trend = a.get(sim.trend_col, np.nan)
         side = LONG if a["final_class"] == LONG else SHORT
-        ok_trend = not np.isfinite(trend) or (trend > 0 if side == LONG else trend < 0)
+        ok_trend = (not cfg.simulation.use_trend_filter or not np.isfinite(trend)
+                    or (trend > 0 if side == LONG else trend < 0))
         if entry_at > last and ok_trend:
             atr = float(a[sim.atr_col]); px = float(a["close"])
             d = 1 if side == LONG else -1
@@ -176,10 +177,20 @@ def main(argv=None) -> int:
     ap.add_argument("--config", default=str(ROOT / "configs" / "live.yaml"))
     ap.add_argument("--now", default=None, help="момент «сейчас» (время данных); по умолчанию — последняя минута + 1")
     ap.add_argument("--only", nargs="*", default=None)
+    # пробный режим P42 (созвон 04.11): то же правило с порогом входа ниже, свои файлы — журнал S42 не трогаем
+    ap.add_argument("--impulse-atr", type=float, default=None, help="порог входа: ход за 6 ч ≥ столько ATR (S42 — 3)")
+    ap.add_argument("--no-gate", action="store_true", help="без тренд-гейта C")
+    ap.add_argument("--tag", default="s42", help="префикс файлов состояния: s42 (основной) или trial (проба P42)")
     args = ap.parse_args(argv)
     setup_logging(logging.WARNING)
     logging.disable(logging.WARNING)
     live = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
+    if args.impulse_atr is not None:
+        bars = live["rule"]["variant"].split(":")[1]
+        live["rule"]["variant"] = f"impulse:{bars}:{args.impulse_atr:g}"
+    if args.no_gate:
+        live["rule"]["gate"] = False
+    main_run = args.tag == "s42"
     now = pd.Timestamp(args.now) if args.now else None
     rows = []
     for name, spec in live["instruments"].items():
@@ -193,14 +204,21 @@ def main(argv=None) -> int:
     R = pd.DataFrame([{k: v for k, v in r.items() if k != "_м"} for r in rows])
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = pd.Timestamp.now().strftime("%Y-%m-%d_%H%M")
-    md = ["# Сигналы импульса", "", f"Запуск {stamp}" + (f", момент {now}" if now is not None else ""), "",
+    title = "# Сигналы импульса" if main_run else f"# Проба P42: {live['rule']['variant']}{', без гейта' if args.no_gate else ''}"
+    md = [title, "", f"Запуск {stamp}" + (f", момент {now}" if now is not None else ""), "",
           "| " + " | ".join(R.columns) + " |", "|" + "---|" * len(R.columns)]
     md += ["| " + " | ".join(str(v) for v in r) + " |" for r in R.fillna("").itertuples(index=False)]
-    (OUT / f"{stamp}.md").write_text("\n".join(md) + "\n", encoding="utf-8")
-    j = OUT / "journal.csv"
+    (OUT / (f"{stamp}.md" if main_run else f"{args.tag}_{stamp}.md")).write_text("\n".join(md) + "\n", encoding="utf-8")
+    j = OUT / ("journal.csv" if main_run else f"{args.tag}_decisions.csv")
     R.assign(запуск=stamp, момент=str(now or "")).to_csv(j, mode="a", header=not j.exists(), index=False)
     # машинные поля решений — для счёта (scripts/live_account.py): что открыть, где стоп, когда закрыть
     state = {r["инструмент"]: r.get("_м", {}) for r in rows}
+    if not main_run:
+        (OUT / f"{args.tag}_state.json").write_text(json.dumps({"запуск": stamp, "правило": live["rule"]["variant"],
+                                                              "гейт": not args.no_gate, "решения": state},
+                                                             ensure_ascii=False, default=str, indent=1), encoding="utf-8")
+        print("\n".join(md))
+        return 0
     # закрытые сделки стратегии на живых данных — для сверки с симуляцией (scripts/live_deviation.py)
     done = [{"стратегия": "S42", "бумага": k.upper(), "вход": m["вход"], "выход": m["выход"], "цена входа": m.get("цена_входа"),
              "цена выхода": m.get("цена_выхода"), "причина": m.get("причина")} for k, m in state.items() if m.get("решение") == "закрыто"]

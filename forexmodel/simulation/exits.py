@@ -58,6 +58,7 @@ def trailing_exit(
     activate_atr: float = 1.0,
     early_sl_atr: float = 0.0,
     early_bars: int = 0,
+    max_loss_pct: float = 0.0,
 ) -> ExitResult:
     """Трейлинг вместо фиксированного TP.
 
@@ -71,6 +72,10 @@ def trailing_exit(
     """
     sgn = 1.0 if side == "buy" else -1.0
     stop = entry_price - sgn * sl_atr * atr
+    # потолок убытка (H71): стоп не дальше max_loss_pct % от входа — если 6 ATR дальше, стоп ближе
+    if max_loss_pct > 0:
+        cap = entry_price * (1 - sgn * max_loss_pct / 100.0)
+        stop = max(stop, cap) if sgn > 0 else min(stop, cap)
     early = entry_price - sgn * early_sl_atr * atr if early_sl_atr > 0 else None
     best = entry_price
     activated = False
