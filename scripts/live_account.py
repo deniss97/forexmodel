@@ -120,8 +120,11 @@ def s42_signals(state: dict, stocks: list[str], code: str = "S42") -> tuple[list
             srok = ts(m.get("срок")) or at + pd.Timedelta(hours=float(m.get("срок_часов", 240)))
             sig.append({"стратегия": code, "бумага": inst.upper(), "вход_в": at, "цена": float(m["цена"]), "стоп": float(m["стоп"]),
                         "срок": srok, "активация": m.get("активация"), "отступ": m.get("отступ")})
-        if r in ("держать", "открыть") and m.get("вход") is not None:
-            pos[inst.upper()] = {"открыта": True, "вход": ts(m["вход"]), "стоп": m.get("стоп")}
+        # «открыть» до минуты входа (запуск в HH:00, вход стратегии в HH:01) — поля «вход» ещё нет, есть «вход_в»;
+        # без этого второй проход счёта в том же часе не находил позицию стратегии и снимал сигнал (06.11, P42 SBER)
+        entry = m.get("вход") if m.get("вход") is not None else (m.get("вход_в") if r == "открыть" else None)
+        if r in ("держать", "открыть") and entry is not None:
+            pos[inst.upper()] = {"открыта": True, "вход": ts(entry), "стоп": m.get("стоп")}
         elif r == "закрыто":
             pos[inst.upper()] = {"открыта": False, "вход": ts(m["вход"]), "выход": ts(m["выход"]), "причина": m.get("причина"),
                                  "цена_выхода": m.get("цена_выхода")}

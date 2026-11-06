@@ -16,6 +16,8 @@ def trial_args(cfg: dict) -> str:
     out = ["--only", *[str(s).lower() for s in stocks], "--impulse-atr", f"{float(cfg.get('trial_impulse_atr', 1.5)):g}"]
     if not cfg.get("trial_gate", True):
         out.append("--no-gate")
+    if cfg.get("trial_hold_hours"):
+        out += ["--hold-hours", f"{float(cfg['trial_hold_hours']):g}"]
     return " ".join(out)
 
 

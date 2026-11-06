@@ -181,6 +181,8 @@ def main(argv=None) -> int:
     ap.add_argument("--impulse-atr", type=float, default=None, help="порог входа: ход за 6 ч ≥ столько ATR (S42 — 3)")
     ap.add_argument("--no-gate", action="store_true", help="без тренд-гейта C")
     ap.add_argument("--tag", default="s42", help="префикс файлов состояния: s42 (основной) или trial (проба P42)")
+    ap.add_argument("--hold-hours", type=float, default=None,
+                    help="срок сделки, ч (у S42 — 240); проба: короткий срок, чтобы старые виртуальные входы не блокировали свежие")
     args = ap.parse_args(argv)
     setup_logging(logging.WARNING)
     logging.disable(logging.WARNING)
@@ -190,6 +192,8 @@ def main(argv=None) -> int:
         live["rule"]["variant"] = f"impulse:{bars}:{args.impulse_atr:g}"
     if args.no_gate:
         live["rule"]["gate"] = False
+    if args.hold_hours:
+        live["rule"]["set"]["simulation.horizon_minutes"] = int(args.hold_hours * 60)
     main_run = args.tag == "s42"
     now = pd.Timestamp(args.now) if args.now else None
     rows = []

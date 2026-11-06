@@ -51,6 +51,18 @@ def test_trial_signals_and_exits_use_own_state():
     assert not still and closed[0]["причина"] == "позиция стратегии не найдена"
 
 
+def test_signal_before_entry_minute_survives_second_pass():
+    """06.11: «ОТКРЫТЬ» в HH:00 с входом стратегии в HH:01 — у решения есть «вход_в», но нет «вход». Второй проход
+    счёта в том же часе (после S46/S48) не должен снимать сигнал как «сделка стратегии уже закрылась»."""
+    state = {"решения": {"sber": {"решение": "открыть", "вход_в": str(AT), "цена": 293.87, "стоп": 287.05, "срок_часов": 2,
+                                  "активация": 297.28, "отступ": 6.82}}}
+    for code in ("S42", la.TRIAL):
+        s, pos = la.s42_signals(state, ["sber"], code)
+        p = {**s[0], "штук": 1, "лоты": 1, "сумма": 293.87, "стоп стратегии": 287.05, "статус": "к исполнению"}
+        still, closed = la.exits([p], pos if code == "S42" else {}, {}, pos if code != "S42" else {})
+        assert still and not closed, code
+
+
 def test_trial_message_is_marked():
     take, _ = la.allocate([sig()], [], CFG, LOTS)
     text = la.msg_open(take[0], {**CFG, "mode": "button", "trial_impulse_atr": 1.5})
