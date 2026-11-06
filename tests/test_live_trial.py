@@ -63,6 +63,19 @@ def test_signal_before_entry_minute_survives_second_pass():
         assert still and not closed, code
 
 
+def test_new_signal_not_matched_with_recently_closed_trade():
+    """07.11: у SBER сделка пробы закрылась в 18:01, новый сигнал — вход в 22:01; в решении остался «вход» 16:01 от
+    старой сделки. Позиция счёта по новому сигналу не должна сниматься вторым проходом."""
+    new = AT + pd.Timedelta(hours=6)
+    state = {"решения": {"sber": {"решение": "открыть", "вход": str(AT), "выход": str(AT + pd.Timedelta(hours=2)),
+                                  "вход_в": str(new), "цена": 294.4, "стоп": 288.5, "срок_часов": 2}}}
+    s, pos = la.s42_signals(state, ["sber"], la.TRIAL)
+    assert s[0]["вход_в"] == new and pos["SBER"]["вход"] == new
+    p = {**s[0], "штук": 1, "лоты": 1, "сумма": 294.4, "стоп стратегии": 288.5, "статус": "к исполнению"}
+    still, closed = la.exits([p], {}, {}, pos)
+    assert still and not closed
+
+
 def test_trial_message_is_marked():
     take, _ = la.allocate([sig()], [], CFG, LOTS)
     text = la.msg_open(take[0], {**CFG, "mode": "button", "trial_impulse_atr": 1.5})

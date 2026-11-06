@@ -163,6 +163,10 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_m
             res.update({"действие": f"ОТКРЫТЬ {'лонг' if d > 0 else 'шорт'} в {entry_at:%m-%d %H:%M} по рынку",
                         "детали": f"цена ≈ {px:.4g}; ATR {atr:.4g}; начальный стоп ≈ {px - d * sim.sl_atr * atr:.4g}; "
                                   f"трейлинг с ≈ {px + d * sim.activate_atr * atr:.4g}"})
+            # 07.11: поля сделки, закрытой за последние 6 ч («вход», «выход»…), к новому сигналу не относятся — убрать,
+            # иначе счёт сверял новый сигнал со старым входом и снимал его вторым проходом (P42 SBER 06.11 22:01)
+            for k in ("вход", "выход", "причина", "цена_входа", "цена_выхода"):
+                res["_м"].pop(k, None)
             res["_м"].update({"решение": "открыть", "сторона": d, "вход_в": entry_at, "цена": px, "atr": atr,
                               "стоп": px - d * sim.sl_atr * atr, "активация": px + d * sim.activate_atr * atr,
                               "отступ": sim.trail_atr * atr, "срок_часов": sim.horizon_minutes / 60,
