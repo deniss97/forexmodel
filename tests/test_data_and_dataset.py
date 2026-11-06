@@ -114,3 +114,24 @@ def test_walk_forward_quarter_windows():
     assert [x[0] for x in w] == ["2024Q4", "2025Q1", "2025Q2"]
     assert w[0][1] == pd.Timestamp("2024-10-01") and w[0][2] == pd.Timestamp("2025-01-01")
     assert wf.windows(years=[2020, 2021])[1] == ("2021", pd.Timestamp("2021-01-01"), pd.Timestamp("2022-01-01"))
+
+
+def test_compact_cache_reads_only_appended_tail(tmp_path):
+    """06.11: кэш живых минуток дописывается хвостом файла и совпадает с полным чтением."""
+    import time as _t
+
+    from forexmodel.data.loader import load_minute_compact
+
+    csv = tmp_path / "X_1m_live.csv"
+    rows = [f"{100 + i * 0.01:.2f},{100 + i * 0.01:.2f},{101 + i * 0.01:.2f},{99 + i * 0.01:.2f},5,{i},"
+            f"2026-11-06 10:{i:02d}:00,2026-11-06 10:{i:02d}:59" for i in range(40)]
+    csv.write_text("open,close,high,low,value,volume,begin,end\n" + "\n".join(rows[:30]) + "\n")
+    first = load_minute_compact(csv, "begin", tmp_path / "c", ("volume",))
+    assert len(first) == 30 and (tmp_path / "c" / "X_1m_live_1m_vol.offset.json").exists()
+    _t.sleep(1.1)
+    with open(csv, "a") as fh:
+        fh.write("\n".join(rows[30:]) + "\n")
+    inc = load_minute_compact(csv, "begin", tmp_path / "c", ("volume",))
+    full = load_minute_compact(csv, "begin", None, ("volume",))
+    pd.testing.assert_frame_equal(inc, full)
+    assert len(inc) == 40

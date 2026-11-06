@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import json
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -90,22 +92,64 @@ def load_minute_compact(
         raise FileNotFoundError(f"Файл котировок не найден: {path}")
 
     wanted = {time_col, *OHLC, *volume_candidates}
-    parts, vol_col = [], None
-    for chunk in pd.read_csv(path, usecols=lambda c: c in wanted, chunksize=400_000,
-                             dtype={c: "float32" for c in (*OHLC, *volume_candidates)}):
-        if vol_col is None:
-            vol_col = next((c for c in volume_candidates if c in chunk.columns), None)
-            if volume_candidates and vol_col is None:
-                log.warning("Колонка объёма не найдена (искал %s) — объёмные признаки будут пропущены", list(volume_candidates))
+    dtype = {c: "float32" for c in (*OHLC, *volume_candidates)}
+    meta = cache.with_suffix(".offset.json") if cache is not None else None
+
+    def compact(chunk: pd.DataFrame) -> pd.DataFrame:
+        vol_col = next((c for c in volume_candidates if c in chunk.columns), None)
         chunk["time"] = pd.to_datetime(chunk[time_col], errors="coerce")
         cols = ["time", *OHLC] + ([vol_col] if vol_col else [])
         part = chunk.dropna(subset=["time"])[cols]
-        parts.append(part.rename(columns={vol_col: "volume"}) if vol_col else part)
+        return part.rename(columns={vol_col: "volume"}) if vol_col else part
+
+    # 06.11: живые минутки только дописываются в конец (fetch_tinvest.update) — каждый час читаем лишь новый хвост
+    # файла после байта, до которого уже прочитано, вместо всех ~170 МБ с 2015 года (≈ 2 с на бумагу при каждом
+    # запуске контура). Если файл стал короче или кэша нет — читаем целиком, как раньше.
+    if cache is not None and cache.exists() and meta.exists():
+        try:
+            info = json.loads(meta.read_text())
+            size = path.stat().st_size
+            if info.get("source") == str(path.resolve()) and 0 < info["offset"] <= size:
+                with open(path, "rb") as fh:
+                    header = fh.readline().decode().strip()
+                    fh.seek(info["offset"])
+                    tail = fh.read()
+                tail = tail[: tail.rfind(b"\n") + 1]               # только целые строки
+                old = pd.read_pickle(cache)
+                if tail:
+                    names = header.split(",")
+                    new = pd.read_csv(io.BytesIO(tail), names=names, header=None, usecols=lambda c: c in wanted, dtype=dtype)
+                    df = pd.concat([old, compact(new)], ignore_index=True).sort_values("time", kind="stable")
+                    df = df.drop_duplicates("time").reset_index(drop=True)
+                else:
+                    df = old
+                df.to_pickle(cache)
+                meta.write_text(json.dumps({"source": str(path.resolve()), "offset": info["offset"] + len(tail)}))
+                return df
+        except Exception as e:                                     # что-то не так с кэшем — честное полное чтение
+            log.warning("Кэш минуток %s не дописан (%s) — читаю файл целиком", cache.name, e)
+
+    size_before = path.stat().st_size
+    parts, warned = [], False
+    for chunk in pd.read_csv(path, usecols=lambda c: c in wanted, chunksize=400_000, dtype=dtype):
+        if not warned and volume_candidates and not any(c in chunk.columns for c in volume_candidates):
+            log.warning("Колонка объёма не найдена (искал %s) — объёмные признаки будут пропущены", list(volume_candidates))
+        warned = True
+        parts.append(compact(chunk))
     df = pd.concat(parts, ignore_index=True).sort_values("time").drop_duplicates("time").reset_index(drop=True)
     log.info("Загружено %d минутных баров (компактно): %s .. %s", len(df), df["time"].iloc[0], df["time"].iloc[-1])
     if cache is not None:
         cache.parent.mkdir(parents=True, exist_ok=True)
         df.to_pickle(cache)
+        # смещение — размер файла ДО чтения: строки, дописанные во время чтения, прочитаются ещё раз и уйдут дубликатами
+        with open(path, "rb") as fh:
+            fh.seek(max(size_before - 1, 0))
+            last = fh.read(1)
+        offset = size_before if last == b"\n" else 0               # файл оборван посреди строки — в следующий раз целиком
+        if offset:
+            meta.write_text(json.dumps({"source": str(path.resolve()), "offset": offset}))
+        elif meta.exists():
+            meta.unlink()
     return df
 
 

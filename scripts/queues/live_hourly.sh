@@ -29,9 +29,12 @@ flock -n 9 || exit 0                                  # предыдущий з�
   else
     .venv/bin/python scripts/fetch_moex_iss.py SBER GAZP LKOH
   fi
+  echo "⏱ $(date +%T.%3N) минутки получены"
   .venv/bin/python scripts/live_signals.py --only sber gazp lkoh
+  echo "⏱ $(date +%T.%3N) сигналы S42"
   # проба P42 (созвон 04.11): включена в configs/account.yaml (strategies: P42, /strategy P42 on) — то же правило с порогом ниже
   TRIAL=$(.venv/bin/python scripts/trial_args.py) && [ -n "$TRIAL" ] && .venv/bin/python scripts/live_signals.py --tag trial $TRIAL
+  echo "⏱ $(date +%T.%3N) проба P42"
   .venv/bin/python -W ignore scripts/live_account.py || .venv/bin/python scripts/notify.py "⚠️ Контур: счёт не обновлён — $(tail -n 1 $LOG/$(date +%Y-%m-%d).log | cut -c1-300)"
   # при сбое — причина из последней строки лога (её только что дописал упавший шаг)
   .venv/bin/python -W ignore scripts/live_iterator.py || .venv/bin/python scripts/notify.py "⚠️ Контур: сигналы S46/S48 не посчитаны — $(tail -n 1 $LOG/$(date +%Y-%m-%d).log | cut -c1-300)"

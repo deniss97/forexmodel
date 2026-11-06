@@ -67,6 +67,17 @@ def instrument_cfg(spec: dict, live: dict, start: pd.Timestamp, end: pd.Timestam
     return c
 
 
+def last_value(path: Path, col: str) -> str:
+    """Значение колонки в последней строке CSV — читаем хвост файла, а не весь файл (06.11: ≈ 2 с на бумагу)."""
+    with open(path, "rb") as fh:
+        names = fh.readline().decode().strip().split(",")
+        fh.seek(0, 2)
+        size = fh.tell()
+        fh.seek(max(size - 4096, 0))
+        lines = [x for x in fh.read().decode(errors="ignore").splitlines() if x.strip()]
+    return lines[-1].split(",")[names.index(col)]
+
+
 def stop_state(minutes: pd.DataFrame, side: str, entry: float, atr: float, sim) -> dict:
     """Стоп и трейлинг по минутам от входа до последней — логика forexmodel/simulation/exits.trailing_exit."""
     sgn = 1.0 if side == "buy" else -1.0
@@ -86,7 +97,7 @@ def analyse(name: str, spec: dict, live: dict, now: pd.Timestamp | None, grace_m
     """grace_minutes — вход контура, случившийся не раньше чем столько минут назад, ещё отдаётся как «открыть»
     (по рынку сейчас): с минутками без задержки к запуску в :02 минута входа HH:01 уже в данных."""
     probe = load_config(ROOT / spec["config"])
-    head = pd.read_csv(ROOT / spec["csv"], usecols=[probe.data.time_col]).iloc[-1, 0]
+    head = last_value(ROOT / spec["csv"], probe.data.time_col)
     tcol = "time"                       # внутри пайплайна время всегда в колонке time
     last = pd.Timestamp(head) if now is None else min(pd.Timestamp(head), now)
     now = now or last + pd.Timedelta(minutes=1)
