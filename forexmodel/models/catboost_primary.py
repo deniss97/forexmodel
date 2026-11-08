@@ -73,6 +73,86 @@ class SeedEnsemble:
         return np.mean([m.get_feature_importance(*args, **kwargs) for m in self.models], axis=0)
 
 
+class BinaryPair:
+    """H63 (Тимур): две однонаправленные модели вместо одной на 3 класса — «рост дальше барьера: да / нет» и «падение:
+    да / нет». Наружу — интерфейс CatBoostClassifier на исходных классах 0 (вниз), 1 (ничего), 2 (вверх):
+    p_down, p_up — вероятности своих моделей (обучены без весов, на естественных долях), p_flat = (1 − p_up)(1 − p_down),
+    нормировка к сумме 1. С priors (use_class_weights, как у мультикласса) — деление на долю класса в train и снова
+    нормировка: решение argmax p/доля — то же, что даёт мультикласс с весами классов, иначе пара торговала бы втрое чаще."""
+
+    def __init__(self, up: Any, down: Any, priors: Optional[np.ndarray] = None):
+        self.up, self.down, self.priors = up, down, priors
+
+    def predict_proba(self, X) -> np.ndarray:
+        pu = self.up.predict_proba(X)[:, 1]
+        pd_ = self.down.predict_proba(X)[:, 1]
+        p = np.column_stack([pd_, (1 - pu) * (1 - pd_), pu])
+        p = p / p.sum(axis=1, keepdims=True)
+        if self.priors is not None:
+            p = p / self.priors
+            p = p / p.sum(axis=1, keepdims=True)
+        return p
+
+    @property
+    def tree_count_(self) -> int:
+        return int(round((self.up.tree_count_ + self.down.tree_count_) / 2))
+
+    def get_feature_importance(self, *args, **kwargs) -> np.ndarray:
+        return (np.asarray(self.up.get_feature_importance(*args, **kwargs))
+                + np.asarray(self.down.get_feature_importance(*args, **kwargs))) / 2
+
+
+def _train_binary_pair(df: pd.DataFrame, features: List[str], cfg: CatBoostConfig, embargo: int, target_col: str,
+                       weight_col: Optional[str]) -> PrimaryModel:
+    """Две бинарные CatBoost (Logloss) на той же разметке: вверх = класс 2, вниз = класс 0. Блоки train / val / holdout,
+    ранняя остановка и рефит на всей выборке — как у мультикласса."""
+    from catboost import CatBoostClassifier, Pool
+
+    assert_features_present(df, features)
+    df = df.reset_index(drop=True)
+    train_idx, val_idx, hold_idx = chronological_split(len(df), cfg.test_size, cfg.val_size, embargo)
+    y_all = df[target_col].astype(int)
+    weights = df[weight_col].to_numpy() if weight_col and weight_col in df.columns else None
+    models, metrics = {}, {}
+    for side, cls in (("up", 2), ("down", 0)):
+        yb = (y_all == cls).astype(int).to_numpy()
+
+        def pool(idx):
+            if len(idx) == 0:
+                return None
+            return Pool(df.loc[idx, features], yb[idx], weight=None if weights is None else weights[idx])
+
+        params = dict(iterations=cfg.iterations, learning_rate=cfg.learning_rate, depth=cfg.depth, l2_leaf_reg=cfg.l2_leaf_reg,
+                      loss_function="Logloss", random_seed=cfg.random_seed, verbose=False)
+        section(log, f"CatBoost primary, бинарная модель «{'вверх' if side == 'up' else 'вниз'}»: доля класса {yb[train_idx].mean():.3f}")
+        tracker = CatBoostProgress(cfg.iterations, label=f"CatBoost {side}", logger=log)
+        val_pool = pool(val_idx)
+        m = CatBoostClassifier(**params)
+        m.fit(pool(train_idx), eval_set=val_pool, early_stopping_rounds=cfg.early_stopping_rounds if val_pool is not None else None,
+              use_best_model=val_pool is not None, callbacks=[tracker])
+        tracker.progress.finish(f"деревьев {m.tree_count_}")
+        if len(hold_idx):
+            from sklearn.metrics import roc_auc_score
+
+            ph = m.predict_proba(df.loc[hold_idx, features])[:, 1]
+            if 0 < yb[hold_idx].sum() < len(hold_idx):
+                metrics[f"auc_{side}"] = float(roc_auc_score(yb[hold_idx], ph))
+        if cfg.refit_on_full_train and len(val_idx) + len(hold_idx) > 0:
+            it = m.tree_count_
+            m = CatBoostClassifier(**dict(params, iterations=it))
+            m.fit(Pool(df[features], yb, weight=weights))
+            metrics[f"refit_iterations_{side}"] = float(it)
+        models[side] = m
+    log.info("Бинарная пара: AUC holdout вверх %.3f, вниз %.3f", metrics.get("auc_up", float("nan")), metrics.get("auc_down", float("nan")))
+    priors = None
+    if cfg.use_class_weights:
+        sh = y_all.iloc[train_idx].value_counts(normalize=True)
+        priors = np.array([max(float(sh.get(c, 0.0)), 1e-6) for c in (0, 1, 2)])
+        metrics["priors"] = [round(float(x), 4) for x in priors]
+    return PrimaryModel(model=BinaryPair(models["up"], models["down"], priors), features=list(features), class_map={0: 0, 1: 1, 2: 2},
+                        metrics=metrics, objective="binary_pair")
+
+
 def _class_weights(y: pd.Series, classes: List[int]) -> List[float]:
     counts = Counter(y)
     total = sum(counts.values())
@@ -91,6 +171,8 @@ def train_primary(
 
     if cfg.objective == "regression":
         return train_primary_regression(df, features, cfg, embargo=embargo, weight_col=weight_col)
+    if cfg.objective == "binary_pair":
+        return _train_binary_pair(df, features, cfg, embargo, target_col, weight_col)
 
     if cfg.n_models > 1:
         import dataclasses

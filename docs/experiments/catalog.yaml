@@ -1486,6 +1486,32 @@ experiments:
     doc: results/trend_model_gate.md
     sources:
       lkoh: [lkoh_gate__tl]
+  - id: L10
+    family: model
+    costs: {profile: exchange}
+    dividends: true
+    title: "LKOH, модель на 3 класса — база сравнения H63 (3 seed)"
+    kind: base
+    change: "CatBoost без NN и меты, сигнал по модели, тренд-гейт C, разметка atr_asym (+1.5 / −0.75 ATR за 10 ч), годовой walk-forward 2018–2026, seed 42, 7, 1, издержки биржи"
+    hypothesis: H63
+    baseline: null
+    verdict: 'база: в минусе (PF 0.77 на выборе, 0.56 на проверке)'
+    doc: results/h63_binary.md
+    sources:
+      lkoh: [lkoh_h63_multiclass_s42, lkoh_h63_multiclass_s7, lkoh_h63_multiclass_s1]
+  - id: L11
+    family: model
+    costs: {profile: exchange}
+    dividends: true
+    title: "LKOH, пара бинарных моделей «вверх» и «вниз» вместо 3 классов (3 seed)"
+    kind: clean
+    change: "то же, что L10, но две CatBoost Logloss: рост дальше барьера да/нет и падение да/нет; вероятности собираются в три с той же балансировкой классов (catboost.objective: binary_pair)"
+    hypothesis: H63
+    baseline: L10
+    verdict: 'хуже L10 в обоих периодах: PF 0.70 против 0.77 и 0.48 против 0.56, верных направлений не больше'
+    doc: results/h63_binary.md
+    sources:
+      lkoh: [lkoh_h63_binary_pair_s42, lkoh_h63_binary_pair_s7, lkoh_h63_binary_pair_s1]
 
 # Проверки, у которых нет журнала сделок штатного симулятора (быстрые расчёты, статистика паттернов,
 # точность прогноза). Их выводы — в документах; повторять их через журнал имеет смысл только если
