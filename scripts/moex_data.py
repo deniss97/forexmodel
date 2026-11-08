@@ -15,6 +15,7 @@ data/raw/*_1m_15-26.csv (так выгружена наша история ак�
     python scripts/moex_data.py futures SILV --from 2020-01-01 --interval 60  # контракты серебра по очереди
     python scripts/moex_data.py futures SILV --from 2020-01-01 --interval 60 --continuous
     python scripts/moex_data.py futoi sv gd --from 2020-01-03                 # позиции физлиц и юрлиц, 5 мин
+    python scripts/moex_data.py futoi rn tt --daily                            # последний срез дня (H82)
     python scripts/moex_data.py list shares                                   # что торгуется (или futures)
 
 Из ноутбука — notebooks/moex_download.ipynb.
@@ -255,12 +256,14 @@ def continuous_csv(folder: Path | str, asset_code: str, out: Path | str, interva
 FUTOI_COLS = ["tradedate", "tradetime", "ticker", "clgroup", "pos", "pos_long", "pos_short", "pos_long_num", "pos_short_num"]
 
 
-def futoi(ticker: str, start, end=None, out: Path | str | None = None, pause: float = 0.2) -> Path:
+def futoi(ticker: str, start, end=None, out: Path | str | None = None, pause: float = 0.2, daily: bool = False) -> Path:
     """Открытые позиции физлиц (clgroup FIZ) и юрлиц (YUR) по фьючерсу каждые 5 минут, с 2020 года: pos — чистая
     позиция в контрактах, pos_long / pos_short — длинные и короткие, *_num — число лиц. Тикер — префикс серии:
-    sv (серебро), gd (золото), br, si… Бесплатно — с задержкой 14 дней. Российский аналог отчёта CFTC о позициях.
-    ISS отдаёт до 1000 строк, свежие первыми, и не листается — поэтому по одному дню (≈ 400 строк). С докачкой."""
-    out = Path(out) if out else OUT / f"futoi_{ticker.lower()}.csv"
+    sv (серебро), gd (золото), br, si, фьючерсы на акции — sr (SBER), gz (GAZP), lk (LKOH), rn (ROSN)… Бесплатно — с
+    задержкой 14 дней; у части фьючерсов (ak, ir, rt, sg, tn) истории нет. Российский аналог отчёта CFTC о позициях.
+    ISS отдаёт до 1000 строк, свежие первыми, и не листается — поэтому по одному дню (≈ 400 строк). С докачкой.
+    daily=True — только последний срез дня (latest=1, 2 строки) в futoi_daily_<тикер>.csv: втрое быстрее (H80, H82)."""
+    out = Path(out) if out else OUT / f"futoi{'_daily' if daily else ''}_{ticker.lower()}.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     end = min(pd.Timestamp(end or pd.Timestamp.today()), pd.Timestamp.today().normalize() - pd.Timedelta(days=15))
     have = None
@@ -271,7 +274,7 @@ def futoi(ticker: str, start, end=None, out: Path | str | None = None, pause: fl
     days = pd.date_range(have + pd.Timedelta(days=1) if have is not None else pd.Timestamp(start), end, freq="D")
     added = 0
     for d in days:
-        j = get_json(f"analyticalproducts/futoi/securities/{ticker.lower()}", **{"from": f"{d:%Y-%m-%d}", "till": f"{d:%Y-%m-%d}"})["futoi"]
+        j = get_json(f"analyticalproducts/futoi/securities/{ticker.lower()}", **{"from": f"{d:%Y-%m-%d}", "till": f"{d:%Y-%m-%d}", **({"latest": 1} if daily else {})})["futoi"]
         if j["columns"] == ["ERROR_MESSAGE"]:
             raise PermissionError(j["data"][0][0])
         df = pd.DataFrame(j["data"], columns=j["columns"])
@@ -328,13 +331,14 @@ def main(argv=None) -> int:
     q.add_argument("codes", nargs="+", help="префиксы фьючерсов: sv, gd, br, si")
     q.add_argument("--from", dest="start", default="2020-01-03")
     q.add_argument("--till", dest="end")
+    q.add_argument("--daily", action="store_true", help="только последний срез дня (latest=1) → futoi_daily_<тикер>.csv")
     q.add_argument("--out", type=Path, default=OUT)
     q.add_argument("--yadisk", action="store_true", help="после выгрузки перенести файлы на Яндекс Диск, на сервере — ссылка")
     q = sub.add_parser("list")
     q.add_argument("kind", choices=["shares", "futures"])
     a = p.parse_args(argv)
     if a.cmd == "futoi":
-        done = [futoi(code, a.start, a.end, a.out / f"futoi_{code.lower()}.csv") for code in a.codes]
+        done = [futoi(code, a.start, a.end, a.out / f"futoi{'_daily' if a.daily else ''}_{code.lower()}.csv", daily=a.daily) for code in a.codes]
         return to_yadisk(done) if a.yadisk else 0
     if a.cmd == "list":
         with pd.option_context("display.max_rows", 500, "display.width", 160):

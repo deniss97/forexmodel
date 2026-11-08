@@ -220,6 +220,17 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 .nb-img { max-width: 100%; height: auto; border-radius: 4px; background: #fff; justify-self: start; }
 .nb-md { white-space: pre-wrap; font-size: 14px; overflow-wrap: anywhere; }
 .nb-md .h { font-weight: 650; font-size: 16px; margin: 4px 0 2px; }
+.md-view { display: grid; gap: 6px; font-size: 14.5px; line-height: 1.5; overflow-wrap: anywhere; max-width: 900px; }
+.md-view .md-p { margin: 0 0 4px; }
+.md-view .md-h { font-weight: 650; margin: 10px 0 2px; }
+.md-view .md-h1 { font-size: 20px; } .md-view .md-h2 { font-size: 17px; } .md-view .md-h3, .md-view .md-h4, .md-view .md-h5, .md-view .md-h6 { font-size: 15px; }
+.md-view .md-li { position: relative; }
+.md-view .md-bul { position: absolute; margin-left: -16px; color: var(--ink3); }
+.md-view .md-twrap { overflow-x: auto; }
+.md-view .md-table { border-collapse: collapse; font-size: 13.5px; }
+.md-view .md-table td { border: 1px solid var(--rule); padding: 4px 8px; vertical-align: top; }
+.md-view .md-table tr:first-child td { font-weight: 600; background: var(--bg); }
+.md-view code { font: 12.5px var(--mono); background: var(--bg); border-radius: 3px; padding: 0 3px; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--panel); padding: 8px 14px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px); z-index: 10; }
 
 .add { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 12px; }
@@ -340,7 +351,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
         <input id="a-source" maxlength="120" placeholder="встреча 16.10, Тагир, статья…"></label>
       <label class="f wide" for="a-crit">Критерий вердикта (можно позже)
         <input id="a-crit" maxlength="1000" placeholder="выбор на 2016–2020, проверка на 2021–2026, PF и итог без 2 лучших против B01"></label>
-      <label class="f wide" for="a-files" id="a-files-label">Файлы (ТЗ, скриншоты, таблицы, ноутбуки Jupyter — картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео; до 20 МБ)
+      <label class="f wide" for="a-files" id="a-files-label">Файлы (ТЗ, скриншоты, таблицы, ноутбуки Jupyter — Word .docx, картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео; до 20 МБ)
         <input id="a-files" type="file" multiple></label>
     </div>
     <div class="vote" id="a-vote"></div>
@@ -421,6 +432,14 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 
   const SAVE_EXT = /\.(gif|png|jpe?g|webp|mp4|webm|txt|json|md|csv|svg|pdf|html|docx|pptx|xlsx|zip)$/i;
   const isNotebook = (f) => /\.ipynb$/i.test(f.name);
+  // поля файлов из Word: wrap — оригинал .docx внутри JSON, text — id его текста, parts — картинки этого текста
+  function fileExtra(f) {
+    const o = {};
+    if (f.wrap === "docx") o.wrap = "docx";
+    if (typeof f.text === "string" && /^[0-9a-f]{32}$/.test(f.text)) o.text = f.text;
+    if (Array.isArray(f.parts)) { const p = f.parts.filter((x) => typeof x === "string" && /^[0-9a-f]{32}$/.test(x)).slice(0, 60); if (p.length) o.parts = p; }
+    return o;
+  }
 
   let db = null, user = null, col = null, assets = null, downloads = null;
   let me = { id: null, name: "" };
@@ -460,7 +479,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     const dr = d.draft && typeof d.draft === "object" ? { i: score(d.draft.i), c: score(d.draft.c), e: score(d.draft.e) } : null;
     const num = Number.isFinite(Number(d.num)) ? Number(d.num) : Number(String(id).replace(/\D/g, "")) || 0;
     const files = Array.isArray(d.files) ? d.files.filter((f) => f && typeof f.id === "string" && /^[0-9a-f]{32}$/.test(f.id)).slice(0, 50)
-      .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40), by: safeId(f.by) })) : [];
+      .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40), by: safeId(f.by), ...fileExtra(f) })) : [];
     const exps = Array.isArray(d.exps) ? [...new Set(d.exps.map(expId).filter(Boolean))].slice(0, 30) : [];
     const text = str(d.text, LIM.text);
     return {
@@ -587,12 +606,14 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   function filesHTML(h, ro) {
     const list = h.files.map((f) => `<div class="file">${/^image\//.test(f.type) ? `<img class="thumb" src="/_blob/${f.id}" alt="">` : ""}
       <button type="button" class="linkbtn" data-act="getfile" data-id="${f.id}" title="скачать">${esc(f.name)}</button><span class="sz">${f.size ? sizeTxt(f.size) : ""}</span>
-      ${isNotebook(f) ? `<button type="button" class="btn small" data-act="nbview" data-id="${f.id}" title="посмотреть ноутбук прямо здесь">открыть</button>` : ""}
+      ${f.wrap === "docx" ? `<span class="sz">Word</span>` : ""}
+      ${isNotebook(f) ? `<button type="button" class="btn small" data-act="nbview" data-id="${f.id}" title="посмотреть ноутбук прямо здесь">открыть</button>`
+        : isText(f) || (f.wrap === "docx" && f.text) ? `<button type="button" class="btn small" data-act="txtview" data-id="${f.id}" title="посмотреть текст прямо здесь">открыть</button>` : ""}
       ${ro ? "" : `<button type="button" class="btn small" data-act="unfile" data-id="${f.id}">убрать</button>`}</div>`).join("");
     const add = !ro && assets ? `<label class="btn small" style="justify-self:start">Прикрепить файл<input type="file" multiple data-attach hidden></label>` : "";
     const why = !ro && !assets && ready ? `<span class="hint">Прикреплять файлы могут редакторы страницы.</span>` : "";
     return `<div class="block"><div class="block-head"><span class="eyebrow">файлы</span>${add}</div>
-      ${list ? `<div class="files">${list}</div>` : `<span class="hint">Файлов нет. Сюда — ТЗ, скриншоты, таблицы, ноутбуки Jupyter: картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео до 20 МБ.</span>`}${why}</div>`;
+      ${list ? `<div class="files">${list}</div>` : `<span class="hint">Файлов нет. Сюда — ТЗ, скриншоты, таблицы, ноутбуки Jupyter: Word .docx, картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео до 20 МБ.</span>`}${why}</div>`;
   }
 
   function editorHTML(h) {
@@ -894,6 +915,164 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     $("#nb").hidden = true; $("#nb-body").textContent = "";
   }
 
+  // ---------- Word (.docx) ----------
+  // Хранилище файлов не принимает .docx как есть. При загрузке Word переводится в Markdown (mammoth: заголовки, списки,
+  // таблицы, картинки — отдельными файлами), а оригинал сохраняется рядом внутри JSON (base64) и скачивается снова как
+  // .docx. HTML из mammoth разбирается DOMParser'ом как данные и в страницу не вставляется.
+  const MAMMOTH = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.9.1/mammoth.browser.min.js";
+  let mammothP = null;
+  function loadMammoth() {
+    if (window.mammoth) return Promise.resolve(window.mammoth);
+    if (!mammothP) mammothP = new Promise((ok, bad) => {
+      const sc = document.createElement("script"); sc.src = MAMMOTH; sc.async = true;
+      sc.onload = () => (window.mammoth ? ok(window.mammoth) : bad(new Error("mammoth")));
+      sc.onerror = () => { mammothP = null; bad(new Error("mammoth")); };
+      document.head.append(sc);
+    });
+    return mammothP;
+  }
+  const isDocx = (f) => /\.docx$/i.test(f.name || "");
+  const isText = (f) => /^(text\/|application\/json)/.test(f.type || "") && !isNotebook(f) && !f.wrap;
+  const ID32 = /^[0-9a-f]{32}$/;
+  function b64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+  function unb64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  function htmlToMd(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const sq = (s) => s.replace(/\s+/g, " ");
+    const inline = (n) => [...n.childNodes].map((c) => {
+      if (c.nodeType === 3) return sq(c.nodeValue);
+      if (c.nodeType !== 1) return "";
+      const t = c.tagName.toLowerCase(), x = inline(c);
+      if (t === "strong" || t === "b") return x.trim() ? `**${x.trim()}** ` : x;
+      if (t === "em" || t === "i") return x.trim() ? `*${x.trim()}* ` : x;
+      if (t === "a") { const href = c.getAttribute("href") || ""; return /^https?:\/\//.test(href) ? `[${x.trim() || href}](${href})` : x; }
+      if (t === "img") { const src = c.getAttribute("src") || ""; return src ? `\n![${sq(c.getAttribute("alt") || "картинка")}](${src})\n` : `[${c.getAttribute("alt") || "картинка"}]`; }
+      if (t === "br") return "\n";
+      if (t === "ul" || t === "ol" || t === "table") return "";
+      return x;
+    }).join("");
+    const out = [];
+    const list = (el, depth) => {
+      let k = 0;
+      for (const li of el.children) {
+        if (li.tagName.toLowerCase() !== "li") continue;
+        k++;
+        out.push("  ".repeat(depth) + (el.tagName.toLowerCase() === "ol" ? `${k}. ` : "- ") + inline(li).trim());
+        for (const sub of li.children) if (/^(ul|ol)$/i.test(sub.tagName)) list(sub, depth + 1);
+      }
+    };
+    const block = (root) => {
+      for (const el of root.children) {
+        const t = el.tagName.toLowerCase();
+        if (/^h[1-6]$/.test(t)) out.push("", "#".repeat(Number(t[1]) + 1 > 6 ? 6 : Number(t[1]) + 1) + " " + inline(el).trim(), "");
+        else if (t === "p") { const s = inline(el).trim(); if (s) out.push(s, ""); }
+        else if (t === "ul" || t === "ol") { list(el, 0); out.push(""); }
+        else if (t === "table") {
+          const rows = [...el.querySelectorAll("tr")].map((tr) => [...tr.children].map((td) => inline(td).replace(/\n+/g, " ").replace(/\|/g, "\\|").trim()));
+          if (!rows.length) continue;
+          const w = Math.max(...rows.map((r) => r.length));
+          rows.forEach((r, i) => { while (r.length < w) r.push(""); out.push("| " + r.join(" | ") + " |"); if (i === 0) out.push("|" + " --- |".repeat(w)); });
+          out.push("");
+        } else block(el);
+      }
+    };
+    block(doc.body);
+    return out.join("\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+  }
+  async function uploadDocx(f) {
+    if (f.size > 14 * 1048576) { toast(`${f.name}: Word-файл больше 14 МБ — сохраните его как PDF.`); return []; }
+    let mammoth;
+    try { mammoth = await loadMammoth(); } catch (e) { toast("Не загрузился конвертер Word — попробуйте позже или сохраните файл как PDF."); return []; }
+    const buf = new Uint8Array(await f.arrayBuffer());
+    const parts = [];
+    let html;
+    try {
+      const r = await mammoth.convertToHtml({ arrayBuffer: buf.slice().buffer }, { convertImage: mammoth.images.imgElement(async (image) => {
+        const t = String(image.contentType || "").toLowerCase();
+        if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(t) || parts.length >= 60) return { src: "", alt: "картинка — в оригинале" };
+        try {
+          const u = await assets.upload(new Blob([unb64(await image.read("base64"))], { type: t }), { type: t });
+          parts.push(u.id);
+          return { src: "/_blob/" + u.id, alt: "картинка из документа" };
+        } catch (e) { return { src: "", alt: "картинка не загрузилась — в оригинале" }; }
+      }) });
+      html = r.value;
+    } catch (e) { toast(`${f.name}: не удалось прочитать — это файл Word .docx?`); return []; }
+    const base = f.name.replace(/\.docx$/i, "");
+    const md = `# ${base}\n\n*Текст Word-файла «${f.name}»: заголовки, списки, таблицы и картинки перенесены, оформление — нет. Оригинал прикреплён рядом.*\n\n` + htmlToMd(html);
+    const stamp = { at: new Date().toISOString(), ...(me.id ? { by: me.id } : {}) };
+    let text = null, orig = null;
+    try {
+      const t = await assets.upload(new Blob([md], { type: "text/markdown" }), { type: "text/markdown" });
+      text = { id: t.id, name: (base + " (текст из Word).md").slice(0, 200), size: t.sizeBytes, type: "text/markdown", parts, ...stamp };
+    } catch (e) { toast(assetError(e, base + ".md")); }
+    try {
+      const o = await assets.upload(new Blob([JSON.stringify({ format: "docx-base64", name: f.name, size: f.size, data: b64(buf) })], { type: "application/json" }), { type: "application/json" });
+      orig = { id: o.id, name: f.name.slice(0, 200), size: f.size, type: "application/json", wrap: "docx", ...(text ? { text: text.id } : {}), ...stamp };
+    } catch (e) { toast(assetError(e, f.name)); }
+    return [orig, text].filter(Boolean);
+  }
+  // безопасный просмотр Markdown: только узлы с textContent, картинки — только из хранилища страницы, ссылки — только http(s)
+  function mdInline(s, box) {
+    const re = /!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|\*([^*\n]+)\*|`([^`]+)`/g;
+    let last = 0, m;
+    while ((m = re.exec(s))) {
+      if (m.index > last) box.append(document.createTextNode(s.slice(last, m.index)));
+      if (m[1] !== undefined) {
+        const id = (/^\/_blob\/([0-9a-f]{32})$/.exec(m[2]) || [])[1];
+        if (id) { const i = mk("img", "nb-img"); i.alt = m[1] || "картинка"; i.loading = "lazy"; i.src = "/_blob/" + id; box.append(i); }
+        else box.append(document.createTextNode(`[${m[1] || "картинка"}]`));
+      } else if (m[3] !== undefined) {
+        if (/^https?:\/\//.test(m[4])) { const a = mk("a", "", m[3]); a.href = m[4]; a.target = "_blank"; a.rel = "noopener noreferrer"; box.append(a); }
+        else box.append(document.createTextNode(m[3]));
+      } else if (m[5] !== undefined) box.append(mk("b", "", m[5]));
+      else if (m[6] !== undefined) box.append(mk("i", "", m[6]));
+      else box.append(mk("code", "", m[7]));
+      last = re.lastIndex;
+    }
+    if (last < s.length) box.append(document.createTextNode(s.slice(last)));
+  }
+  function renderMd(src, body) {
+    const lines = src.split("\n");
+    for (let i = 0; i < lines.length && i < 20000; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      const h = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (h) { const e = mk("div", "md-h md-h" + h[1].length); mdInline(h[2], e); body.append(e); continue; }
+      if (/^\s*\|/.test(line)) {
+        const tbl = mk("table", "md-table");
+        for (; i < lines.length && /^\s*\|/.test(lines[i]); i++) {
+          if (/^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$/.test(lines[i])) continue;
+          const tr = mk("tr");
+          for (const c of lines[i].trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/)) { const td = mk("td"); mdInline(c.replace(/\\\|/g, "|").trim(), td); tr.append(td); }
+          tbl.append(tr);
+        }
+        i--;
+        const w = mk("div", "md-twrap"); w.append(tbl); body.append(w); continue;
+      }
+      const li = /^(\s*)([-*]|\d+\.)\s+(.*)$/.exec(line);
+      if (li) {
+        const e = mk("div", "md-li"); e.style.paddingLeft = (Math.min(li[1].length, 12) * 8 + 16) + "px";
+        e.append(mk("span", "md-bul", /\d/.test(li[2]) ? li[2] : "•")); mdInline(li[3], e); body.append(e); continue;
+      }
+      const p = mk("p", "md-p"); mdInline(line, p); body.append(p);
+    }
+  }
+  async function openText(f) {
+    const wrap = $("#nb"), body = $("#nb-body");
+    $("#nb-title").textContent = f.name; $("#nb-sub").textContent = f.size ? sizeTxt(f.size) : "";
+    body.textContent = ""; body.append(mk("p", "hint", "Загружаю…"));
+    wrap.hidden = false; $("#nb-close").focus();
+    let t;
+    try { const r = await fetch("/_blob/" + f.id); if (!r.ok) throw new Error("missing"); t = await r.text(); }
+    catch (e) { body.textContent = ""; body.append(mk("p", "hint", "Не удалось открыть: файл недоступен.")); return; }
+    body.textContent = "";
+    const box = mk("div", "md-view");
+    if (/markdown/.test(f.type) || /\.md$/i.test(f.name)) renderMd(t.slice(0, 400000), box);
+    else box.append(mk("pre", "nb-out", t.slice(0, 200000)));
+    body.append(box);
+  }
+
   // ---------- файлы ----------
   function typeFor(f) {
     const ext = (f.name.split(".").pop() || "").toLowerCase();
@@ -904,7 +1083,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   function assetError(e, name) {
     const c = e && e.code;
     if (c === "too_large") return `${name}: файл больше 20 МБ.`;
-    if (c === "unsupported_type") return `${name}: такой тип не принимается. Word и Excel сохраните как PDF или CSV.`;
+    if (c === "unsupported_type") return `${name}: такой тип не принимается. Excel сохраните как CSV или PDF, старый .doc — как .docx.`;
     if (c === "invalid_request") return `${name}: текст должен быть в UTF-8.`;
     if (c === "quota_or_state") return "Место для файлов закончилось.";
     if (c === "rate_limited") return "Слишком часто — попробуйте через минуту.";
@@ -913,8 +1092,9 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   async function uploadFiles(fileList) {
     const out = [];
     for (const f of fileList) {
+      if (isDocx(f)) { toast(`Перевожу ${f.name} в текст…`); out.push(...await uploadDocx(f)); continue; }
       const type = typeFor(f);
-      if (!type) { toast(`${f.name}: такой тип не принимается. Можно картинки, PDF, видео, CSV, Markdown, JSON, ноутбуки .ipynb, текст; Word и Excel сохраните как PDF или CSV.`); continue; }
+      if (!type) { toast(`${f.name}: такой тип не принимается. Можно Word .docx, картинки, PDF, видео, CSV, Markdown, JSON, ноутбуки .ipynb, текст; старый .doc сохраните как .docx, Excel — как CSV или PDF.`); continue; }
       if (f.size > 20 * 1048576) { toast(isNotebook(f) ? `${f.name}: больше 20 МБ — сохраните ноутбук без выводов (Kernel → Restart & Clear Output).` : `${f.name}: файл больше 20 МБ.`); continue; }
       try {
         const r = await assets.upload(f, { type });
@@ -923,7 +1103,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     }
     return out;
   }
-  const fileRec = (f) => ({ id: f.id, name: f.name, size: f.size, type: f.type, at: f.at, ...(f.by ? { by: f.by } : {}) });
+  const fileRec = (f) => ({ id: f.id, name: f.name, size: f.size, type: f.type, at: f.at, ...(f.by ? { by: f.by } : {}), ...fileExtra(f) });
   async function attach(code, fileList) {
     if (!assets || !fileList.length) return;
     toast("Загружаю…");
@@ -935,8 +1115,10 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   }
   async function unattach(code, id) {
     const h = docs.get(code); if (!h) return;
+    const gone = h.files.find((f) => f.id === id);
     const ok = await write(() => col.doc(code).update({ files: h.files.filter((f) => f.id !== id).map(fileRec), updatedAt: new Date().toISOString() }), "Файл убран");
-    if (ok && assets) assets.delete(id).catch(() => {});   // чужой файл может не удалиться из хранилища — ссылка из гипотезы уже убрана
+    // чужой файл может не удалиться из хранилища — ссылка из гипотезы уже убрана; у текста из Word — и его картинки
+    if (ok && assets) for (const x of [id, ...((gone && gone.parts) || [])]) assets.delete(x).catch(() => {});
   }
 
   async function addHypothesis(ev) {
@@ -1011,7 +1193,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       hyps: Array.isArray(d.hyps) ? hypCodes(d.hyps.join(" ")) : [], createdAt: str(d.createdAt, 40), updatedAt: str(d.updatedAt, 40),
       // файлы гипотезы, перенесённой в техдолг: хранятся, чтобы вернуться с ней обратно
       files: Array.isArray(d.files) ? d.files.filter((f) => f && typeof f.id === "string" && /^[0-9a-f]{32}$/.test(f.id)).slice(0, 50)
-        .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40) })) : [],
+        .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40), ...fileExtra(f) })) : [],
     };
   }
   function nfiltered() {
@@ -1224,17 +1406,28 @@ label.f input.title { font-weight: 600; font-size: 15px; }
           if (!r.ok) throw { code: "missing" };
           // скачивать можно только разрешённые расширения: прочее (.ipynb, .py, .yaml) — в .zip под своим именем
           const blob = await r.blob();
-          if (SAVE_EXT.test(f.name)) await downloads.save({ filename: f.name, data: blob });
+          if (f.wrap === "docx") {                    // оригинал Word лежит внутри JSON — вернуть его как .docx
+            const j = JSON.parse(await blob.text());
+            if (!j || typeof j.data !== "string") throw { code: "missing" };
+            await downloads.save({ filename: /\.docx$/i.test(f.name) ? f.name : f.name + ".docx", data: new Blob([unb64(j.data)]) });
+          }
+          else if (SAVE_EXT.test(f.name)) await downloads.save({ filename: f.name, data: blob });
           else await downloads.save({ filename: f.name + ".zip", data: zipOne(f.name, new Uint8Array(await blob.arrayBuffer())) });
         } catch (err) {
           const c = err && err.code;
           if (c === "missing") toast("Файл недоступен: возможно, он удалён или скрыт для вашего аккаунта.");
-          else if (c === "rejected_extension" || c === "extension_not_enabled") toast("Такой файл здесь не скачать (архив .zip недоступен в этом просмотре). Ноутбук можно посмотреть кнопкой «открыть».");
+          else if (c === "rejected_extension" || c === "extension_not_enabled") toast(f.wrap === "docx" ? "Word здесь не скачать — текст можно посмотреть кнопкой «открыть»."
+            : "Такой файл здесь не скачать (архив .zip недоступен в этом просмотре). Ноутбук можно посмотреть кнопкой «открыть».");
           else if (c !== "declined") toast("Не удалось скачать файл.");
         }
       }
       else if (k === "nbview" && h) {
         const f = h.files.find((x) => x.id === act.dataset.id); if (f) openNotebook(f);
+      }
+      else if (k === "txtview" && h) {
+        const f = h.files.find((x) => x.id === act.dataset.id); if (!f) return;
+        if (f.wrap === "docx") openText({ id: f.text, name: f.name.replace(/\.docx$/i, "") + " — текст", type: "text/markdown", size: 0 });
+        else openText(f);
       }
       else if (k === "unvote" && me.id) await write(() => col.doc(code).update({ votes: { [me.id]: null }, updatedAt: new Date().toISOString() }), "Ваша оценка убрана");
       else if (k === "unfile") {
@@ -1247,7 +1440,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       else if (k === "to-note-no") ed.querySelector("[data-move]").hidden = true;
       else if (k === "to-note-yes" && h) { act.disabled = true; await moveToNote(h, ed.querySelector("[data-move-kind]").value); }
       else if (k === "del-yes") {
-        const files = h ? h.files.map((f) => f.id) : [];
+        const files = h ? h.files.flatMap((f) => [f.id, ...(f.parts || [])]) : [];
         if (await write(() => col.doc(code).delete(), `Гипотеза ${code} удалена`)) {
           view.open = null; setHash(null); render();
           if (assets) for (const id of files) assets.delete(id).catch(() => {});
