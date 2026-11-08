@@ -1,0 +1,385 @@
+<title>Объём по уровням LKOH</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Раскладка: панель управления над графиком «свечи недели | объём по уровням» на общей шкале цены, ниже — сводка недели,
+   ключевые уровни таблицей и «как читать». Палитра — как в еженедельных отчётах проекта; покупки и продажи — пара полюсов
+   синий / красный, серый — нейтральная зона стоимости. */
+:root {
+  --paper: #f6f4ef; --panel: #fffefb; --ink: #15233b; --ink2: #4a5568; --ink3: #7a8391; --rule: #e2ddd2; --grid: #ebe7de;
+  --buy: #2a78d6; --sell: #e34948; --va: #e9e4d8; --poc: #15233b; --node: #6a7487; --focus: #2a78d6;
+  --f-display: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #14171c; --panel: #1b1f26; --ink: #eceae4; --ink2: #b9bcc4; --ink3: #8b909a; --rule: #2e333c; --grid: #262b33;
+    --buy: #3987e5; --sell: #e66767; --va: #262c35; --poc: #eceae4; --node: #9aa3b2; --focus: #3987e5; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #14171c; --panel: #1b1f26; --ink: #eceae4; --ink2: #b9bcc4; --ink3: #8b909a; --rule: #2e333c; --grid: #262b33;
+  --buy: #3987e5; --sell: #e66767; --va: #262c35; --poc: #eceae4; --node: #9aa3b2; --focus: #3987e5; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: grid; gap: 4px; }
+.eyebrow { font: 600 12px var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink3); }
+h1 { font: 800 clamp(24px, 3.4vw, 34px)/1.1 var(--f-display); letter-spacing: -.015em; margin: 0; text-wrap: balance; }
+.lead { margin: 4px 0 0; color: var(--ink2); max-width: 70ch; }
+h2 { font: 700 18px/1.25 var(--f-display); margin: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; padding: 10px 14px; background: var(--panel);
+  border: 1px solid var(--rule); border-radius: 8px; }
+.ctl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.ctl > .lbl { font: 600 12px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
+select, button { font: 500 14px var(--f-body); color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+select { padding: 6px 8px; max-width: 100%; }
+button { padding: 6px 10px; cursor: pointer; }
+button:hover { border-color: var(--ink3); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; padding: 6px 11px; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink2); cursor: pointer; }
+.chk input { accent-color: var(--ink); margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--ink2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.sw.buy { background: var(--buy); } .sw.sell { background: var(--sell); }
+.sw.va { background: var(--va); outline: 1px solid var(--rule); }
+.sw.poc { width: 16px; height: 2px; background: var(--poc); border-radius: 0; }
+.sw.hvn { width: 16px; height: 0; border-top: 1.5px solid var(--node); border-radius: 0; }
+.sw.lvn { width: 16px; height: 0; border-top: 1.5px dotted var(--node); border-radius: 0; }
+.chartbox { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 6px 4px; min-width: 0; }
+#chart { width: 100%; height: clamp(440px, 68vh, 760px); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.stat { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; min-width: 0; }
+.stat .k { font: 600 12px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
+.stat .v { font: 500 18px var(--f-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat .s { font-size: 13px; color: var(--ink2); }
+.cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font: 600 12px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); border-bottom: 1px solid var(--ink3); padding: 6px 10px 6px 0; white-space: nowrap; }
+td { border-bottom: 1px solid var(--rule); padding: 6px 10px 6px 0; vertical-align: top; }
+td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { display: inline-block; font: 600 11.5px var(--f-body); letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--rule); color: var(--ink2); }
+.how { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--ink2); }
+.how b { color: var(--ink); font-weight: 600; }
+.note { font-size: 13px; color: var(--ink3); }
+.msg { padding: 40px 10px; text-align: center; color: var(--ink2); }
+@media (max-width: 560px) { .controls { gap: 10px 14px; } #chart { height: 520px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<!--BODY-->
+<div class="wrap">
+  <header>
+    <div class="eyebrow">LKOH · TQBR · обезличенные сделки · для Тагира (H84)</div>
+    <h1>Объём по уровням LKOH</h1>
+    <p class="lead">Часовые свечи недели и объём сделок на каждом уровне цены. Справа видно, сколько акций на уровне куплено
+      (сделку начал покупатель) и сколько продано (сделку начал продавец), а отметки показывают, где рынок задерживался.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Настройки графика">
+    <div class="ctl">
+      <span class="lbl" id="wk-lbl">Неделя</span>
+      <button type="button" id="prev" aria-label="Предыдущая неделя">←</button>
+      <select id="week" aria-labelledby="wk-lbl"></select>
+      <button type="button" id="next" aria-label="Следующая неделя">→</button>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Шаг уровня</span>
+      <div class="seg" id="step" role="group" aria-label="Шаг уровня цены">
+        <button type="button" data-v="1" aria-pressed="false">1 ₽</button>
+        <button type="button" data-v="5" aria-pressed="true">5 ₽</button>
+        <button type="button" data-v="10" aria-pressed="false">10 ₽</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Столбцы</span>
+      <div class="seg" id="mode" role="group" aria-label="Что показывают столбцы">
+        <button type="button" data-v="stack" aria-pressed="true">куплено и продано</button>
+        <button type="button" data-v="delta" aria-pressed="false">перевес</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Отметки</span>
+      <label class="chk"><input type="checkbox" id="show-poc" checked> POC</label>
+      <label class="chk"><input type="checkbox" id="show-va" checked> зона стоимости</label>
+      <label class="chk"><input type="checkbox" id="show-nodes" checked> узлы объёма</label>
+    </div>
+  </div>
+
+  <div class="legend" aria-label="Обозначения">
+    <span><i class="sw buy"></i>куплено — сделку начал покупатель</span>
+    <span><i class="sw sell"></i>продано — сделку начал продавец</span>
+    <span><i class="sw poc"></i>POC — уровень с наибольшим объёмом</span>
+    <span><i class="sw va"></i>зона стоимости — 70% объёма недели</span>
+    <span><i class="sw hvn"></i>HVN — узел высокого объёма</span>
+    <span><i class="sw lvn"></i>LVN — провал объёма между узлами</span>
+  </div>
+
+  <div class="chartbox"><div id="chart" role="img" aria-label="Свечи недели и объём по уровням цены"><p class="msg">Загружаю график…</p></div></div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="cols">
+    <section class="card" aria-labelledby="lv-h">
+      <h2 id="lv-h">Ключевые уровни недели</h2>
+      <div class="tw"><table id="levels"><thead><tr><th>отметка</th><th>уровень, ₽</th><th>объём</th><th>куплено</th><th>от закрытия</th></tr></thead><tbody></tbody></table></div>
+      <p class="note" id="lv-note"></p>
+    </section>
+    <section class="card" aria-labelledby="how-h">
+      <h2 id="how-h">Как читать</h2>
+      <ul class="how">
+        <li><b>Столбец справа</b> — все сделки недели на этом уровне цены: синяя часть куплена, красная продана. В режиме «перевес»
+          столбец показывает разницу: вправо — покупатели забирали больше, влево — продавцы.</li>
+        <li><b>POC</b> — уровень, где за неделю прошло больше всего акций; цена часто возвращается к нему как к «справедливой».</li>
+        <li><b>Зона стоимости</b> — диапазон вокруг POC, где прошло 70% объёма недели. Выход из неё — повод следить за пробоем
+          или возвратом.</li>
+        <li><b>HVN</b> — узлы высокого объёма: там рынок долго торговал, такие уровни часто держат цену. <b>LVN</b> — провалы
+          между узлами: здесь торговали мало, цена проходит такие места быстро.</li>
+        <li>Шаг 1 ₽ показывает тонкую структуру, но узлов много и они шумные; для разметки удобнее 5 или 10 ₽.</li>
+      </ul>
+      <p class="note" id="src"></p>
+    </section>
+  </div>
+</div>
+
+<script id="lkoh-data" type="application/json">/*DATA*/</script>
+<!--PLOTLY-->
+<script>
+(() => {
+  "use strict";
+  const $ = (s) => document.querySelector(s);
+  const NBSP = " ";
+  const fmtInt = (v) => Math.round(v).toLocaleString("ru-RU").replace(/\s/g, NBSP);
+  const fmtPx = (v) => (Math.round(v * 2) / 2).toLocaleString("ru-RU", { maximumFractionDigits: 1 }).replace(/\s/g, NBSP);
+  const fmtPct = (v, d = 1) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d).replace(".", ",") + "%";
+  const DOW = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+  const MON = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+  let DATA;
+  try { DATA = JSON.parse($("#lkoh-data").textContent); } catch (e) { DATA = null; }
+  if (!DATA || !Array.isArray(DATA.weeks) || !DATA.weeks.length) { $("#chart").innerHTML = '<p class="msg">Нет данных для графика.</p>'; return; }
+  const WEEKS = DATA.weeks;
+  const state = { i: WEEKS.length - 1, step: 5, mode: "stack", poc: true, va: true, nodes: true };
+  // по умолчанию — последняя полная неделя (в последней неделе выгрузки может быть один день)
+  for (let k = WEEKS.length - 1; k >= 0; k--) if (WEEKS[k].candles.length >= 40) { state.i = k; break; }
+  try { const s = JSON.parse(localStorage.getItem("lkoh-vp") || "null"); if (s && [1, 5, 10].includes(s.step)) state.step = s.step; if (s && (s.mode === "stack" || s.mode === "delta")) state.mode = s.mode; } catch (e) {}
+
+  const d0 = (s) => new Date(s + "T00:00");
+  function weekLabel(w) {
+    const a = d0(w.start), b = new Date(a); b.setDate(b.getDate() + 6);
+    const f = (d) => `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return `${f(a)}–${f(b)}.${b.getFullYear()}`;
+  }
+  const sel = $("#week");
+  WEEKS.forEach((w, k) => { const o = document.createElement("option"); o.value = k; o.textContent = weekLabel(w); sel.append(o); });
+
+  // ---------- профиль недели на выбранном шаге (как build_volume_profile в S_HorizonVolume) ----------
+  function profile(w, step) {
+    const m = new Map();
+    for (const [lvl, buy, sell] of w.levels) {
+      const b = Math.floor(lvl / step) * step;
+      const r = m.get(b) || [0, 0];
+      r[0] += buy; r[1] += sell; m.set(b, r);
+    }
+    const lo = Math.min(...m.keys()), hi = Math.max(...m.keys());
+    const rows = [];
+    for (let p = lo; p <= hi; p += step) { const r = m.get(p) || [0, 0]; rows.push({ p, buy: r[0], sell: r[1], vol: r[0] + r[1] }); }
+    return rows;
+  }
+  function analyse(rows, step, lastClose) {
+    const total = rows.reduce((s, r) => s + r.vol, 0);
+    let pi = 0; rows.forEach((r, k) => { if (r.vol > rows[pi].vol) pi = k; });
+    // зона стоимости: расширение от POC в сторону большего следующего уровня, пока не наберётся 70%
+    let lo = pi, hi = pi, acc = rows[pi].vol;
+    while (acc < 0.7 * total && (lo > 0 || hi < rows.length - 1)) {
+      const dn = lo > 0 ? rows[lo - 1].vol : -1, up = hi < rows.length - 1 ? rows[hi + 1].vol : -1;
+      if (dn >= up) { lo--; acc += rows[lo].vol; } else { hi++; acc += rows[hi].vol; }
+    }
+    // узлы: локальные максимумы (HVN) по убыванию объёма, не ближе max(3 шагов, 0,4% цены) друг к другу; провалы (LVN) — минимум между соседними узлами
+    const sep = Math.max(3 * step, 0.004 * rows[pi].p);
+    const peaks = [];
+    for (let k = 0; k < rows.length; k++) {
+      const v = rows[k].vol, l = k > 0 ? rows[k - 1].vol : -1, r = k < rows.length - 1 ? rows[k + 1].vol : -1;
+      if (v > 0 && v >= l && v >= r) peaks.push(k);
+    }
+    peaks.sort((a, b) => rows[b].vol - rows[a].vol);
+    const hv = [];
+    for (const k of peaks) {
+      if (rows[k].vol < 0.25 * rows[pi].vol) break;
+      if (hv.every((j) => Math.abs(rows[j].p - rows[k].p) >= sep)) hv.push(k);
+      if (hv.length >= 5) break;
+    }
+    if (!hv.includes(pi)) hv.unshift(pi);
+    const hs = [...hv].sort((a, b) => a - b), lv = [];
+    for (let k = 1; k < hs.length; k++) {
+      let mk = hs[k - 1] + 1;
+      for (let j = hs[k - 1] + 1; j < hs[k]; j++) if (rows[j].vol < rows[mk].vol) mk = j;
+      if (mk < hs[k] && rows[mk].vol <= 0.6 * Math.min(rows[hs[k - 1]].vol, rows[hs[k]].vol)) lv.push(mk);
+    }
+    return { total, buy: rows.reduce((s, r) => s + r.buy, 0), poc: pi, vaLo: lo, vaHi: hi, hvn: hv.filter((k) => k !== pi), lvn: lv, lastClose };
+  }
+
+  // ---------- цвета из токенов страницы ----------
+  function tokens() {
+    const cs = getComputedStyle(document.documentElement);
+    const g = (n) => cs.getPropertyValue(n).trim();
+    return { paper: g("--panel"), ink: g("--ink"), ink2: g("--ink2"), ink3: g("--ink3"), rule: g("--rule"), grid: g("--grid"),
+             buy: g("--buy"), sell: g("--sell"), va: g("--va"), poc: g("--poc"), node: g("--node") };
+  }
+
+  // ---------- график ----------
+  let plotted = false;
+  function draw() {
+    const w = WEEKS[state.i], step = state.step, T = tokens();
+    const C = w.candles, n = C.length;
+    const rows = profile(w, step), A = analyse(rows, step, C[n - 1][4]);
+    const narrow = document.getElementById("chart").clientWidth < 640;
+    const split = narrow ? 0.6 : 0.7;
+    // свечи — по порядку часов, без пустот ночей и выходных; подписи — начало каждого дня
+    const x = C.map((_, k) => k);
+    const when = C.map((c) => { const d = new Date(c[0]); return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}, ${String(d.getHours()).padStart(2, "0")}:00`; });
+    const tickv = [], tickt = [];
+    C.forEach((c, k) => { const day = c[0].slice(0, 10); if (k === 0 || day !== C[k - 1][0].slice(0, 10)) { const d = new Date(c[0]); tickv.push(k); tickt.push(`${DOW[d.getDay()]} ${d.getDate()}`); } });
+    const candle = {
+      type: "candlestick", x, open: C.map((c) => c[1]), high: C.map((c) => c[2]), low: C.map((c) => c[3]), close: C.map((c) => c[4]),
+      xaxis: "x", yaxis: "y", name: "цена", showlegend: false, whiskerwidth: 0,
+      increasing: { line: { color: T.buy, width: 1 }, fillcolor: T.paper },
+      decreasing: { line: { color: T.sell, width: 1 }, fillcolor: T.sell },
+      hoverinfo: "text",
+      text: C.map((c, k) => `${when[k]}<br>открытие ${fmtPx(c[1])} · закрытие ${fmtPx(c[4])}<br>макс ${fmtPx(c[2])} · мин ${fmtPx(c[3])}<br>объём ${fmtInt(c[5])} акций`),
+    };
+    const ys = rows.map((r) => r.p + step / 2);
+    const lvlTxt = rows.map((r) => `${fmtPx(r.p)}–${fmtPx(r.p + step)} ₽<br>куплено ${fmtInt(r.buy)} · продано ${fmtInt(r.sell)}<br>перевес ${r.buy - r.sell >= 0 ? "+" : "−"}${fmtInt(Math.abs(r.buy - r.sell))} · всего ${fmtInt(r.vol)}`);
+    const barW = step * 0.82;
+    let bars;
+    if (state.mode === "stack") {
+      bars = [
+        { type: "bar", orientation: "h", x: rows.map((r) => r.buy), y: ys, width: barW, xaxis: "x2", yaxis: "y", name: "куплено",
+          marker: { color: T.buy, line: { color: T.paper, width: step === 1 ? 0 : 1 } }, hoverinfo: "text", hovertext: lvlTxt },
+        { type: "bar", orientation: "h", x: rows.map((r) => r.sell), y: ys, width: barW, xaxis: "x2", yaxis: "y", name: "продано",
+          marker: { color: T.sell, line: { color: T.paper, width: step === 1 ? 0 : 1 } }, hoverinfo: "text", hovertext: lvlTxt },
+      ];
+    } else {
+      const dlt = rows.map((r) => r.buy - r.sell);
+      bars = [{ type: "bar", orientation: "h", x: dlt, y: ys, width: barW, xaxis: "x2", yaxis: "y", name: "перевес",
+                marker: { color: dlt.map((v) => (v >= 0 ? T.buy : T.sell)) }, hoverinfo: "text", hovertext: lvlTxt }];
+    }
+    const shapes = [], ann = [];
+    const yAt = (k) => rows[k].p + step / 2;
+    if (state.va) shapes.push({ type: "rect", xref: "paper", yref: "y", x0: 0, x1: 1, y0: rows[A.vaLo].p, y1: rows[A.vaHi].p + step,
+                                fillcolor: T.va, line: { width: 0 }, layer: "below" });
+    if (state.nodes) {
+      for (const k of A.hvn) shapes.push({ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: yAt(k), y1: yAt(k), line: { color: T.node, width: 1 }, layer: "above" });
+      for (const k of A.lvn) shapes.push({ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: yAt(k), y1: yAt(k), line: { color: T.node, width: 1, dash: "dot" }, layer: "above" });
+      for (const k of A.hvn) ann.push({ xref: "paper", yref: "y", x: 1, y: yAt(k), text: "HVN", showarrow: false, xanchor: "right", yanchor: "bottom", font: { size: 10.5, color: T.ink3, family: "IBM Plex Sans, system-ui, sans-serif" } });
+      for (const k of A.lvn) ann.push({ xref: "paper", yref: "y", x: 1, y: yAt(k), text: "LVN", showarrow: false, xanchor: "right", yanchor: "bottom", font: { size: 10.5, color: T.ink3, family: "IBM Plex Sans, system-ui, sans-serif" } });
+    }
+    if (state.poc) {
+      shapes.push({ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: yAt(A.poc), y1: yAt(A.poc), line: { color: T.poc, width: 1.6 }, layer: "above" });
+      ann.push({ xref: "paper", yref: "y", x: 1, y: yAt(A.poc), text: `POC ${fmtPx(rows[A.poc].p)}`, showarrow: false, xanchor: "right", yanchor: "bottom",
+                 font: { size: 11, color: T.ink, family: "IBM Plex Sans, system-ui, sans-serif" } });
+    }
+    const lo = Math.min(rows[0].p, ...C.map((c) => c[3])), hi = Math.max(rows[rows.length - 1].p + step, ...C.map((c) => c[2]));
+    const pad = (hi - lo) * 0.03;
+    const font = { family: "IBM Plex Sans, system-ui, sans-serif", size: 12, color: T.ink2 };
+    const axis = { gridcolor: T.grid, linecolor: T.rule, zeroline: false, tickfont: { size: 11.5, color: T.ink2 }, showspikes: false };
+    const layout = {
+      paper_bgcolor: T.paper, plot_bgcolor: T.paper, font, margin: { l: 64, r: 10, t: 8, b: 40 }, showlegend: false, separators: ", ",
+      barmode: state.mode === "stack" ? "stack" : "relative", bargap: 0, hovermode: "closest",
+      hoverlabel: { bgcolor: T.paper, bordercolor: T.rule, font: { color: T.ink, size: 12.5, family: "IBM Plex Sans, system-ui, sans-serif" } },
+      xaxis: { ...axis, domain: [0, split - 0.02], tickvals: tickv, ticktext: tickt, range: [-0.8, n - 0.2], rangeslider: { visible: false }, fixedrange: true },
+      xaxis2: { ...axis, domain: [split + 0.01, 1], tickformat: ",.0f", nticks: 4, rangemode: state.mode === "stack" ? "tozero" : "normal", fixedrange: true,
+                zeroline: state.mode === "delta", zerolinecolor: T.ink3, title: { text: state.mode === "stack" ? "акций на уровне" : "куплено − продано", font: { size: 11.5, color: T.ink3 } } },
+      yaxis: { ...axis, side: "left", range: [lo - pad, hi + pad], tickformat: ",.0f", separatethousands: true, ticksuffix: " ₽", fixedrange: false },
+      shapes, annotations: ann,
+    };
+    const cfg = { displaylogo: false, responsive: true, modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d", "toggleSpikelines"], locale: "ru" };
+    const el = document.getElementById("chart");
+    if (!plotted) { el.textContent = ""; plotted = true; }
+    Plotly.react(el, [candle, ...bars], layout, cfg);
+    renderSide(w, rows, A, step);
+  }
+
+  function renderSide(w, rows, A, step) {
+    const C = w.candles, close = C[C.length - 1][4], open = C[0][1];
+    const hi = Math.max(...C.map((c) => c[2])), lo = Math.min(...C.map((c) => c[3]));
+    const rng = (k) => `${fmtPx(rows[k].p)}–${fmtPx(rows[k].p + step)}`;
+    const stats = [
+      ["Неделя", weekLabel(w), `${C.length} часовых свечей`],
+      ["Изменение", fmtPct((close / open - 1) * 100), `${fmtPx(open)} → ${fmtPx(close)} ₽`],
+      ["Диапазон", `${fmtPx(lo)}–${fmtPx(hi)}`, `${((hi / lo - 1) * 100).toFixed(1).replace(".", ",")}% от минимума`],
+      ["Объём", fmtInt(A.total), `акций; куплено ${(A.buy / A.total * 100).toFixed(0)}%`],
+      ["POC", rng(A.poc), `${fmtInt(rows[A.poc].vol)} акций на уровне`],
+      ["Зона стоимости", `${fmtPx(rows[A.vaLo].p)}–${fmtPx(rows[A.vaHi].p + step)}`, close > rows[A.vaHi].p + step ? "неделя закрылась выше зоны" : close < rows[A.vaLo].p ? "неделя закрылась ниже зоны" : "неделя закрылась внутри зоны"],
+    ];
+    const box = $("#stats"); box.textContent = "";
+    for (const [k, v, s] of stats) {
+      const d = document.createElement("div"); d.className = "stat";
+      const a = document.createElement("span"); a.className = "k"; a.textContent = k;
+      const b = document.createElement("span"); b.className = "v"; b.textContent = v;
+      const c = document.createElement("span"); c.className = "s"; c.textContent = s;
+      d.append(a, b, c); box.append(d);
+    }
+    const marks = [["POC", A.poc], ["граница зоны (верх)", A.vaHi], ["граница зоны (низ)", A.vaLo],
+                   ...A.hvn.map((k) => ["HVN", k]), ...A.lvn.map((k) => ["LVN", k])];
+    marks.sort((a, b) => rows[b[1]].p - rows[a[1]].p);
+    const tb = $("#levels tbody"); tb.textContent = "";
+    for (const [name, k] of marks) {
+      const r = rows[k], mid = r.p + step / 2, tr = document.createElement("tr");
+      const cells = [name, rng(k), fmtInt(r.vol), r.vol ? `${Math.round(r.buy / r.vol * 100)}%` : "—", fmtPct((mid / close - 1) * 100)];
+      cells.forEach((t, j) => { const td = document.createElement("td"); if (j === 0) { const s = document.createElement("span"); s.className = "tag"; s.textContent = t; td.append(s); } else { td.className = "n"; td.textContent = t; } tr.append(td); });
+      tb.append(tr);
+    }
+    $("#lv-note").textContent = `Шаг ${step} ₽. «От закрытия» — расстояние от закрытия недели (${fmtPx(close)} ₽) до середины уровня. Уровни считаются по этой неделе, без затухания старых сделок.`;
+  }
+
+  // ---------- управление ----------
+  function sync() {
+    sel.value = state.i;
+    $("#prev").disabled = state.i <= 0; $("#next").disabled = state.i >= WEEKS.length - 1;
+    document.querySelectorAll("#step button").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.v) === state.step)));
+    document.querySelectorAll("#mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === state.mode)));
+    try { localStorage.setItem("lkoh-vp", JSON.stringify({ step: state.step, mode: state.mode })); } catch (e) {}
+    draw();
+  }
+  sel.addEventListener("change", () => { state.i = Number(sel.value); sync(); });
+  $("#prev").addEventListener("click", () => { if (state.i > 0) { state.i--; sync(); } });
+  $("#next").addEventListener("click", () => { if (state.i < WEEKS.length - 1) { state.i++; sync(); } });
+  document.querySelectorAll("#step button").forEach((b) => b.addEventListener("click", () => { state.step = Number(b.dataset.v); sync(); }));
+  document.querySelectorAll("#mode button").forEach((b) => b.addEventListener("click", () => { state.mode = b.dataset.v; sync(); }));
+  [["#show-poc", "poc"], ["#show-va", "va"], ["#show-nodes", "nodes"]].forEach(([id, k]) => $(id).addEventListener("change", (e) => { state[k] = e.target.checked; draw(); }));
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("select, input, textarea")) return;
+    if (e.key === "ArrowLeft" && state.i > 0) { state.i--; sync(); }
+    if (e.key === "ArrowRight" && state.i < WEEKS.length - 1) { state.i++; sync(); }
+  });
+  const mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  if (mq && mq.addEventListener) mq.addEventListener("change", () => draw());
+  new MutationObserver(() => draw()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  let rt = null;
+  window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(draw, 150); });
+
+  const m = DATA.meta || {};
+  $("#src").textContent = `Данные: ${m.source || "обезличенные сделки Мосбиржи"}, режим ${m.board || "TQBR"}, время ${m.tz || "МСК"}. ` +
+    `Между ${m.history ? m.history.split(" — ")[1] : "концом истории"} и началом сбора свежих дней недель нет: прошлые сделки биржа отдаёт только по подписке. ` +
+    `Покупка и продажа — ${m.side || "по стороне инициатора сделки"}; объём — ${m.unit || "в акциях"}. ` +
+    `Отметки — по коду Тимура S_HorizonVolume: POC, зона стоимости 70%, узлы и провалы объёма. Собрано ${m.built || ""}.`;
+
+  function boot() {
+    if (!window.Plotly) { $("#chart").innerHTML = '<p class="msg">Библиотека графиков не загрузилась. Проверьте интернет и обновите страницу.</p>'; return; }
+    sync();
+  }
+  if (window.Plotly) boot(); else window.addEventListener("load", boot);
+})();
+</script>
