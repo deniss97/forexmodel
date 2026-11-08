@@ -1126,6 +1126,38 @@ experiments:
       lkoh: [lkoh_tf3x__follow]
       gazp: [gazp_tf3x__follow]
       sber: [sber_tf3x__follow]
+  - id: S64
+    family: strategy
+    title: "S42 на акциях без режима «рост ровным ходом» (карта режимов)"
+    kind: variation
+    main: все
+    hypothesis: H75
+    change: "окно 70 часовых свечей до сигнала → 15 признаков → KMeans k = 5 по 2016–2020; не торгуем режим с PF < 1 на выборе («рост, ровный ход»); остальное как у S42 на GAZP, SBER, LKOH"
+    baseline: S42
+    verdict: 'не подтвердилась по критерию: проверка PF 1.37 → 1.43, t 1.89 → 2.23, но итог к просадке 2.71 → 2.67; при k = 4 и 6 эффекта нет'
+    doc: results/h75_regimes.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      lkoh: [lkoh_lo_reg__impulse_6_3_long]
+      gazp: [gazp_lo_reg__impulse_6_3_long]
+      sber: [sber_lo_reg__impulse_6_3_long]
+  - id: S65
+    family: strategy
+    title: "Импульс на 15-минутных свечах: ход за 3 ч ≥ 4 ATR, стоп 12 ATR"
+    kind: variation
+    main: все
+    hypothesis: H77
+    change: "как S42 на GAZP, SBER, LKOH, но свечи 15 минут: ход за 12 свечей ≥ 4 ATR(15 мин), стоп и трейлинг 12 ATR(15 мин), активация 6; лучший по 2016–2020 из 12 вариантов сетки"
+    baseline: S42
+    verdict: 'хуже S42 на проверке: PF 1.21 против 1.37, итог +40% против +51%, просадка −31% против −19%; на выборе PF 1.56 — подгонка'
+    doc: results/h77_m15.md
+    dividends: true
+    costs: {profile: exchange}
+    sources:
+      lkoh: [lkoh_m15_sl12__impulse_12_4_long]
+      gazp: [gazp_m15_sl12__impulse_12_4_long]
+      sber: [sber_m15_sl12__impulse_12_4_long]
 
   # ---------------- модель CatBoost: серебро ----------------
   - id: M01

@@ -70,7 +70,7 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
     <div class="k">«ОТКРЫТЬ» в группе</div><div class="was">в :07 после часа, потом ~1.5 мин</div><div class="now"><span class="tag g">33–45 с</span>расчёт сигналов 26 → 7 с: читаем хвост файла, кэш дописывается</div>
     <div class="k">Стоп S42 на счёте</div><div class="was">6 ATR, потолок 10% (не работал)</div><div class="now"><span class="tag b">не дальше 4%</span>на истории та же доходность, просадка −17% вместо −19% (3%: −13%)</div>
     <div class="k">Ошибки контура</div><div class="was">—</div><div class="now"><span class="tag r">3 найдено</span>все исправлены, на каждую — тест</div>
-    <div class="k">Гипотезы</div><div class="was">в работе H59, H71, H73</div><div class="now"><span class="tag g">H71 да</span><span class="tag r">H59 нет</span><span class="tag r">H73 нет</span></div>
+    <div class="k">Гипотезы</div><div class="was">в работе H59, H71, H73</div><div class="now"><span class="tag g">H71 да</span><span class="tag r">H59, H73 нет</span>и сразу — идеи созвона 05.11: <span class="tag r">H75–H77 нет</span>H60 на свежих месяцах</div>
   </div>
   <div class="foot"><span>Отчёт № 6 · 03.11–08.11.2026</span><span>2</span></div>
 </section>
@@ -86,6 +86,7 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
     <tr><td class="d">05.11</td><td>Проверка контура перед пробой (<code>/check</code> — замечаний нет); вечерний созвон — идеи и данные</td><td>S42 за четверг сигнала не дал</td></tr>
     <tr><td class="d">06.11</td><td>Проба P42: порог 1.5 → 1.0 → 0.5 ATR; 17:01 покупка через API, 19:38 закрытие; исправлено снятие сигнала; ускорение контура</td><td>проверить весь путь сделки на боевом счёте</td></tr>
     <tr><td class="d">07.11</td><td>Второй случай снятия сигнала исправлен; проба выключена; счёт сверен у брокера: 14 999.85 ₽, позиций нет</td><td>чтобы контур не слал лишнего и не терял сигналы S42</td></tr>
+    <tr><td class="d">08.11</td><td>Гипотезы созвона 05.11 в банке (H75–H79) и проверены: карта режимов, «скептик» к H73, 15-минутки, H60 на свежих месяцах</td><td>«сначала гипотеза в банке, потом проверка»</td></tr>
   </table>
   <div class="foot"><span>docs/meetings/2026-11-04_timur.md · 2026-11-05_timur.md</span><span>3</span></div>
 </section>
@@ -165,18 +166,42 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
 </section>
 
 <section class="slide">
+  <div class="kicker">H75 · карта режимов (идея Дениса)</div>
+  <h2>После 2022 года рынок другой — и это видно на карте</h2>
+  <p class="lead">Неделя часовых свечей перед каждым днём → 15 признаков → 5 режимов (настроены только по 2016–2020). Доли торговых дней по годам, GAZP, SBER, LKOH.</p>
+  <img class="chart" src="regimes_by_year.png" style="width:96%">
+  <p class="note" style="margin-top:6px">«Ровного роста» стало меньше (24% → 14% дней), «нервного роста» — больше (6% → 15%), 2022 год почти на треть — «нервное падение». S42 работает почти во всех режимах, лучше всего — в боковике (PF 1.67 и до, и после). Отключить убыточный режим не вышло: фильтр поднимает PF проверки 1.37 → 1.43, но итог к просадке не растёт, и при другом числе режимов эффект пропадает.</p>
+  <div class="foot"><span>docs/results/h75_regimes.md · журнал S64</span><span>11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Гипотезы созвона 05.11 — проверили сразу</div>
+  <h2>Сначала в банк с критерием, потом расчёт</h2>
+  <table style="margin-top:8px">
+    <tr><th>гипотеза</th><th>что проверили</th><th>итог</th></tr>
+    <tr><td><b>H75</b> карта режимов</td><td>S42 только в режимах, где он не терял на 2016–2020</td><td><span class="tag r">нет</span>PF 1.37 → 1.43, но итог к просадке 2.71 → 2.67; неустойчиво к числу режимов</td></tr>
+    <tr><td><b>H76</b> «скептик» к H73</td><td>«три белых солдата» не как стратегия, а как подтверждение входа S42</td><td><span class="tag r">нет</span>строгая фигура перед входом — 4 и 6 раз; мягкая — эффект меняет знак</td></tr>
+    <tr><td><b>H77</b> 15-минутки</td><td>импульс S42 на 15-минутных свечах, 12 вариантов, выбор по 2016–2020</td><td><span class="tag r">нет</span>проверка: PF 1.21 против 1.37, просадка −31% против −19%</td></tr>
+    <tr><td><b>H60</b> свежие месяцы</td><td>акции по тренд-фильтру 01.06–08.11.2026 (вопрос Тимура)</td><td><span class="tag b">как держание</span>+24.8% против +28.6% «купить и держать», в позиции 37–50% времени</td></tr>
+    <tr><td><b>H78, H79</b></td><td>Telegram-каналы и Пульс; экономический календарь</td><td><span class="tag b">ждут данных</span>сначала собрать источники</td></tr>
+  </table>
+  <p class="note" style="margin-top:12px"><b>Что это значит.</b> Простые вариации S42 — режимы, фигуры, таймфрейм — не улучшают его на проверке. Дальше — новые данные (MOEX, обезличенные сделки, внешние источники) и признаки режима в модели, а не жёсткие правила.</p>
+  <div class="foot"><span>docs/results/h75_regimes.md · h76_soldiers_filter.md · h77_m15.md (S65) · h60_fresh.md</span><span>12</span></div>
+</section>
+
+<section class="slide">
   <div class="kicker">Планы 09–15.11</div>
-  <h2>Первая сделка S42 по сигналу — и новые гипотезы</h2>
+  <h2>Первая сделка S42 по сигналу — и данные</h2>
   <table style="margin-top:8px">
     <tr><th>№</th><th>задача</th><th>кто</th><th>готово, когда</th></tr>
     <tr><td>1</td><td>Первая «естественная» сделка S42 по кнопке — контур и счёт готовы, ждём сигнал</td><td>Денис</td><td>сделка в журнале счёта</td></tr>
-    <tr><td>2</td><td>Карта рядов для режимов рынка (по образцу TokDiT) — гипотеза в банк и первая карта SBER/GAZP/LKOH</td><td>Денис, Claude</td><td>карта и вывод «в каких режимах S42 зарабатывает»</td></tr>
-    <tr><td>3</td><td>«Скептик» для отклонённых: строгие «солдаты» как фильтр к S42; H60 (акции по фильтру) на свежих месяцах</td><td>Claude</td><td>вердикты в журнале</td></tr>
-    <tr><td>4</td><td>Данные: обезличенные сделки и скрипт (T61), цены MOEX (T60)</td><td>Тимур</td><td>файлы на Диске / смета</td></tr>
-    <tr><td>5</td><td>Новые гипотезы: отбор фигур (H39); новая модель работы с Тагиром</td><td>Тимур</td><td>гипотезы в банке</td></tr>
+    <tr><td>2</td><td>Данные: обезличенные сделки и скрипт (T61), цены MOEX (T60); после — докачать и проверить гипотезы ленты</td><td>Тимур, Денис</td><td>файлы на Диске / смета</td></tr>
+    <tr><td>3</td><td>Признаки режима (карта H75) и тренд-фильтр (H69) — в модель, а не жёстким правилом</td><td>Claude</td><td>вердикт в журнале</td></tr>
+    <tr><td>4</td><td>Источники для H78, H79: какие Telegram-каналы открыты, календарь ЦБ и отчётностей</td><td>Тимур, Тагир</td><td>список в банке</td></tr>
+    <tr><td>5</td><td>Новые гипотезы: разметка фигур (H39, H74 Тагира); новая модель работы с Тагиром</td><td>Тимур</td><td>гипотезы в банке</td></tr>
     <tr><td>6</td><td>Техдолг: снимок банка в репозитории (T57), тревога «нет данных» в праздники</td><td>Денис</td><td>в репозитории</td></tr>
   </table>
-  <div class="foot"><span>План недели — на созвоне в понедельник</span><span>11</span></div>
+  <div class="foot"><span>План недели — на созвоне в понедельник</span><span>13</span></div>
 </section>
 
 <section class="slide">
@@ -186,12 +211,13 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
     <tr><td style="width:48%"><code>docs/results/inference_delay_review.md</code></td><td>задержка инференса, утечки нет, две сделки недели</td></tr>
     <tr><td><code>docs/results/live_lag_replay.md</code></td><td>честный прогон контура: 0 → 38 входов из 38 вовремя</td></tr>
     <tr><td><code>docs/results/h71_stop_caps.md</code> · <code>h59_trend_exits.md</code> · <code>h73_soldiers.md</code></td><td>гипотезы недели (журнал S60–S63)</td></tr>
+    <tr><td><code>h75_regimes.md</code> · <code>h76_soldiers_filter.md</code> · <code>h77_m15.md</code> · <code>h60_fresh.md</code></td><td>гипотезы созвона 05.11 (журнал S64, S65)</td></tr>
     <tr><td><code>docs/meetings/2026-11-04_timur.md</code>, <code>2026-11-05_timur.md</code></td><td>протоколы созвонов</td></tr>
     <tr><td><code>scripts/live_signals.py</code>, <code>live_account.py</code>, <code>trial_args.py</code></td><td>сигналы, счёт, проба P42 (выключена)</td></tr>
     <tr><td><code>forexmodel/data/loader.py</code></td><td>дописываемый кэш минуток</td></tr>
     <tr><td><code>docs/results/weekly/2026-11-09/</code></td><td>графики отчёта (<code>scripts/weekly_charts.py --week 2026-11-09</code>)</td></tr>
   </table>
-  <div class="foot"><span>Отчёт № 6 · 03.11–08.11.2026</span><span>12</span></div>
+  <div class="foot"><span>Отчёт № 6 · 03.11–08.11.2026</span><span>14</span></div>
 </section>
 
 </body>
