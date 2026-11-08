@@ -1075,22 +1075,113 @@ def paper_week6(out: Path) -> dict:
     return res
 
 
+def bank_models6(out: Path) -> dict:
+    """Модель LKOH при одинаковых настройках (H63): PF по периодам — CatBoost на 3 класса (L10), пара бинарных (L11, H63),
+    нейросеть (L12, H64), CatBoost с наклоном тренда (H41). Среднее по seed 42, 7, 1, издержки биржи."""
+    from experiments import load_trades
+    from forexmodel.evaluation.experiments import metrics
+
+    sets = [("CatBoost, 3 класса\n(база L10)", "lkoh_h63_multiclass_s{}"), ("пара «вверх» / «вниз»\n(H63)", "lkoh_h63_binary_pair_s{}"),
+            ("нейросеть\nCNN-BiLSTM (H64)", "lkoh_h64_nn_s{}"), ("CatBoost + наклон\nтренда (H41)", "lkoh_h41_slope_s{}")]
+    res = {}
+    for lab, pat in sets:
+        v = {"выбор": [], "проверка": []}
+        for sd in (42, 7, 1):
+            run = pat.format(sd)
+            if not (WF / f"{run}_trades.csv").exists():
+                continue
+            t = load_trades({"id": run, "sources": {"lkoh": [run]}, "costs": {"profile": "exchange"}, "dividends": True})
+            for per in v:
+                v[per].append(metrics(t, ["lkoh"], per).get("PF", np.nan))
+        if len(v["выбор"]) == 3:
+            res[lab] = {p: float(np.mean(x)) for p, x in v.items()}
+    f, ax = figure(1600, 560)
+    style(ax)
+    labs = list(res)
+    k = np.arange(len(labs))
+    for dx, per, col, name in ((-0.2, "выбор", GRAY, "выбор 2018–2020"), (0.2, "проверка", BLUE, "проверка 2021–2026")):
+        y = [res[lab][per] for lab in labs]
+        ax.bar(k + dx, y, 0.38, color=col, label=name)
+        for kk, z in zip(k, y):
+            ax.text(kk + dx, z + 0.015, f"{z:.2f}", ha="center", va="bottom", fontsize=FS - 2, color=INK)
+    ax.axhline(1, color=INK2, linewidth=1.2, linestyle=":")
+    ax.text(-0.45, 1.01, "безубыток", ha="left", va="bottom", fontsize=FS - 3, color=INK2)
+    ax.set_xticks(k)
+    ax.set_xticklabels(labs, fontsize=FS - 2, color=INK)
+    ax.set_ylim(0, 1.18)
+    ax.set_ylabel("PF после издержек биржи", fontsize=FS - 1, color=INK2)
+    ax.grid(axis="x", visible=False)
+    ax.legend(frameon=False, fontsize=FS - 2, labelcolor=INK, loc="upper right", ncol=2)
+    f.tight_layout()
+    save(f, out, "bank_models.png")
+    return {lab.replace("\n", " "): {p: round(x, 3) for p, x in r.items()} for lab, r in res.items()}
+
+
+def cbr6(out: Path) -> dict:
+    """H79: слева — модуль хода GAZP, SBER, LKOH за час решения ЦБ (13:00–14:00) против обычных дней, в ATR; справа — итог к
+    просадке S42 на акциях и S42 без входов за сутки до решения (S66)."""
+    import h79_calendar as H
+
+    ev = H.events()
+    S, _ = H.strategy(ev)
+    R = H.reaction(ev)
+    f, (a1, a2) = figure(1600, 560, ncols=2)
+    for ax in (a1, a2):
+        style(ax)
+        ax.grid(axis="x", visible=False)
+    k = np.arange(2)
+    pers = ("выбор", "проверка")
+    norm = [float(R.loc[(p, False), ("1 ч", "mean")]) for p in pers]
+    dec = [float(R.loc[(p, True), ("1 ч", "mean")]) for p in pers]
+    for dx, y, col, name in ((-0.2, norm, GRAY, "обычные дни"), (0.2, dec, ORANGE, "дни решения ЦБ")):
+        a1.bar(k + dx, y, 0.38, color=col, label=name)
+        for kk, z in zip(k, y):
+            a1.text(kk + dx, z + 0.02, f"{z:.2f}", ha="center", va="bottom", fontsize=FS - 2, color=INK)
+    a1.set_xticks(k)
+    a1.set_xticklabels(["2016–2020", "2021–2026"], fontsize=FS - 1, color=INK)
+    a1.set_ylim(0, 1.2)
+    a1.set_title("Ход акций за час решения (13:00–14:00), ATR", fontsize=FS, color=INK, loc="left")
+    a1.legend(frameon=False, fontsize=FS - 3, labelcolor=INK, loc="upper left")
+    s = S.set_index(["вариант", "период"])["итог / просадка"]
+    base = [float(s[("S42", p)]) for p in pers]
+    flt = [float(s[("S42 без входов за 24 ч до решения", p)]) for p in pers]
+    for dx, y, col, name in ((-0.2, base, GRAY, "S42"), (0.2, flt, AQUA, "без входов за сутки до решения")):
+        a2.bar(k + dx, y, 0.38, color=col, label=name)
+        for kk, z in zip(k, y):
+            a2.text(kk + dx, z + 0.08, f"{z:.2f}", ha="center", va="bottom", fontsize=FS - 2, color=INK)
+    a2.set_xticks(k)
+    a2.set_xticklabels(["выбор 2016–2020", "проверка 2021–2026"], fontsize=FS - 1, color=INK)
+    a2.set_ylim(0, 8.6)
+    a2.set_title("S42 на акциях: итог к просадке", fontsize=FS, color=INK, loc="left")
+    a2.legend(frameon=False, fontsize=FS - 3, labelcolor=INK, loc="upper right")
+    f.tight_layout()
+    save(f, out, "cbr_decisions.png")
+    return {"ход 1 ч обычные / решения": dict(zip(pers, zip(norm, dec))), "итог/просадка S42 / S66": dict(zip(pers, zip(base, flt)))}
+
+
 def week6(out: Path) -> None:
     print("время до «ОТКРЫТЬ»:", open_timing(out))
     print("пробная сделка:", trial_trade(out))
     print("потолок стопа:", stop_caps(out))
     print("H59 / H73:", h59_h73(out))
     print("бумага за неделю:", paper_week6(out))
+    print("модель LKOH (H63, H64, H41):", bank_models6(out))
+    print("решения ЦБ (H79):", cbr6(out))
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--week", default="2026-10-05", help="неделя отчёта: 2026-10-05 (№ 1), 2026-10-12 (№ 2), 2026-10-19 (№ 3), 2026-10-26 (№ 4), 2026-11-02 (№ 5), 2026-11-09 (№ 6)")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--only", nargs="+", default=None, help="перестроить только эти графики (имена функций, напр. cbr6)")
     args = ap.parse_args(argv)
     logging.disable(logging.WARNING)
     out = Path(args.out or ROOT / "docs" / "results" / "weekly" / args.week)
     out.mkdir(parents=True, exist_ok=True)
+    if args.only:
+        for name in args.only:
+            print(name, globals()[name](out))
+        return 0
     if args.week == "2026-10-12":
         week2(out)
         return 0

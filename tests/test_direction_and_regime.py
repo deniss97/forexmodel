@@ -74,3 +74,28 @@ def test_regime_features_are_causal_and_bounded(hourly_df, cfg):
 
 def test_regime_features_off_by_default(hourly_df, cfg):
     assert regime_columns(cfg.features) == []
+
+
+def test_slope_features_are_causal_and_consistent(hourly_df, cfg):
+    """H41: наклон регрессии за окно в ATR и sin / cos его угла — только по прошлым барам, по умолчанию выключены."""
+    from forexmodel.features.extension import add_extension_features
+
+    df = _featured(hourly_df, cfg)
+    assert not any(c.startswith("slope_") for c in add_extension_features(df.copy(), cfg.features).columns)
+    fc = dataclasses.replace(cfg.features, slope_windows=[24, 72])
+    full = add_extension_features(df.copy(), fc)
+    prefix = add_extension_features(df.iloc[:300].copy(), fc)
+    for w in (24, 72):
+        for k in ("atr", "sin", "cos"):
+            a, b = full[f"slope_{k}_{w}"].iloc[:300].to_numpy(float), prefix[f"slope_{k}_{w}"].to_numpy(float)
+            assert np.allclose(a, b, equal_nan=True), f"slope_{k}_{w} зависит от будущего"
+        s, c = full[f"slope_sin_{w}"].dropna(), full[f"slope_cos_{w}"].dropna()
+        assert np.allclose(s**2 + c**2, 1.0)
+        assert (c > 0).all()
+    # на ровной линии с шагом 0.5 и ATR = 1 подъём линии за 24 бара = 0.5 × 23, угол почти 90° вверх
+    n = 200
+    line = pd.DataFrame({"time": pd.date_range("2024-01-01", periods=n, freq="1h"), "close": 100 + 0.5 * np.arange(n, dtype=float)})
+    line = line.assign(open=line["close"], high=line["close"] + 0.5, low=line["close"] - 0.5, atr_14=1.0)
+    out = add_extension_features(line, fc, atr_col="atr_14")
+    assert np.isclose(out["slope_atr_24"].iloc[-1], 0.5 * 23)
+    assert out["slope_sin_24"].iloc[-1] > 0.9 and out["slope_cos_24"].iloc[-1] < 0.5

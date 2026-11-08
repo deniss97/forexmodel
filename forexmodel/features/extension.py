@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from ..config import FeatureConfig
+from .indicators import linreg_slope
 
 __all__ = ["add_extension_features", "add_regime_features", "extension_columns", "regime_columns"]
 
@@ -40,6 +41,15 @@ def add_extension_features(df: pd.DataFrame, cfg: FeatureConfig, atr_col: str | 
         # положение цены в окне
         m, s = close.rolling(w).mean(), close.rolling(w).std()
         df[f"z_close_{w}"] = (close - m) / s.replace(0, np.nan)
+
+    # H41: наклон тренда за окно — подъём линии регрессии за окно в ATR; угол atan(подъём / √w): у случайного
+    # блуждания подъём порядка √w ATR, так что 45° — «тренд сильнее шума». sin — знак и сила, cos — плоскость
+    for w in getattr(cfg, "slope_windows", None) or []:
+        rise = linreg_slope(close, w) * (w - 1) / atr
+        ang = np.arctan(rise / np.sqrt(w))
+        df[f"slope_atr_{w}"] = rise
+        df[f"slope_sin_{w}"] = np.sin(ang)
+        df[f"slope_cos_{w}"] = np.cos(ang)
 
     # серия одноцветных свечей (знак * длина)
     sign = np.sign(close - df["open"])

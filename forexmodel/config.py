@@ -139,6 +139,9 @@ class FeatureConfig:
     rsi_z_window: int = 200             # rolling-окно для z-score RSI (было: по всей выборке)
     extension_windows: List[int] = field(default_factory=lambda: [6, 12, 24])
     use_extension_features: bool = True
+    # H41: наклон линейной регрессии close за окно (подъём линии за окно в ATR) и sin / cos его угла
+    # atan(подъём / √окна) — slope_atr_<w>, slope_sin_<w>, slope_cos_<w>; пусто — признаков нет
+    slope_windows: List[int] = field(default_factory=list)
     # режимные признаки по прошлым regime_windows часам (каузально): variance ratio
     # на 4 барах и автокорреляция часовых доходностей — единственные метрики с
     # согласованным знаком на серебре и LKOH за 10 лет (docs/results/instrument_profile.md)
