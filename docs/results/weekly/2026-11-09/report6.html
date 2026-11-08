@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Отчёт № 6 · 03.11–08.11.2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=block" rel="stylesheet">
+<style>
+:root { --ink: #15233b; --ink2: #4a5568; --muted: #7a8391; --line: #e2ddd2; --paper: #f6f4ef;
+  --blue: #2459b3; --blue-soft: #e6edf8; --orange: #a9521a; --green: #1e7a4f; --green-soft: #e3f2ea; --red: #b3261e; --red-soft: #fbe9e7; }
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 19px/1.45 "IBM Plex Sans", "DejaVu Sans", sans-serif; color: var(--ink); background: var(--paper); }
+.slide { width: 1280px; height: 720px; padding: 50px 64px 40px; position: relative; overflow: hidden; break-after: page; background: var(--paper); display: flex; flex-direction: column; }
+.slide:last-child { break-after: auto; }
+h1, h2 { font-family: "Manrope", sans-serif; letter-spacing: -0.015em; margin: 0; }
+h2 { font-size: 36px; font-weight: 800; line-height: 1.12; margin-bottom: 8px; }
+.kicker { font: 600 13px "IBM Plex Sans", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--orange); margin-bottom: 10px; }
+.lead { font-size: 20px; color: var(--ink2); margin: 0 0 14px; max-width: 1120px; }
+.foot { position: absolute; left: 64px; right: 64px; bottom: 16px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+img.chart { width: 100%; border-radius: 6px; }
+code { font-family: "JetBrains Mono", monospace; font-size: .85em; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+b { font-weight: 600; }
+ul { margin: 0; padding-left: 22px; } li { margin: 0 0 7px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.note { font-size: 17px; color: var(--ink2); }
+.cover { background: var(--ink); color: #fff; padding: 70px 80px; }
+.cover::after { content: ""; position: absolute; right: -160px; top: -160px; width: 620px; height: 620px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(36,89,179,.6), rgba(36,89,179,0) 70%); }
+.cover .kicker { color: #f0b48a; }
+.cover h1 { font-size: 62px; font-weight: 800; line-height: 1.04; margin: 22px 0 22px; max-width: 980px; position: relative; z-index: 1; }
+.cover .sub { font-size: 23px; color: #c9d3e3; max-width: 940px; position: relative; z-index: 1; }
+.cover .meta { margin-top: auto; display: flex; gap: 14px; position: relative; z-index: 1; }
+.pill { border: 1px solid rgba(255,255,255,.3); border-radius: 30px; padding: 7px 18px; font-size: 16px; color: #e8edf5; }
+.bs { display: grid; grid-template-columns: 210px 1fr 1fr; border-top: 2px solid var(--ink); }
+.bs > div { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
+.bs .h { font: 600 13px "IBM Plex Sans"; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
+.bs .k { font-weight: 600; }
+.bs .now { color: var(--ink); } .bs .was { color: var(--ink2); }
+.tag { display: inline-block; font: 600 13px "IBM Plex Sans"; border-radius: 4px; padding: 1px 7px; margin-right: 6px; }
+.tag.g { background: var(--green-soft); color: var(--green); } .tag.r { background: var(--red-soft); color: var(--red); } .tag.b { background: var(--blue-soft); color: var(--blue); }
+table { border-collapse: collapse; width: 100%; font-size: 16.5px; }
+th { text-align: left; font: 600 12.5px "IBM Plex Sans"; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 6px 12px 6px 0; }
+td { border-bottom: 1px solid var(--line); padding: 7px 12px 7px 0; vertical-align: top; }
+td.d { white-space: nowrap; font-weight: 600; width: 78px; }
+.box { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 14px 20px; font-size: 17.5px; }
+.box.r { border-left: 5px solid var(--red); } .box.g { border-left: 5px solid var(--green); } .box.b { border-left: 5px solid var(--blue); }
+.big { font: 800 44px "Manrope"; line-height: 1; margin-bottom: 6px; }
+.big.r { color: var(--red); } .big.g { color: var(--green); } .big.b { color: var(--blue); }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 12px; }
+.grid2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<section class="slide cover">
+  <div class="kicker">forexmodel · еженедельный отчёт № 6</div>
+  <h1>Первая сделка на боевом счёте: путь от сигнала до брокера проверен</h1>
+  <div class="sub">03.11 – 08.11.2026. Задержка входов S42 исправлена, «ОТКРЫТЬ» приходит через 33–45 секунд после конца часа. Пробная сделка 06.11 прошла целиком: кнопка → покупка через API → стоп и трейлинг у брокера → закрытие через бот. Стопы S42 ограничены 4%. Три гипотезы недели проверены.</div>
+  <div class="meta"><span class="pill">03.11 – 08.11.2026</span><span class="pill">счёт 15 000 ₽ · S42</span><span class="pill">созвоны 04.11 и 05.11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Главное</div>
+  <h2>Было → стало за неделю</h2>
+  <div class="bs" style="margin-top:12px">
+    <div class="h"></div><div class="h">было 02.11</div><div class="h">стало 08.11</div>
+    <div class="k">Сделки на счёте</div><div class="was">0 — контур видел входы S42 на 1–3 дня позже</div><div class="now"><span class="tag g">1 пробная</span>06.11 SBER: куплено через API, стопы у брокера, закрыто через бот. Итог −0.15 ₽ (комиссия)</div>
+    <div class="k">Задержка входа</div><div class="was">27–75 часов</div><div class="now"><span class="tag g">0</span>честный прогон по каждому часу: вовремя 38 входов из 38 (было 0 из 38)</div>
+    <div class="k">«ОТКРЫТЬ» в группе</div><div class="was">в :07 после часа, потом ~1.5 мин</div><div class="now"><span class="tag g">33–45 с</span>расчёт сигналов 26 → 7 с: читаем хвост файла, кэш дописывается</div>
+    <div class="k">Стоп S42 на счёте</div><div class="was">6 ATR, потолок 10% (не работал)</div><div class="now"><span class="tag b">не дальше 4%</span>на истории та же доходность, просадка −17% вместо −19% (3%: −13%)</div>
+    <div class="k">Ошибки контура</div><div class="was">—</div><div class="now"><span class="tag r">3 найдено</span>все исправлены, на каждую — тест</div>
+    <div class="k">Гипотезы</div><div class="was">в работе H59, H71, H73</div><div class="now"><span class="tag g">H71 да</span><span class="tag r">H59 нет</span><span class="tag r">H73 нет</span></div>
+  </div>
+  <div class="foot"><span>Отчёт № 6 · 03.11–08.11.2026</span><span>2</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Что сделали</div>
+  <h2>По дням</h2>
+  <table style="margin-top:8px">
+    <tr><th>дата</th><th>что</th><th>зачем</th></tr>
+    <tr><td class="d">03.11</td><td>Найдена и исправлена задержка входов S42; честный бумажный прогон по каждому часу; запуск контура в HH:00 с ожиданием минуты HH:59</td><td>без этого на счёт не попала бы ни одна сделка</td></tr>
+    <tr><td class="d">04.11</td><td>Созвон и план недели (T55–T61); проба P42; стопы 3/4/5% (H71, S60–S62); ранний выход для стратегии по фильтру (H59, S63); «три белых солдата» (H73)</td><td>задачи Дениса из плана недели</td></tr>
+    <tr><td class="d">04.11</td><td>Записка Тимуру: есть ли утечка в бэктесте и откуда две убыточные сделки; на счёте стоп не дальше 4%</td><td>вопрос созвона: «инференс ждал будущего»</td></tr>
+    <tr><td class="d">05.11</td><td>Проверка контура перед пробой (<code>/check</code> — замечаний нет); вечерний созвон — идеи и данные</td><td>S42 за четверг сигнала не дал</td></tr>
+    <tr><td class="d">06.11</td><td>Проба P42: порог 1.5 → 1.0 → 0.5 ATR; 17:01 покупка через API, 19:38 закрытие; исправлено снятие сигнала; ускорение контура</td><td>проверить весь путь сделки на боевом счёте</td></tr>
+    <tr><td class="d">07.11</td><td>Второй случай снятия сигнала исправлен; проба выключена; счёт сверен у брокера: 14 999.85 ₽, позиций нет</td><td>чтобы контур не слал лишнего и не терял сигналы S42</td></tr>
+  </table>
+  <div class="foot"><span>docs/meetings/2026-11-04_timur.md · 2026-11-05_timur.md</span><span>3</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Первая сделка</div>
+  <h2>Проба 06.11: весь путь сделки работает</h2>
+  <p class="lead">Правило S42 с порогом входа ниже (вход при ходе ≥ 0.5 ATR вместо 3), 1 лот SBER. Сигнал в 17:00:59 → «Исполнить» в 17:01:10 → куплено через API в 17:01:18 по 293.16 (сигнал 293.26) → у брокера встали стоп и трейлинг → 19:38 закрыто через бот, обе стоп-заявки сняты.</p>
+  <img class="chart" src="trial_trade.png">
+  <div class="foot"><span>Операции брокера: покупка −293.16 ₽, продажа +293.25 ₽, две комиссии — на счёте 14 999.85 ₽ из 15 000 ₽</span><span>4</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Скорость контура</div>
+  <h2>«ОТКРЫТЬ» через 33–45 секунд вместо полутора минут</h2>
+  <p class="lead">Расчёт сигналов шёл 26 секунд: контур читал весь файл минуток с 2015 года ради одной последней строки, а кэш пересобирался каждый час. Теперь — хвост файла и дописываемый кэш (данные те же до строки).</p>
+  <img class="chart" src="open_timing.png" style="width:92%">
+  <div class="foot"><span>Отметки времени шагов в логе контура · 17:00 — кэш перестраивался в первый раз · 19:00 и 21:00 — брокер долго отдавал минуту HH:59</span><span>5</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Ошибки, найденные за неделю</div>
+  <h2>Три ошибки живого режима — все исправлены</h2>
+  <div class="grid2x2">
+    <div class="box r"><b>1. Вход S42 видели на 1–3 дня позже (03.11).</b> Свежая свеча выпадала до «разметки» результата. <b>Утечки в бэктесте нет:</b> правило входа разметку не читает, а пустая она только у последних 11 свечей файла — в бэктесте это конец истории, в жизни — «сейчас».</div>
+    <div class="box r"><b>2. «ОТКРЫТЬ» снимался через минуту (06.11).</b> Сигнал выдаётся до минуты входа (HH:01), а второй проход счёта в том же часе не находил позицию стратегии. Так потеряли бы и настоящий сигнал S42.</div>
+    <div class="box r"><b>3. То же, если прошлая сделка закрылась за последние 6 ч (07.11).</b> В решении оставалось время старого входа — новый сигнал сверялся с ним и снимался. Поймали на SBER в 22:02.</div>
+    <div class="box b"><b>Мелочи.</b> 04.11 (праздник) — ложная тревога «нет данных»: торги начались в 10:00. Автоснижение порога пробы в 15:59 не запустилось (нет прав на запуск) — снизили вручную. Проба на 0.5 ATR слала сигналы почти каждый час — выключена.</div>
+  </div>
+  <p class="note" style="margin-top:14px"><b>Урок:</b> бумажные прогоны — только на данных, обрезанных по моменту запуска, и проверять оба прохода счёта в одном часе. На каждую ошибку добавлен тест.</p>
+  <div class="foot"><span>docs/results/inference_delay_review.md · tests/test_live_trial.py</span><span>6</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H71 · стопы S42</div>
+  <h2>Потолок стопа 3–4%: доход тот же, просадка меньше</h2>
+  <p class="lead">S42 на GAZP, SBER, LKOH: стоп = ближний из «6 ATR» и «X% от входа». Проверка 2021–2026, штатный симулятор.</p>
+  <img class="chart" src="stop_caps.png" style="width:92%">
+  <p class="note" style="margin-top:6px">Из 125 сделок, ушедших в −3%, не в минус закрылись только 14% — «пересиживать» почти бесполезно. От гэпа потолок не спасает (худшая сделка с потолком 3% — −4.3%). На выборе 2016–2020 итог на 3 п. п. ниже. <b>На счёте с 04.11 — 4%.</b></p>
+  <div class="foot"><span>docs/results/h71_stop_caps.md · журнал S60–S62</span><span>7</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H59 и H73</div>
+  <h2>Ранний выход и «три белых солдата» — не подтвердились</h2>
+  <img class="chart" src="h59_h73.png" style="margin-top:4px">
+  <div class="cols" style="margin-top:8px; font-size:16.5px">
+    <div><b>H59.</b> Ни один из 44 ранних выходов (стоп, трейлинг, «EMA 5 после прибыли») не лучше самого фильтра ни на выборе, ни на проверке. Сделки по фильтру и так короткие (2–4 дня); убытки — от частых входов, а не от поздних выходов.</div>
+    <div><b>H73.</b> «По учебнику» фигура встречается 0–6 раз за 10 лет. Строгая на часах лучше случайного входа (PF 1.16 против 0.93), но её слишком мало — лучшая по выбору проба: PF 2.15 → 0.83 на проверке.</div>
+  </div>
+  <div class="foot"><span>docs/results/h59_trend_exits.md (S63) · docs/results/h73_soldiers.md</span><span>8</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Бумажный режим</div>
+  <h2>Неделя на бумаге: 6 закрытых сделок, 5 в минус</h2>
+  <p class="lead">Закрытые 03–08.11, % на сделку. S42 — SBER, GAZP, LKOH; S46 и S48 — 19 акций, без денег.</p>
+  <img class="chart" src="paper_week.png">
+  <p class="note" style="margin-top:6px">GAZP у S42 — вход 30.10, закрыт стопом 6 ATR; с потолком 3% был бы около −3%. Сверка с бэктестом: S42 «мало сделок», S46 «в норме», S48 «внимание». На деньги S46/S48 не включаем (решение 04.11). Открыто на бумаге: S46 ALRS, AFKS, SNGSP; S48 SNGSP, ALRS, AFLT.</p>
+  <div class="foot"><span>reports/live/s42_journal.csv · iterator_journal.csv · deviation_status.json</span><span>9</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Созвоны 04.11 и 05.11</div>
+  <h2>Инфраструктура готова — теперь всё решают идеи и данные</h2>
+  <div class="cols" style="margin-top:10px">
+    <div>
+      <div class="box g" style="margin-bottom:12px"><b>Решили.</b> Пробная сделка в пятницу — сделано. S46/S48 на деньги не берём. С 09.11 возвращаемся к гипотезам. Купить данные Мосбиржи — Денис готов вложиться, Тимур узнаёт цены.</div>
+      <div class="box b"><b>Идея Дениса — «скептик».</b> К каждой гипотезе — оппонент: не бросать идею после первой неудачи, пробовать «шаг влево-вправо» и другие источники по той же идее.</div>
+    </div>
+    <div>
+      <div class="box b" style="margin-bottom:12px"><b>Идея Дениса — карта рядов</b> (как в проекте TokDiT): окна свечей по ~30 признакам → кластеры на 2D-карте. Режимы рынка, «до 2022 / после 2022», в каких режимах S42 зарабатывает.</div>
+      <div class="box"><b>Источники идей (обсуждение).</b> Посты Telegram-каналов трейдеров за 2–3 года, экономический календарь, Пульс и публичные портфели Т-Инвестиций, 15-минутки, «следы инсайдеров» в ленте и стакане.</div>
+    </div>
+  </div>
+  <div class="foot"><span>docs/meetings/2026-11-04_timur.md · 2026-11-05_timur.md</span><span>10</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Планы 09–15.11</div>
+  <h2>Первая сделка S42 по сигналу — и новые гипотезы</h2>
+  <table style="margin-top:8px">
+    <tr><th>№</th><th>задача</th><th>кто</th><th>готово, когда</th></tr>
+    <tr><td>1</td><td>Первая «естественная» сделка S42 по кнопке — контур и счёт готовы, ждём сигнал</td><td>Денис</td><td>сделка в журнале счёта</td></tr>
+    <tr><td>2</td><td>Карта рядов для режимов рынка (по образцу TokDiT) — гипотеза в банк и первая карта SBER/GAZP/LKOH</td><td>Денис, Claude</td><td>карта и вывод «в каких режимах S42 зарабатывает»</td></tr>
+    <tr><td>3</td><td>«Скептик» для отклонённых: строгие «солдаты» как фильтр к S42; H60 (акции по фильтру) на свежих месяцах</td><td>Claude</td><td>вердикты в журнале</td></tr>
+    <tr><td>4</td><td>Данные: обезличенные сделки и скрипт (T61), цены MOEX (T60)</td><td>Тимур</td><td>файлы на Диске / смета</td></tr>
+    <tr><td>5</td><td>Новые гипотезы: отбор фигур (H39); новая модель работы с Тагиром</td><td>Тимур</td><td>гипотезы в банке</td></tr>
+    <tr><td>6</td><td>Техдолг: снимок банка в репозитории (T57), тревога «нет данных» в праздники</td><td>Денис</td><td>в репозитории</td></tr>
+  </table>
+  <div class="foot"><span>План недели — на созвоне в понедельник</span><span>11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Где всё лежит</div>
+  <h2>Файлы недели</h2>
+  <table style="margin-top:8px">
+    <tr><td style="width:48%"><code>docs/results/inference_delay_review.md</code></td><td>задержка инференса, утечки нет, две сделки недели</td></tr>
+    <tr><td><code>docs/results/live_lag_replay.md</code></td><td>честный прогон контура: 0 → 38 входов из 38 вовремя</td></tr>
+    <tr><td><code>docs/results/h71_stop_caps.md</code> · <code>h59_trend_exits.md</code> · <code>h73_soldiers.md</code></td><td>гипотезы недели (журнал S60–S63)</td></tr>
+    <tr><td><code>docs/meetings/2026-11-04_timur.md</code>, <code>2026-11-05_timur.md</code></td><td>протоколы созвонов</td></tr>
+    <tr><td><code>scripts/live_signals.py</code>, <code>live_account.py</code>, <code>trial_args.py</code></td><td>сигналы, счёт, проба P42 (выключена)</td></tr>
+    <tr><td><code>forexmodel/data/loader.py</code></td><td>дописываемый кэш минуток</td></tr>
+    <tr><td><code>docs/results/weekly/2026-11-09/</code></td><td>графики отчёта (<code>scripts/weekly_charts.py --week 2026-11-09</code>)</td></tr>
+  </table>
+  <div class="foot"><span>Отчёт № 6 · 03.11–08.11.2026</span><span>12</span></div>
+</section>
+
+</body>
+</html>
