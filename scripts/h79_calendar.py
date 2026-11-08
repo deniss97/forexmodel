@@ -52,7 +52,9 @@ def account(t: pd.DataFrame) -> dict:
 
 def events() -> pd.DataFrame:
     c = pd.read_csv(CAL, comment="#", parse_dates=["date"], dtype={"time_msk": str})
-    # у внеочередных время не указано — считаем 13:30, как у плановых
+    # только плановые заседания (скептик 08.11): внеочередные объявлялись меньше чем за сутки, а решение выходило около 10:30 —
+    # заранее их не знать, и фильтр по ним убирал сделки, открытые уже после решения
+    c = c[c["scheduled"] == 1]
     c["event"] = c["date"] + pd.to_timedelta(c["time_msk"].fillna("13:30") + ":00")
     return c[c["date"] >= "2016-01-01"].reset_index(drop=True)
 

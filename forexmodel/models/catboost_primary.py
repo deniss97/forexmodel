@@ -102,10 +102,38 @@ class BinaryPair:
                 + np.asarray(self.down.get_feature_importance(*args, **kwargs))) / 2
 
 
+class MoveDir:
+    """Скептик к H63: «будет ли ход × куда». Модель A — «бар полярный (дойдёт до барьера разметки) или нет», модель B — «вверх
+    или вниз», обучена только на полярных барах. p_up = pA·pB, p_down = pA·(1 − pB), p_flat = 1 − pA; priors — как у BinaryPair."""
+
+    def __init__(self, move: Any, direction: Any, priors: Optional[np.ndarray] = None):
+        self.move, self.direction, self.priors = move, direction, priors
+
+    def predict_proba(self, X) -> np.ndarray:
+        pa = self.move.predict_proba(X)[:, 1]
+        pb = self.direction.predict_proba(X)[:, 1]
+        p = np.column_stack([pa * (1 - pb), 1 - pa, pa * pb])
+        p = np.clip(p, 1e-9, None)
+        p = p / p.sum(axis=1, keepdims=True)
+        if self.priors is not None:
+            p = p / self.priors
+            p = p / p.sum(axis=1, keepdims=True)
+        return p
+
+    @property
+    def tree_count_(self) -> int:
+        return int(round((self.move.tree_count_ + self.direction.tree_count_) / 2))
+
+    def get_feature_importance(self, *args, **kwargs) -> np.ndarray:
+        return (np.asarray(self.move.get_feature_importance(*args, **kwargs))
+                + np.asarray(self.direction.get_feature_importance(*args, **kwargs))) / 2
+
+
 def _train_binary_pair(df: pd.DataFrame, features: List[str], cfg: CatBoostConfig, embargo: int, target_col: str,
-                       weight_col: Optional[str]) -> PrimaryModel:
-    """Две бинарные CatBoost (Logloss) на той же разметке: вверх = класс 2, вниз = класс 0. Блоки train / val / holdout,
-    ранняя остановка и рефит на всей выборке — как у мультикласса."""
+                       weight_col: Optional[str], mode: str = "binary_pair") -> PrimaryModel:
+    """Две бинарные CatBoost (Logloss) на той же разметке. binary_pair: вверх = класс 2, вниз = класс 0. move_dir: «ход»
+    = класс 0 или 2 против 1, «куда» = 2 против 0 только на полярных барах. Блоки train / val / holdout, ранняя остановка
+    и рефит на всей выборке — как у мультикласса."""
     from catboost import CatBoostClassifier, Pool
 
     assert_features_present(df, features)
@@ -113,44 +141,52 @@ def _train_binary_pair(df: pd.DataFrame, features: List[str], cfg: CatBoostConfi
     train_idx, val_idx, hold_idx = chronological_split(len(df), cfg.test_size, cfg.val_size, embargo)
     y_all = df[target_col].astype(int)
     weights = df[weight_col].to_numpy() if weight_col and weight_col in df.columns else None
+    polar = (y_all != 1).to_numpy()
+    specs = ((("up", (y_all == 2).to_numpy(), None), ("down", (y_all == 0).to_numpy(), None)) if mode == "binary_pair"
+             else (("move", polar, None), ("dir", (y_all == 2).to_numpy(), polar)))
     models, metrics = {}, {}
-    for side, cls in (("up", 2), ("down", 0)):
-        yb = (y_all == cls).astype(int).to_numpy()
+    for side, ybool, rows in specs:
+        yb = ybool.astype(int)
+        keep = (lambda idx: idx) if rows is None else (lambda idx, r=rows: idx[r[idx]])
 
         def pool(idx):
+            idx = keep(idx)
             if len(idx) == 0:
                 return None
             return Pool(df.loc[idx, features], yb[idx], weight=None if weights is None else weights[idx])
+        train_idx_s, val_idx_s, hold_idx_s = keep(train_idx), keep(val_idx), keep(hold_idx)
 
         params = dict(iterations=cfg.iterations, learning_rate=cfg.learning_rate, depth=cfg.depth, l2_leaf_reg=cfg.l2_leaf_reg,
                       loss_function="Logloss", random_seed=cfg.random_seed, verbose=False)
-        section(log, f"CatBoost primary, бинарная модель «{'вверх' if side == 'up' else 'вниз'}»: доля класса {yb[train_idx].mean():.3f}")
+        section(log, f"CatBoost primary, бинарная модель «{side}»: доля класса {yb[train_idx_s].mean():.3f}, строк {len(train_idx_s)}")
         tracker = CatBoostProgress(cfg.iterations, label=f"CatBoost {side}", logger=log)
         val_pool = pool(val_idx)
         m = CatBoostClassifier(**params)
         m.fit(pool(train_idx), eval_set=val_pool, early_stopping_rounds=cfg.early_stopping_rounds if val_pool is not None else None,
               use_best_model=val_pool is not None, callbacks=[tracker])
         tracker.progress.finish(f"деревьев {m.tree_count_}")
-        if len(hold_idx):
+        if len(hold_idx_s):
             from sklearn.metrics import roc_auc_score
 
-            ph = m.predict_proba(df.loc[hold_idx, features])[:, 1]
-            if 0 < yb[hold_idx].sum() < len(hold_idx):
-                metrics[f"auc_{side}"] = float(roc_auc_score(yb[hold_idx], ph))
+            ph = m.predict_proba(df.loc[hold_idx_s, features])[:, 1]
+            if 0 < yb[hold_idx_s].sum() < len(hold_idx_s):
+                metrics[f"auc_{side}"] = float(roc_auc_score(yb[hold_idx_s], ph))
         if cfg.refit_on_full_train and len(val_idx) + len(hold_idx) > 0:
             it = m.tree_count_
             m = CatBoostClassifier(**dict(params, iterations=it))
-            m.fit(Pool(df[features], yb, weight=weights))
+            full = keep(np.arange(len(df)))
+            m.fit(Pool(df.loc[full, features], yb[full], weight=None if weights is None else weights[full]))
             metrics[f"refit_iterations_{side}"] = float(it)
         models[side] = m
-    log.info("Бинарная пара: AUC holdout вверх %.3f, вниз %.3f", metrics.get("auc_up", float("nan")), metrics.get("auc_down", float("nan")))
+    log.info("Бинарная пара (%s): AUC holdout %s", mode, {k: round(v, 3) for k, v in metrics.items() if k.startswith("auc_")})
     priors = None
     if cfg.use_class_weights:
         sh = y_all.iloc[train_idx].value_counts(normalize=True)
         priors = np.array([max(float(sh.get(c, 0.0)), 1e-6) for c in (0, 1, 2)])
         metrics["priors"] = [round(float(x), 4) for x in priors]
-    return PrimaryModel(model=BinaryPair(models["up"], models["down"], priors), features=list(features), class_map={0: 0, 1: 1, 2: 2},
-                        metrics=metrics, objective="binary_pair")
+    model = (BinaryPair(models["up"], models["down"], priors) if mode == "binary_pair"
+             else MoveDir(models["move"], models["dir"], priors))
+    return PrimaryModel(model=model, features=list(features), class_map={0: 0, 1: 1, 2: 2}, metrics=metrics, objective=mode)
 
 
 def _class_weights(y: pd.Series, classes: List[int]) -> List[float]:
@@ -171,8 +207,8 @@ def train_primary(
 
     if cfg.objective == "regression":
         return train_primary_regression(df, features, cfg, embargo=embargo, weight_col=weight_col)
-    if cfg.objective == "binary_pair":
-        return _train_binary_pair(df, features, cfg, embargo, target_col, weight_col)
+    if cfg.objective in ("binary_pair", "move_dir"):
+        return _train_binary_pair(df, features, cfg, embargo, target_col, weight_col, mode=cfg.objective)
 
     if cfg.n_models > 1:
         import dataclasses

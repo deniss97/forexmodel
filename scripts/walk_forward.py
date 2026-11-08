@@ -288,6 +288,19 @@ def main(argv=None) -> int:
                 vcfg.volatility.enabled = False
                 if v == "cb":
                     vcfg.simulation.signal_source = "cb"
+                elif v and v.startswith("ens:"):
+                    # нейросеть как второе мнение к CatBoost (скептик к H64): ens:<правило> — agreement | confidence | …
+                    vcfg.simulation.signal_source = "ensemble"
+                    vcfg.simulation.ensemble_rule = v.split(":", 1)[1]
+                elif v and v.startswith("ev:"):
+                    # фильтр ожидаемой ценности с другой комиссией и порогом (скептик к модели): ev:<комиссия %>:<порог %>
+                    _, com, thr = v.split(":")
+                    vcfg.simulation.signal_source = "cb"
+                    vcfg.simulation.commission_pct, vcfg.simulation.min_expected_value_pct = float(com), float(thr)
+                elif v and v.startswith("nnconf:"):
+                    # сигнал нейросети с порогом уверенности на той же обученной сети (скептик к H64: равное число сделок)
+                    vcfg.simulation.signal_source = "nn"
+                    vcfg.simulation.min_conf_nn = float(v.split(":", 1)[1])
                 elif v and v.startswith("meta:"):
                     vcfg.simulation.signal_source = "meta"
                     vcfg.meta.threshold = float(v.split(":", 1)[1])

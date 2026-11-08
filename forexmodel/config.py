@@ -678,8 +678,8 @@ def _validate(cfg: Config) -> None:
         raise ValueError("catboost.n_models должен быть >= 1")
     if cfg.catboost.n_models > 1 and cfg.catboost.objective != "multiclass":
         raise ValueError("catboost.n_models > 1 поддержан только для objective=multiclass")
-    if cfg.catboost.objective not in {"multiclass", "regression", "binary_pair"}:
-        raise ValueError(f"catboost.objective: ожидалось multiclass|regression|binary_pair, получено {cfg.catboost.objective!r}")
+    if cfg.catboost.objective not in {"multiclass", "regression", "binary_pair", "move_dir"}:
+        raise ValueError(f"catboost.objective: ожидалось multiclass|regression|binary_pair|move_dir, получено {cfg.catboost.objective!r}")
     if cfg.catboost.objective == "regression":
         if cfg.labeling.mode != "direction":
             raise ValueError("catboost.objective=regression требует labeling.mode=direction (цель — ход в ATR)")
