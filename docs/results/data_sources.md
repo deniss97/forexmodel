@@ -12,6 +12,8 @@
 |---|---|---|
 | Минутки акций SBER, GAZP, LKOH, MOEX, MTSS | нет | `data/raw/*_1m_15-26*.csv` — выгружены ноутбуком Тимура (moexalgo); докачка — `scripts/fetch_moex_iss.py`, история и новые бумаги — `scripts/moex_data.py` |
 | Минутки спота XAG/USD, XAU/USD | S007 / S008 / S009 — неизвестно, какой | `data/raw/XAGUSD_1m_full.csv`, `XAUUSD_1m_full.csv`; источник в репозитории не записан — уточнить |
+| Лента сделок всех инструментов (ALGOPACK, с направлением), 2022 — 06.04.2026 | H83 | Яндекс Диск `обезличенные сделки/<год>/<дата>.csv.gz` (выгрузка Тимура); дневные свёртки 21 акции — `scripts/h83_tape_daily.py` |
+| Лента сделок 21 акции с 09.11.2026 (ISS, с направлением) | T44 | копится каждые 15 мин `scripts/moex_trades.py` → Диск `forexmodel/лента ISS/`; задним числом не докачать (Т-Инвестиции отдают только последний час, ISS — только текущий день) |
 | Лента сделок фьючерсов серебра SV* на Мосбирже | S010 (только свечи) | `data/raw/orderflow_spbfut_1s.parquet`, признаки ленты модели |
 | Дивиденды акций | нет | `data/dividends/moex_dividends.csv` (dohod.ru + smart-lab), поправка цен (H01) |
 | Брокер: свечи в реальном времени, заявки | нет (только IBKR, S120) | Т-Инвестиции: `forexmodel/broker/tinvest.py`, `scripts/fetch_tinvest.py`, `scripts/live_trade.py` |

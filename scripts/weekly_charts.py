@@ -1159,6 +1159,41 @@ def cbr6(out: Path) -> dict:
     return {"ход 1 ч обычные / решения": dict(zip(pers, zip(norm, dec))), "итог/просадка S42 / S66": dict(zip(pers, zip(base, flt)))}
 
 
+def h83_6(out: Path) -> dict:
+    """H83: ход акции относительно рынка за 5 дней после всплеска покупок по трём следам — выбор и проверка, с 95% интервалом
+    (t по датам из reports/h83/h83_stats.csv)."""
+    st = pd.read_csv(ROOT / "reports" / "h83" / "h83_stats.csv")
+    st = st[st["сторона"] == "покупки"]
+    names = ["A крупные заявки", "B роботы-нарезчики", "C тихое накопление"]
+    f, ax = figure(1600, 560)
+    style(ax)
+    ax.grid(axis="x", visible=False)
+    k = np.arange(len(names))
+    res = {}
+    for dx, per, col, lab in ((-0.2, "выбор 2023–2024", GRAY, "выбор 2023–2024"),
+                              (0.2, "проверка 2025–04.2026", BLUE, "проверка 2025 – 04.2026")):
+        r = st[st["период"] == per].set_index("след").loc[names]
+        m, t, n = r["изб. ход, %"].to_numpy(float), r["t"].to_numpy(float), r["событий"].to_numpy(int)
+        ci = 1.96 * np.abs(m / t)
+        ax.bar(k + dx, m, 0.38, color=col, label=lab)
+        ax.errorbar(k + dx, m, yerr=ci, fmt="none", ecolor=INK2, elinewidth=1.5, capsize=5)
+        for kk, z, c, nn in zip(k, m, ci, n):
+            ax.text(kk + dx, (z + c + 0.1) if z >= 0 else (z - c - 0.1), f"{z:+.2f}%\n{nn} соб.", ha="center",
+                    va="bottom" if z >= 0 else "top", fontsize=FS - 4, color=INK)
+        res[per] = dict(zip(names, m.round(2)))
+    ax.axhline(0, color=INK2, linewidth=1.2)
+    ax.set_xticks(k)
+    ax.set_xticklabels(["Крупные заявки", "Роботы-нарезчики", "Тихое накопление"], fontsize=FS - 1, color=INK)
+    ax.set_ylabel("ход к рынку за 5 дней, %", fontsize=FS - 2, color=INK2)
+    ax.set_ylim(-4.4, 4.4)
+    ax.set_title("После всплеска покупок по следу: ход акции относительно 21 бумаги (усы — 95% интервал)",
+                 fontsize=FS - 1, color=INK, loc="left")
+    ax.legend(frameon=False, fontsize=FS - 3, labelcolor=INK, loc="upper left", ncols=2)
+    f.tight_layout()
+    save(f, out, "h83_tape.png")
+    return res
+
+
 def week6(out: Path) -> None:
     print("время до «ОТКРЫТЬ»:", open_timing(out))
     print("пробная сделка:", trial_trade(out))

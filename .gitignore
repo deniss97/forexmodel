@@ -1,6 +1,7 @@
 # --- данные и результаты прогонов (в репозиторий не коммитим) ---
 data/raw/*
 !data/raw/.gitkeep
+data/derived/
 artifacts/*
 !artifacts/.gitkeep
 reports/*

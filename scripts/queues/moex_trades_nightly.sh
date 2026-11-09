@@ -1,10 +1,12 @@
 #!/bin/bash
-# Сделки Мосбиржи по LKOH за прошедший торговый день (H84, страница «Объём по уровням LKOH» для Тагира): ISS отдаёт только
-# сделки текущего дня, поэтому забираем их дважды за ночь — после вечерней сессии и до утренней (повтор не задваивает).
-# cron (часы сервера +05): 02:20 и 08:20 = 00:20 и 06:20 по Москве
-#   20 2,8 * * *  /home/dev/forexmodel/scripts/queues/moex_trades_nightly.sh
+# Лента сделок Мосбиржи (ISS, с направлением) по бумагам контура: ISS отдаёт только сделки текущего дня, поэтому каждые
+# 15 минут дозабираем новые по номеру сделки, а законченные дни уходят на Яндекс Диск (yadisk:forexmodel/лента ISS/).
+# Свёртки дней (agg/*.json) остаются на сервере — их читает страница H84. Подробно — scripts/moex_trades.py.
+# cron (часы сервера +05), мимо почасового контура в :00:
+#   5,20,35,50 * * * *  /home/dev/forexmodel/scripts/queues/moex_trades_nightly.sh
 cd /home/dev/forexmodel || exit 1
 LOG=reports/h84; mkdir -p $LOG
 exec 9> $LOG/.trades.lock
 flock -n 9 || exit 0
-{ echo "=== $(date '+%F %T')"; .venv/bin/python -W ignore scripts/moex_trades.py LKOH; } >> $LOG/trades-$(date +%Y-%m).log 2>&1
+mountpoint -q "$HOME/yadisk" || systemctl --user start yadisk 2>/dev/null
+{ echo "=== $(date '+%F %T')"; .venv/bin/python -W ignore scripts/moex_trades.py; } >> $LOG/trades-$(date +%Y-%m).log 2>&1

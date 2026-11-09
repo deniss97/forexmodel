@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Отчёт № 6 · 03.11–08.11.2026</title>
+<title>Отчёт № 6 · 03.11–09.11.2026</title>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=block" rel="stylesheet">
 <style>
 :root { --ink: #15233b; --ink2: #4a5568; --muted: #7a8391; --line: #e2ddd2; --paper: #f6f4ef;
@@ -36,6 +36,7 @@ ul { margin: 0; padding-left: 22px; } li { margin: 0 0 7px; }
 .bs > div { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
 .bs .h { font: 600 13px "IBM Plex Sans"; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
 .bs .k { font-weight: 600; }
+.bs.tight > div { padding: 8px 16px 8px 0; font-size: 17px; }
 .bs .now { color: var(--ink); } .bs .was { color: var(--ink2); }
 .tag { display: inline-block; font: 600 13px "IBM Plex Sans"; border-radius: 4px; padding: 1px 7px; margin-right: 6px; }
 .tag.g { background: var(--green-soft); color: var(--green); } .tag.r { background: var(--red-soft); color: var(--red); } .tag.b { background: var(--blue-soft); color: var(--blue); }
@@ -56,29 +57,30 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
 <section class="slide cover">
   <div class="kicker">forexmodel · еженедельный отчёт № 6</div>
   <h1>Первая сделка на боевом счёте: путь от сигнала до брокера проверен</h1>
-  <div class="sub">03.11 – 08.11.2026. Задержка входов S42 исправлена, «ОТКРЫТЬ» приходит через 33–45 секунд после конца часа. Пробная сделка 06.11 прошла целиком: кнопка → покупка через API → стоп и трейлинг у брокера → закрытие через бот. Стопы S42 ограничены 4%. Проверено 25 гипотез, каждую перепроверил независимый «скептик»; находка — S42 не стоит входить за сутки до решения ЦБ по ставке (повторилось на 18 других акциях). Для Тагира — страница объёма по уровням LKOH.</div>
-  <div class="meta"><span class="pill">03.11 – 08.11.2026</span><span class="pill">счёт 15 000 ₽ · S42</span><span class="pill">созвоны 04.11 и 05.11</span></div>
+  <div class="sub">03.11 – 08.11.2026. Задержка входов S42 исправлена, «ОТКРЫТЬ» приходит через 33–45 секунд после конца часа. Пробная сделка 06.11 прошла целиком: кнопка → покупка через API → стоп и трейлинг у брокера → закрытие через бот. Стопы S42 ограничены 4%. Проверено 25 гипотез, каждую перепроверил независимый «скептик»; находка — S42 не стоит входить за сутки до решения ЦБ по ставке (повторилось на 18 других акциях). Для Тагира — страница объёма по уровням LKOH. 09.11: свежая лента сделок копится на Яндекс Диск, H83 «следы инсайдеров и роботов» — нет, данные Мосбиржи «тип А» разобраны (H88).</div>
+  <div class="meta"><span class="pill">03.11 – 09.11.2026</span><span class="pill">счёт 15 000 ₽ · S42</span><span class="pill">созвоны 04.11, 05.11 и 09.11</span></div>
 </section>
 
 <section class="slide">
   <div class="kicker">Главное</div>
   <h2>Было → стало за неделю</h2>
-  <div class="bs" style="margin-top:12px">
-    <div class="h"></div><div class="h">было 02.11</div><div class="h">стало 08.11</div>
+  <div class="bs tight" style="margin-top:6px">
+    <div class="h"></div><div class="h">было 02.11</div><div class="h">стало 09.11</div>
     <div class="k">Сделки на счёте</div><div class="was">0 — контур видел входы S42 на 1–3 дня позже</div><div class="now"><span class="tag g">1 пробная</span>06.11 SBER: куплено через API, стопы у брокера, закрыто через бот. Итог −0.15 ₽ (комиссия)</div>
     <div class="k">Задержка входа</div><div class="was">27–75 часов</div><div class="now"><span class="tag g">0</span>честный прогон по каждому часу: вовремя 38 входов из 38 (было 0 из 38)</div>
     <div class="k">«ОТКРЫТЬ» в группе</div><div class="was">в :07 после часа, потом ~1.5 мин</div><div class="now"><span class="tag g">33–45 с</span>расчёт сигналов 26 → 7 с: читаем хвост файла, кэш дописывается</div>
     <div class="k">Стоп S42 на счёте</div><div class="was">6 ATR, потолок 10% (не работал)</div><div class="now"><span class="tag b">не дальше 4%</span>на истории та же доходность, просадка −17% вместо −19% (3%: −13%)</div>
     <div class="k">Ошибки контура</div><div class="was">—</div><div class="now"><span class="tag r">3 найдено</span>все исправлены, на каждую — тест</div>
-    <div class="k">Гипотезы</div><div class="was">в работе H59, H71, H73</div><div class="now"><span class="tag g">4 да</span><span class="tag r">16 нет</span>25 проверок, у каждой — «скептик»; главное — H79: не входить за сутки до решения ЦБ</div>
+    <div class="k">Гипотезы</div><div class="was">в работе H59, H71, H73</div><div class="now"><span class="tag g">4 да</span><span class="tag r">17 нет</span>27 проверок, у каждой — «скептик»; главное — H79: не входить за сутки до решения ЦБ</div>
+    <div class="k">Лента сделок</div><div class="was">кончалась 06.04.2026, задним числом не скачать</div><div class="now"><span class="tag g">копится</span>с 09.11 каждые 15 мин, 21 акция → Яндекс Диск</div>
   </div>
-  <div class="foot"><span>Отчёт № 6 · 03.11–08.11.2026</span><span>2</span></div>
+  <div class="foot"><span>Отчёт № 6 · 03.11–09.11.2026</span><span>2</span></div>
 </section>
 
 <section class="slide">
   <div class="kicker">Что сделали</div>
   <h2>По дням</h2>
-  <table style="margin-top:8px; font-size:15px">
+  <table style="margin-top:4px; font-size:13.8px">
     <tr><th>дата</th><th>что</th><th>зачем</th></tr>
     <tr><td class="d">03.11</td><td>Найдена и исправлена задержка входов S42; честный бумажный прогон по каждому часу; запуск контура в HH:00 с ожиданием минуты HH:59</td><td>без этого на счёт не попала бы ни одна сделка</td></tr>
     <tr><td class="d">04.11</td><td>Созвон и план недели (T55–T61); проба P42; стопы 3/4/5% (H71, S60–S62); ранний выход для стратегии по фильтру (H59, S63); «три белых солдата» (H73)</td><td>задачи Дениса из плана недели</td></tr>
@@ -88,8 +90,9 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
     <tr><td class="d">07.11</td><td>Второй случай снятия сигнала исправлен; проба выключена; счёт сверен у брокера: 14 999.85 ₽, позиций нет</td><td>чтобы контур не слал лишнего и не терял сигналы S42</td></tr>
     <tr><td class="d">08.11</td><td>Гипотезы созвона 05.11 (H75–H77, H60) и банка (H63, H64, H41, H70, H47, H79); календарь заседаний ЦБ 2016–2026 собран из архива сайта ЦБ</td><td>«сначала гипотеза в банке, потом проверка»</td></tr>
     <tr><td class="d">08.11</td><td>Файлы Тимура → H81, H40, H42 по его коду; позиции юрлиц Мосбиржи (H80, H82), H09; страница для Тагира (H84); банк принимает Word; «скептик» ко всем проверкам дня, новые H85–H87</td><td>идея Дениса: не пропустить важное «шагом в сторону»</td></tr>
+    <tr><td class="d">09.11</td><td>Созвон с Тимуром; сбор ленты сделок 21 акции каждые 15 мин на Диск; H83 по ленте 2023–2026 (70 ГБ потоком); H88 — данные Мосбиржи «тип А»; место на сервере 13 → 21 ГБ</td><td>решения созвона 09.11</td></tr>
   </table>
-  <div class="foot"><span>docs/meetings/2026-11-04_timur.md · 2026-11-05_timur.md</span><span>3</span></div>
+  <div class="foot"><span>docs/meetings/2026-11-04_timur.md · 2026-11-05_timur.md · 2026-11-09_timur.md</span><span>3</span></div>
 </section>
 
 <section class="slide">
@@ -267,11 +270,65 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
         <li>Часовые свечи недели и справа на той же шкале — сколько акций куплено и продано на каждом уровне (шаг 1 / 5 / 10 ₽).</li>
         <li>Отметки по коду Тимура: POC, зона стоимости 70%, узлы и провалы объёма; сводка недели и таблица уровней.</li>
         <li>Тагир не входит на claude.ai — для него один HTML-файл в репозитории: открывается двойным щелчком без интернета (инструкция отправлена в группу).</li>
-        <li>Сделки Мосбиржи сервер собирает каждую ночь, файл обновляется по понедельникам. Недель с 04 по 11.2026 нет — прошлые сделки биржа отдаёт по подписке.</li>
+        <li>Сделки Мосбиржи сервер с 09.11 собирает каждые 15 минут (21 акция, архив — на Яндекс Диске), файл обновляется по понедельникам. Недель с 04 по 11.2026 нет — прошлые сделки биржа отдаёт по подписке.</li>
       </ul>
     </div>
   </div>
   <div class="foot"><span>docs/results/h84_volume/lkoh_volume_levels.html · README.md</span><span>18</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Созвон 09.11 — данные</div>
+  <h2>Свежая лента сделок теперь копится сама</h2>
+  <div class="cols" style="margin-top:6px">
+    <div>
+      <ul style="font-size:17px">
+        <li><b>Тимуру понравилась страница H84:</b> цена часто останавливается на уровне, где много покупали, а после пробоя такого уровня идёт дальше.</li>
+        <li><b>Ленту Т-Инвестиций задним числом не докачать:</b> API отдаёт сделки только за последний час (проверено ещё раз 09.11), биржа бесплатно — только текущий день.</li>
+        <li><b>Решение Дениса — копить:</b> с 09.11 каждые 15 минут сервер дозабирает новые сделки Мосбиржи с направлением по 21 акции; законченный день уходит на Яндекс Диск, на сервере — только свёртки.</li>
+        <li><b>moexalgo без подписки:</b> позиции юрлиц — с задержкой 14 дней, Super Candles — платно целиком (не «последние полгода»).</li>
+      </ul>
+    </div>
+    <div>
+      <div class="box b" style="margin-bottom:12px"><div class="big b">21</div>акция в ежедневной ленте: 19 бумаг контура + MOEX, MTSS</div>
+      <div class="box g" style="margin-bottom:12px"><div class="big g">13 → 21 ГБ</div>свободно на сервере: старые исследования, видео и логи — на Диск со ссылкой на месте, кэш Хрома и среда Codex удалены</div>
+      <div class="box r"><div class="big r">07.04 – 08.11</div>разрыв в ленте: закроет только алгоритм выгрузки Тимура, если он умеет историю</div>
+    </div>
+  </div>
+  <div class="foot"><span>docs/meetings/2026-11-09_timur.md · scripts/moex_trades.py</span><span>19</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H83 · гипотеза Тимура</div>
+  <h2>Следы инсайдеров и роботов в ленте — не работают</h2>
+  <p class="lead" style="font-size:17.5px">Лента всех сделок 2023 — 04.2026 по 21 акции (70 ГБ с Диска потоком). Три следа, критерий записан до расчёта: после всплеска покупок цена должна идти вверх относительно рынка — в обоих периодах, лучше случайных входов.</p>
+  <img class="chart" src="h83_tape.png" style="max-height:395px; object-fit:contain">
+  <p class="note" style="margin-top:6px">Ни один след не прошёл ни одного пункта: знак меняется между периодами, лонг не лучше случайных входов; мягче порог и другой горизонт — то же. Способ выделять заявки по ленте сверен с журналом заявок биржи (H88): точность 1–2%.</p>
+  <div class="foot"><span>docs/results/h83_insider.md · свёртки ленты — Яндекс Диск forexmodel/h83_tape</span><span>20</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H88 · данные Мосбиржи</div>
+  <h2>«Тип А» — весь стакан, но живёт он секунды</h2>
+  <div class="cols" style="grid-template-columns: 1.1fr 1fr; margin-top:6px">
+    <div>
+      <table style="font-size:15px">
+        <tr><th>тип</th><th>что внутри</th><th>цена, рынок акций</th></tr>
+        <tr><td><b>А</b></td><td>каждая постановка, снятие и сделка с номером заявки; с 04.2016</td><td>15 тыс. ₽ / мес, 150 тыс. / год</td></tr>
+        <tr><td><b>B</b></td><td>все сделки + лучшие заявки</td><td>4.5 тыс. / мес</td></tr>
+        <tr><td><b>C</b></td><td>все сделки — у нас уже есть бесплатно</td><td>3.75 тыс. / мес</td></tr>
+      </table>
+      <p class="note" style="margin-top:10px">Пример «типа А» за 01.10.2024 (первые 55 минут, SBER, GAZP, LKOH): 3.3 млн событий против 43 тыс. сделок.</p>
+    </div>
+    <div class="grid2x2" style="margin-top:0">
+      <div class="box"><div class="big r">91–97%</div>заявок снимаются, большинство — быстрее секунды: стакан делают роботы</div>
+      <div class="box"><div class="big b">4–11%</div>объёма сделок — айсберги, в ленте их не видно</div>
+      <div class="box"><div class="big g">1–2%</div>расхождение «заявок» по ленте с номерами заявок — для H83 «тип А» не нужен</div>
+      <div class="box"><div class="big b">1.65 ГБ</div>один день по всем акциям в zip</div>
+    </div>
+  </div>
+  <div class="box b" style="margin-top:14px; font-size:16.5px"><b>Предложение:</b> архив за годы не покупать. Один месяц «типа А» по акциям (15 тыс. ₽) — под заранее записанные гипотезы: «плотности» и айсберги как уровни (продолжение H84), дисбаланс стакана на закрытии часа как фильтр S42, доля снятых заявок как режим рынка. До покупки уточнить, отдаёт ли подписка прошлые месяцы, и цену Super Candles.</div>
+  <div class="foot"><span>docs/results/h88_moex_data.md · h88_orderlog_sample.json</span><span>21</span></div>
 </section>
 
 <section class="slide">
@@ -281,19 +338,19 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
     <tr><th>№</th><th>задача</th><th>кто</th><th>готово, когда</th></tr>
     <tr><td>1</td><td>Первая «естественная» сделка S42 по кнопке — контур и счёт готовы, ждём сигнал</td><td>Денис</td><td>сделка в журнале счёта</td></tr>
     <tr><td>2</td><td>Правило H79 в контур: S42 не открывает сделки за сутки до планового решения ЦБ (ближайшее — 18.12)</td><td>решают Денис и Тимур, делает Claude</td><td>правило и тест в контуре</td></tr>
-    <tr><td>3</td><td>Подписка Мосбиржи (ALGOPACK): нужна ради ленты и стакана, а не позиций юрлиц; цена — T60</td><td>Тимур, Денис</td><td>решение</td></tr>
-    <tr><td>4</td><td>Тагир: страница H84 — обратная связь; разбор инструмента «распознавания роботов» (H83); разметка фигур (H74)</td><td>Тагир, Тимур</td><td>отзыв и гипотезы в банке</td></tr>
+    <tr><td>3</td><td>Данные Мосбиржи (H88): месяц «типа А» по акциям за 15 тыс. под гипотезы о стакане — или нет; Тимур — перезагрузить файл к H88 и прислать алгоритм выгрузки ленты</td><td>Тимур, Денис</td><td>решение</td></tr>
+    <tr><td>4</td><td>Тагир: страница H84 — обратная связь; «распознавание роботов» — сверить с H83 (свёртки ленты на Диске); разметка фигур (H74)</td><td>Тагир, Тимур</td><td>отзыв и гипотезы в банке</td></tr>
     <tr><td>5</td><td>Карточки идей из H81 — какие брать в банк; источники для H78 (Telegram-каналы)</td><td>Денис, Тимур</td><td>решение по 5 идеям</td></tr>
     <tr><td>6</td><td>Модель на исправленной базе: досчитать H64 — нейросеть при равном числе сделок и как «второе мнение» к CatBoost</td><td>Claude</td><td>вердикт в журнале</td></tr>
     <tr><td>7</td><td>Техдолг: снимок банка в репозитории (T57), тревога «нет данных» в праздники</td><td>Денис</td><td>в репозитории</td></tr>
   </table>
-  <div class="foot"><span>План недели — на созвоне в понедельник</span><span>19</span></div>
+  <div class="foot"><span>План недели — на созвоне в понедельник</span><span>22</span></div>
 </section>
 
 <section class="slide">
   <div class="kicker">Где всё лежит</div>
   <h2>Файлы недели</h2>
-  <table style="margin-top:8px">
+  <table style="margin-top:4px; font-size:14.5px">
     <tr><td style="width:48%"><code>docs/results/inference_delay_review.md</code></td><td>задержка инференса, утечки нет, две сделки недели</td></tr>
     <tr><td><code>docs/results/live_lag_replay.md</code></td><td>честный прогон контура: 0 → 38 входов из 38 вовремя</td></tr>
     <tr><td><code>docs/results/h71_stop_caps.md</code> · <code>h59_trend_exits.md</code> · <code>h73_soldiers.md</code></td><td>гипотезы недели (журнал S60–S63)</td></tr>
@@ -301,11 +358,12 @@ td.d { white-space: nowrap; font-weight: 600; width: 78px; }
     <tr><td><code>h79_calendar.md</code> · <code>h70_leverage.md</code> · <code>h47_turtles.md</code> · <code>h63_binary.md</code> · <code>h64_nn.md</code> · <code>h41_slope.md</code></td><td>гипотезы банка 08.11 (журнал S66, L10–L13); календарь ЦБ — <code>data/calendar/</code></td></tr>
     <tr><td><code>skeptic_2026-11-08.md</code> · <code>skeptic_h79.md</code> · <code>skeptic_models.md</code> · <code>h85</code>–<code>h87</code></td><td>скептик к проверкам и новые гипотезы из разборов</td></tr>
     <tr><td><code>h80_futoi.md</code> · <code>h82_futoi_others.md</code> · <code>h09_limits.md</code> · <code>h42_timur.md</code> · <code>h40_profile.md</code> · <code>h81_sources.md</code></td><td>вечер 08.11: данные Мосбиржи, лента, файлы Тимура</td></tr>
-    <tr><td><code>docs/results/h84_volume/</code> · <code>scripts/moex_trades.py</code></td><td>страница для Тагира и ночной сбор сделок</td></tr>
-    <tr><td><code>docs/meetings/2026-11-04_timur.md</code>, <code>2026-11-05_timur.md</code></td><td>протоколы созвонов</td></tr>
+    <tr><td><code>docs/results/h84_volume/</code> · <code>scripts/moex_trades.py</code></td><td>страница для Тагира и сбор сделок каждые 15 мин → Диск</td></tr>
+    <tr><td><code>h83_insider.md</code> · <code>h88_moex_data.md</code> · <code>scripts/h83_tape_daily.py</code></td><td>09.11: следы в ленте, данные Мосбиржи</td></tr>
+    <tr><td><code>docs/meetings/</code> 2026-11-04, -05, -09</td><td>протоколы созвонов</td></tr>
     <tr><td><code>docs/results/weekly/2026-11-09/</code></td><td>графики отчёта (<code>scripts/weekly_charts.py --week 2026-11-09</code>)</td></tr>
   </table>
-  <div class="foot"><span>Отчёт № 6 · 03.11–08.11.2026</span><span>20</span></div>
+  <div class="foot"><span>Отчёт № 6 · 03.11–09.11.2026</span><span>23</span></div>
 </section>
 
 </body>
