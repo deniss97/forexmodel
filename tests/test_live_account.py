@@ -108,3 +108,55 @@ def test_reserve_released_when_lkoh_held():
     held = [{**pos("LKOH", 6300.0, "S42"), "бумага": "LKOH"}]
     take, _ = allocate([sig("S42", "SBER", 298.0, 290.0)], held, FIX, LOTS3, prices=PRICES)
     assert take[0]["штук"] == 16                                    # полный слот 5 тыс.: резерв больше не нужен
+
+
+# ---- mode: auto (11.11): покупка сразу по сигналу, уведомление в группу
+
+def open_pos(at=T, status="к исполнению", assigned=T):
+    p = {**sig("S42", "SBER", 298.0, 290.38, at), "лоты": 16, "штук": 16, "сумма": 4768.0, "стоп стратегии": 290.38,
+         "активация": 301.81, "отступ": 7.62, "статус": status, "назначено": assigned}
+    return p
+
+
+def test_msg_open_auto_says_buying_automatically():
+    import live_account as la
+    text = la.msg_open(open_pos(), {"mode": "auto", "max_slippage_pct": 0.3})
+    assert "Покупаю автоматически" in text and "298.89" in text and "«Исполнить»" not in text
+    assert "«Исполнить»" in la.msg_open(open_pos(), {"mode": "button", "max_slippage_pct": 0.3})
+
+
+def test_auto_open_buys_only_this_hour_signals(monkeypatch):
+    import contextlib
+    import types
+    import live_account as la
+    fresh, old, done = open_pos(), open_pos(T - pd.Timedelta(hours=3), assigned=T - pd.Timedelta(hours=3)), open_pos(status="открыта")
+    done["бумага"] = "GAZP"
+    monkeypatch.setattr(la, "state_lock", contextlib.nullcontext)
+    monkeypatch.setattr(la, "load_state", lambda: {"позиции": [fresh, old, done]})
+    sent, calls = [], []
+    monkeypatch.setattr(la.notify, "send", lambda text, buttons=None, **k: sent.append((text, buttons)))
+    fake = types.ModuleType("live_bot")
+    fake.do_open = lambda say, key, name: calls.append((key, name))
+    monkeypatch.setitem(sys.modules, "live_bot", fake)
+    la.auto_open(T)
+    assert calls == [(la.pid(fresh), "автоматически")]
+    assert sent == []
+
+
+def test_auto_open_error_reports_with_manual_buttons(monkeypatch):
+    import contextlib
+    import types
+    import live_account as la
+    p = open_pos()
+    monkeypatch.setattr(la, "state_lock", contextlib.nullcontext)
+    monkeypatch.setattr(la, "load_state", lambda: {"позиции": [p]})
+    sent = []
+    monkeypatch.setattr(la.notify, "send", lambda text, buttons=None, **k: sent.append((text, buttons)))
+    fake = types.ModuleType("live_bot")
+
+    def boom(say, key, name):
+        raise RuntimeError("нет токена")
+    fake.do_open = boom
+    monkeypatch.setitem(sys.modules, "live_bot", fake)
+    la.auto_open(T)
+    assert len(sent) == 1 and "не удалась" in sent[0][0] and sent[0][1] == la.open_buttons(p)
