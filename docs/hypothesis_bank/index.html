@@ -286,6 +286,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   <div class="pages" id="pages" role="tablist" aria-label="Раздел страницы">
     <button type="button" class="page-tab" role="tab" data-page="hyp">Гипотезы <b id="cnt-hyp"></b></button>
     <button type="button" class="page-tab" role="tab" data-page="notes">Техдолг и уточнения <b id="cnt-notes"></b></button>
+    <button type="button" class="page-tab" role="tab" data-page="seeds">Зёрна <b id="cnt-seeds"></b></button>
   </div>
 
   <div class="stack" id="page-hyp">
@@ -375,6 +376,11 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   </section>
   </div>
 
+  <div class="stack" id="page-seeds" hidden>
+    <p class="area-note">«Зерно» — полезное наблюдение, которое осталось от проверки, даже если гипотеза не подтвердилась: приём, особенность рынка, ловушка в расчёте (документ Тимура «Порядок проверки гипотез 2.0», 13.11). Пишется в карточке гипотезы, в блоке результата; здесь — все вместе, свежие сверху.</p>
+    <section class="list" id="s-list" aria-label="Зёрна"></section>
+  </div>
+
   <div class="stack" id="page-notes" hidden>
     <p class="area-note">То, что надо выяснить или сделать, но что не гипотеза: уточнения (условия брокеров, ставки, данные), техдолг и задачи со встреч. Гипотеза, которую уточнение касается, указывается ссылкой.</p>
     <div class="bar-row">
@@ -435,7 +441,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   const STATUSES = { new: "новая", work: "в работе", yes: "подтвердилась", no: "не подтвердилась", hold: "отложена", ask: "уточнить" };
   const OPEN = ["new", "work", "ask", "hold"];
   const DIMS = [["i", "В", "влияние"], ["c", "У", "уверенность"], ["e", "С", "стоимость (5 — дёшево)"]];
-  const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400, how: 8000, plan: 12000, q: 1000, a: 3000, note: 3000 };
+  const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400, how: 8000, seed: 2000, plan: 12000, q: 1000, a: 3000, note: 3000 };
   const PSTATE = { wait: "план ждёт подтверждения", ok: "план подтверждён", fix: "план: нужны правки" };
   const FILE_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
     mp4: "video/mp4", webm: "video/webm", pdf: "application/pdf", csv: "text/csv", md: "text/markdown", markdown: "text/markdown",
@@ -460,7 +466,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   let loaded = false, ready = false, hashDone = false;
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem("hb-view") || "null"); } catch (e) {}
-  const view = { page: saved && saved.page === "notes" ? "notes" : "hyp", area: saved && (saved.area === "all" || AREA[saved.area]) ? saved.area : "all",
+  const view = { page: saved && (saved.page === "notes" || saved.page === "seeds") ? saved.page : "hyp", area: saved && (saved.area === "all" || AREA[saved.area]) ? saved.area : "all",
                  status: "open", kind: "", q: "", sort: "prio", open: null };
   const remember = () => { try { localStorage.setItem("hb-view", JSON.stringify({ area: view.area, page: view.page })); } catch (e) {} };
 
@@ -499,7 +505,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
         .map((x) => ({ q: str(x.q, LIM.q), a: str(x.a, LIM.a), by: safeId(x.by), at: str(x.at, 40) })) : [],
       okBy: safeId(d.plan.okBy), okAt: str(d.plan.okAt, 40), note: str(d.plan.note, LIM.note), noteBy: safeId(d.plan.noteBy) } : null;
     return {
-      plan: pl, how: str(d.how, LIM.how),
+      plan: pl, how: str(d.how, LIM.how), seed: str(d.seed, LIM.seed),
       code: id, num, votes, draft: dr && dr.i && dr.c && dr.e ? dr : null,
       title: str(d.title, LIM.title), text, source: str(d.source, LIM.source), criterion: str(d.criterion, LIM.criterion),
       result: str(d.result, LIM.result), link: str(d.link, LIM.link), exps, files,
@@ -563,7 +569,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     const a = [...docs.values()].filter((h) => inArea(h) &&
       (view.status === "all" || (view.status === "plan" ? h.plan && h.plan.state !== "ok" : view.status === "open" ? OPEN.includes(h.status) : h.status === view.status)) &&
       (!view.kind || h.kind === view.kind) &&
-      (!q || `${h.code} ${h.title} ${h.text} ${h.source} ${h.result} ${h.how} ${h.plan ? h.plan.text : ""} ${expsOf(h).join(" ")}`.toLowerCase().includes(q)));
+      (!q || `${h.code} ${h.title} ${h.text} ${h.source} ${h.result} ${h.how} ${h.seed} ${h.plan ? h.plan.text : ""} ${expsOf(h).join(" ")}`.toLowerCase().includes(q)));
     const by = {
       prio: (x, y) => (prio(effective(y)) ?? -1) - (prio(effective(x)) ?? -1) || x.num - y.num,
       num: (x, y) => x.num - y.num,
@@ -691,6 +697,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
             <label class="f">Эксперименты этой гипотезы${auto.size ? ` (из каталога: ${[...auto].map(esc).join(", ")}; добавьте другие)` : ""}<input data-f="exps" maxlength="300" ${r} value="${esc(h.exps.filter((x) => !auto.has(x)).join(", "))}" placeholder="номера из журнала через запятую: S12, M18"></label>
             <label class="f">Как проверяли — алгоритм по шагам простыми словами, где смотреть график<textarea class="grow" data-f="how" maxlength="${LIM.how}" ${r} placeholder="какие данные взяли, что посчитали по шагам, что на графике">${esc(h.how)}</textarea></label>
             <label class="f">Вывод<textarea class="grow" data-f="result" maxlength="${LIM.result}" ${r} placeholder="что получилось, с цифрами">${esc(h.result)}</textarea></label>
+            <label class="f">Зерно — что полезного узнали, даже если гипотеза не подтвердилась<textarea class="grow" data-f="seed" maxlength="${LIM.seed}" ${r} placeholder="приём, особенность рынка, ловушка в расчёте — то, что пригодится дальше">${esc(h.seed)}</textarea></label>
             <label class="f">Другая ссылка (документ, если эксперимента в журнале нет)<input data-f="link" maxlength="${LIM.link}" ${r} value="${esc(h.link)}" placeholder="https://github.com/…"></label>
             ${/^https:\/\//.test(h.link) ? `<a href="${esc(h.link)}" target="_blank" rel="noopener" class="hint">открыть ссылку</a>` : ""}
           </div>
@@ -792,7 +799,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     const v = readEditor(ed);
     if (!v.title && !h.title && !v.text) { toast("Нужно название или описание."); return; }
     const patch = {};
-    for (const k of ["title", "text", "criterion", "result", "how", "link", "status", "kind", "source", "area"]) if ((h[k] || "") !== v[k]) patch[k] = v[k];
+    for (const k of ["title", "text", "criterion", "result", "how", "seed", "link", "status", "kind", "source", "area"]) if ((h[k] || "") !== v[k]) patch[k] = v[k];
     const auto = new Set(J.byHyp[code] || []);
     const exps = parseExps(v.exps).filter((x) => !auto.has(x));
     if (exps.join() !== h.exps.filter((x) => !auto.has(x)).join()) patch.exps = exps;
@@ -1329,9 +1336,19 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   function renderPages() {
     $("#page-hyp").hidden = view.page !== "hyp";
     $("#page-notes").hidden = view.page !== "notes";
+    $("#page-seeds").hidden = view.page !== "seeds";
     document.querySelectorAll(".page-tab").forEach((b) => b.setAttribute("aria-selected", b.dataset.page === view.page));
     $("#cnt-hyp").textContent = loaded ? docs.size : "";
     $("#cnt-notes").textContent = nloaded ? [...notes.values()].filter((n) => NOPEN.includes(n.status)).length : "";
+    const seeds = [...docs.values()].filter((h) => h.seed);
+    $("#cnt-seeds").textContent = loaded ? seeds.length : "";
+    if (view.page === "seeds") {
+      seeds.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")) || b.num - a.num);
+      $("#s-list").innerHTML = seeds.length ? seeds.map((h) => `<div class="row nrow" style="cursor:default"><span class="code"><button type="button" class="hyplink" data-act="gohyp" data-code="${esc(h.code)}">${esc(h.code)}</button></span>
+        <div class="htext"><span class="t">${esc(h.seed)}</span><span class="meta"><span>${esc(titleOf(h))}</span></span></div>
+        <div class="who"></div><div class="stcell"><span class="pill st-${h.status}">${STATUSES[h.status]}</span></div></div>`).join("")
+        : `<div class="empty">${loaded ? "Пока пусто. Зерно пишется в карточке гипотезы после проверки." : "Загрузка…"}</div>`;
+    }
   }
   async function saveNote(code, ed) {
     const n = notes.get(code); if (!n) return;
