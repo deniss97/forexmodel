@@ -36,34 +36,46 @@ def keyboard(buttons: list[list[tuple[str, str]]]) -> dict:
 
 def send(text: str, retries: int = 3, buttons: list[list[tuple[str, str]]] | None = None) -> bool:
     """Сообщение в Telegram; True — доставлено. Несколько попыток (ТЗ: при сбое — повтор), всё — в журнал."""
+    return send_id(text, retries, buttons) is not None
+
+
+def send_id(text: str, retries: int = 3, buttons: list[list[tuple[str, str]]] | None = None,
+            reply_to: int | None = None) -> int | None:
+    """Как send, но возвращает номер сообщения (message_id) или None; reply_to — ответить на сообщение группы."""
     cfg = yaml.safe_load(CFG.read_text(encoding="utf-8")) if CFG.exists() else None
-    ok = False
+    mid = None
     if cfg and cfg.get("token") and cfg.get("chat_id"):
         msg = {"chat_id": cfg["chat_id"], "text": text[:4000], "disable_web_page_preview": True}
         if buttons:
             msg["reply_markup"] = keyboard(buttons)
+        if reply_to:
+            msg["reply_parameters"] = {"message_id": int(reply_to), "allow_sending_without_reply": True}
         body = json.dumps(msg).encode()
         req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['token']}/sendMessage", body,
                                      {"Content-Type": "application/json"})
         for k in range(retries):
             try:
                 with urllib.request.urlopen(req, timeout=20) as r:
-                    ok = bool(json.load(r).get("ok"))
+                    j = json.load(r)
+                    if j.get("ok"):
+                        mid = j["result"]["message_id"]
                     break
             except Exception:                    # сеть, ограничение частоты — повтор с паузой
                 time.sleep(3 * (k + 1))
-    _log(text, ok)
-    return ok
+    _log(text, mid is not None)
+    return mid
 
 
-def photo(path: Path, caption: str = "", retries: int = 3) -> bool:
-    """Картинка в группу (sendPhoto, multipart без внешних библиотек); True — доставлено. В журнал — подпись."""
+def photo(path: Path, caption: str = "", retries: int = 3, reply_to: int | None = None) -> bool:
+    """Картинка в группу (sendPhoto, multipart без внешних библиотек); True — доставлено. В журнал — подпись.
+    reply_to — ответить на сообщение группы (номер сообщения)."""
     cfg = yaml.safe_load(CFG.read_text(encoding="utf-8")) if CFG.exists() else None
     ok = False
     if cfg and cfg.get("token") and cfg.get("chat_id"):
         boundary = "----forexmodel" + str(int(time.time() * 1000))
         parts = [(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n').encode()
-                 for k, v in (("chat_id", cfg["chat_id"]), ("caption", caption[:1000]))]
+                 for k, v in (("chat_id", cfg["chat_id"]), ("caption", caption[:1000]),
+                              *((("reply_to_message_id", int(reply_to)),) if reply_to else ()))]
         parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="{Path(path).name}"\r\n'
                        f'Content-Type: image/png\r\n\r\n').encode() + Path(path).read_bytes() + b"\r\n")
         body = b"".join(parts) + f"--{boundary}--\r\n".encode()

@@ -202,6 +202,15 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 .stamp { font-size: 13px; color: var(--ink3); margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 2px 14px; }
 .stamp .linkbtn { font-size: inherit; }
 .dates { display: block; }
+/* план проверки (процесс 2.0, созвоны 10–12.11): Claude пишет план и вопросы, человек отвечает и подтверждает до расчёта */
+.plan { border-left: 4px solid var(--st-ask); }
+.plan.ok { border-left-color: var(--st-yes); }
+.plan.fix { border-left-color: var(--st-no); }
+.plan .qa { display: grid; gap: 4px; }
+.plan .q { font-size: 14px; font-weight: 500; }
+.plan-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pstate { font: 500 12px var(--mono); }
+.pwait { color: var(--st-ask); } .pok { color: var(--st-yes); } .pfix { color: var(--st-no); }
 
 /* просмотр ноутбука Jupyter */
 .nb-wrap { position: fixed; inset: 0; background: rgba(10, 14, 22, 0.45); z-index: 20; display: grid; place-items: center; padding: 16px; }
@@ -306,7 +315,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
           <li>Затем 2–3 гипотезы с наибольшим приоритетом.</li>
           <li>Плюс одна «дикая карта»: большое влияние при низкой уверенности.</li>
           <li>До проверки записываем критерий вердикта: на каком периоде выбираем, на каком проверяем, какие метрики.</li>
-          <li>Проверяем ровно то, что описано; перед расчётом — короткое «как понял задачу». Сравниваем по профит-фактору и итогу без 2 лучших сделок; результат — эксперимент в журнале с графиком сделок.</li>
+          <li><b>План проверки (с 12.11):</b> перед расчётом Claude пишет в гипотезе своими словами, что и как посчитает и что покажет на графике, и задаёт вопросы. Автор гипотезы отвечает и жмёт «Подтвердить план» — только после этого расчёт. Фильтр «план ждёт подтверждения» показывает, где нужен ответ.</li>
+          <li>Проверяем ровно то, что описано и подтверждено; после расчёта в гипотезе — «Как проверяли» по шагам и график. Сравниваем по профит-фактору и итогу без 2 лучших сделок; результат — эксперимент в журнале с графиком сделок.</li>
           <li>Новая стратегия не обязана быть лучше B01: цель — портфель из 8–10 стратегий. Важно, прибыльна ли она сама по себе на проверке, торгует ли в другое время и что даёт вместе с остальными.</li>
         </ol>
       </div>
@@ -425,7 +435,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   const STATUSES = { new: "новая", work: "в работе", yes: "подтвердилась", no: "не подтвердилась", hold: "отложена", ask: "уточнить" };
   const OPEN = ["new", "work", "ask", "hold"];
   const DIMS = [["i", "В", "влияние"], ["c", "У", "уверенность"], ["e", "С", "стоимость (5 — дёшево)"]];
-  const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400 };
+  const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400, how: 8000, plan: 12000, q: 1000, a: 3000, note: 3000 };
+  const PSTATE = { wait: "план ждёт подтверждения", ok: "план подтверждён", fix: "план: нужны правки" };
   const FILE_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
     mp4: "video/mp4", webm: "video/webm", pdf: "application/pdf", csv: "text/csv", md: "text/markdown", markdown: "text/markdown",
     json: "application/json", ipynb: "application/json", txt: "text/plain", log: "text/plain", yaml: "text/plain", yml: "text/plain", py: "text/plain" };
@@ -482,7 +493,13 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       .map((f) => ({ id: f.id, name: str(f.name, 200) || "файл", size: Number(f.size) || 0, type: str(f.type, 80), at: str(f.at, 40), by: safeId(f.by), ...fileExtra(f) })) : [];
     const exps = Array.isArray(d.exps) ? [...new Set(d.exps.map(expId).filter(Boolean))].slice(0, 30) : [];
     const text = str(d.text, LIM.text);
+    const pl = d.plan && typeof d.plan === "object" && str(d.plan.text, LIM.plan) ? {
+      text: str(d.plan.text, LIM.plan), state: PSTATE[d.plan.state] ? d.plan.state : "wait", at: str(d.plan.at, 40),
+      questions: Array.isArray(d.plan.questions) ? d.plan.questions.filter((x) => x && str(x.q, LIM.q)).slice(0, 20)
+        .map((x) => ({ q: str(x.q, LIM.q), a: str(x.a, LIM.a), by: safeId(x.by), at: str(x.at, 40) })) : [],
+      okBy: safeId(d.plan.okBy), okAt: str(d.plan.okAt, 40), note: str(d.plan.note, LIM.note), noteBy: safeId(d.plan.noteBy) } : null;
     return {
+      plan: pl, how: str(d.how, LIM.how),
       code: id, num, votes, draft: dr && dr.i && dr.c && dr.e ? dr : null,
       title: str(d.title, LIM.title), text, source: str(d.source, LIM.source), criterion: str(d.criterion, LIM.criterion),
       result: str(d.result, LIM.result), link: str(d.link, LIM.link), exps, files,
@@ -544,9 +561,9 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   function filtered() {
     const q = view.q.trim().toLowerCase();
     const a = [...docs.values()].filter((h) => inArea(h) &&
-      (view.status === "all" || (view.status === "open" ? OPEN.includes(h.status) : h.status === view.status)) &&
+      (view.status === "all" || (view.status === "plan" ? h.plan && h.plan.state !== "ok" : view.status === "open" ? OPEN.includes(h.status) : h.status === view.status)) &&
       (!view.kind || h.kind === view.kind) &&
-      (!q || `${h.code} ${h.title} ${h.text} ${h.source} ${h.result} ${expsOf(h).join(" ")}`.toLowerCase().includes(q)));
+      (!q || `${h.code} ${h.title} ${h.text} ${h.source} ${h.result} ${h.how} ${h.plan ? h.plan.text : ""} ${expsOf(h).join(" ")}`.toLowerCase().includes(q)));
     const by = {
       prio: (x, y) => (prio(effective(y)) ?? -1) - (prio(effective(x)) ?? -1) || x.num - y.num,
       num: (x, y) => x.num - y.num,
@@ -567,8 +584,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 
   function renderChips() {
     const all = [...docs.values()].filter(inArea);
-    const cnt = (s) => all.filter((h) => (s === "all" ? true : s === "open" ? OPEN.includes(h.status) : h.status === s)).length;
-    const items = [["open", "открытые"], ...Object.entries(STATUSES), ["all", "все"]];
+    const cnt = (s) => all.filter((h) => (s === "all" ? true : s === "plan" ? h.plan && h.plan.state !== "ok" : s === "open" ? OPEN.includes(h.status) : h.status === s)).length;
+    const items = [["open", "открытые"], ...Object.entries(STATUSES), ["plan", "план ждёт подтверждения"], ["all", "все"]];
     $("#chips").innerHTML = items.map(([k, l]) => `<button type="button" class="chip" data-k="${k}" aria-pressed="${view.status === k}">${l} <b>${cnt(k)}</b></button>`).join("");
   }
 
@@ -589,7 +606,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     return `<div class="row" role="button" tabindex="0" data-code="${esc(h.code)}" aria-expanded="${exp}">
       <span class="code">${esc(h.code)}</span>
       <div class="htext"><span class="t">${esc(titleOf(h))}</span>${h.title && h.text ? `<span class="d">${esc(h.text)}</span>` : ""}
-        <span class="meta">${view.area === "all" && h.area ? `<span class="tag">${esc(AREA[h.area])}</span>` : ""}${h.kind ? `<span class="type ${h.kind === "check" ? "check" : ""}">${KINDS[h.kind]}</span>` : ""}${h.source ? `<span>${esc(h.source)}</span>` : ""}${ex.length ? `<span>журнал: ${ex.map(esc).join(" ")}</span>` : ""}${h.files.length ? `<span>файлов: ${h.files.length}</span>` : ""}${h.author ? `<span>автор: <span data-uid="${esc(h.author)}">…</span></span>` : ""}</span></div>
+        <span class="meta">${view.area === "all" && h.area ? `<span class="tag">${esc(AREA[h.area])}</span>` : ""}${h.kind ? `<span class="type ${h.kind === "check" ? "check" : ""}">${KINDS[h.kind]}</span>` : ""}${h.source ? `<span>${esc(h.source)}</span>` : ""}${ex.length ? `<span>журнал: ${ex.map(esc).join(" ")}</span>` : ""}${h.files.length ? `<span>файлов: ${h.files.length}</span>` : ""}${h.plan ? `<span class="pstate p${h.plan.state}">${PSTATE[h.plan.state]}</span>` : ""}${h.author ? `<span>автор: <span data-uid="${esc(h.author)}">…</span></span>` : ""}</span></div>
       <div class="scorecell"><div class="scores">${scoreTiles(s)}</div></div>
       <div class="prio"><b>${p == null ? "—" : num1(p)}</b><div class="track"><div class="fill" style="width:${p == null ? 0 : Math.min(100, (p / 125) * 100)}%"></div></div>
         <span class="meta">${s ? (s.draft ? "черновая" : `оценок: ${s.n}`) : "нет оценок"}</span></div>
@@ -616,6 +633,43 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       ${list ? `<div class="files">${list}</div>` : `<span class="hint">Файлов нет. Сюда — ТЗ, скриншоты, таблицы, ноутбуки Jupyter: Word .docx, картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео до 20 МБ.</span>`}${why}</div>`;
   }
 
+  function planHTML(h, ro) {
+    const P = h.plan;
+    if (!P) return `<div class="block plan"><div class="block-head"><span class="eyebrow">план проверки</span></div>
+      <span class="hint">Перед расчётом Claude пишет здесь своими словами, что и как будет считать, и задаёт уточняющие вопросы. Считает только после того, как автор гипотезы (или Денис) ответит и нажмёт «Подтвердить план».</span></div>`;
+    const qs = P.questions.map((x, i) => `<div class="qa"><span class="q">${i + 1}. ${esc(x.q)}</span>
+      <label class="f">Ответ${x.a && x.by ? ` · <span data-uid="${esc(x.by)}">…</span>${x.at ? ", " + esc(when(x.at)) : ""}` : ""}<textarea class="grow" data-f="qa${i}" maxlength="${LIM.a}" ${ro ? "readonly" : ""} placeholder="ваш ответ">${esc(x.a)}</textarea></label></div>`).join("");
+    const st = P.state === "ok" ? `подтвердил(а) <span data-uid="${esc(P.okBy || "")}">…</span>${P.okAt ? ", " + esc(when(P.okAt)) : ""}` : PSTATE[P.state];
+    return `<div class="block plan ${P.state === "ok" ? "ok" : P.state === "fix" ? "fix" : ""}">
+      <div class="block-head"><span class="eyebrow">план проверки — от Claude, до расчёта</span><span class="pstate p${P.state}">${st}</span></div>
+      <div class="md-view" data-md="plan"></div>${P.at ? `<span class="hint">план записан ${esc(when(P.at))}</span>` : ""}
+      ${qs ? `<span class="eyebrow">вопросы</span>${qs}` : ""}
+      <label class="f">Замечания к плану${P.note && P.noteBy ? ` · <span data-uid="${esc(P.noteBy)}">…</span>` : ""}<textarea class="grow" data-f="plannote" maxlength="${LIM.note}" ${ro ? "readonly" : ""} placeholder="что поправить в плане, если нужно">${esc(P.note)}</textarea></label>
+      ${ro ? "" : `<div class="plan-acts"><button type="button" class="btn small" data-act="plan-save">Сохранить ответы</button>
+        <button type="button" class="btn small" data-act="plan-fix">Нужны правки</button>
+        <button type="button" class="btn small primary" data-act="plan-ok">${P.state === "ok" ? "Подтверждено" : "Подтвердить план"}</button></div>`}
+    </div>`;
+  }
+  async function savePlan(code, ed, state) {
+    const h = docs.get(code); if (!h || !h.plan) return;
+    const v = readEditor(ed), now = new Date().toISOString();
+    const questions = h.plan.questions.map((x, i) => {
+      const a = v["qa" + i] ?? x.a;
+      return a !== x.a ? { q: x.q, a, by: me.id || null, at: now } : x;
+    });
+    const plan = { ...h.plan, questions, note: v.plannote ?? h.plan.note };
+    if (plan.note !== h.plan.note) plan.noteBy = me.id || null;
+    if (state === "ok") {
+      if (questions.some((x) => !x.a.trim())) { toast("Сначала ответьте на все вопросы."); return; }
+      Object.assign(plan, { state: "ok", okBy: me.id || null, okAt: now });
+    } else if (state === "fix") {
+      if (!plan.note.trim()) { toast("Напишите в «Замечаниях», что поправить."); return; }
+      Object.assign(plan, { state: "fix", okBy: null, okAt: "" });
+    }
+    await write(() => col.doc(code).update({ plan, updatedAt: now, ...(me.id ? { updatedBy: me.id } : {}) }),
+      state === "ok" ? "План подтверждён — Claude может считать" : state === "fix" ? "Отправлено на правку" : "Ответы сохранены");
+  }
+
   function editorHTML(h) {
     const ro = canWrite === false;
     const mine = me.id ? h.votes[me.id] : null;
@@ -631,9 +685,11 @@ label.f input.title { font-weight: 600; font-size: 15px; }
           ${ro ? "" : `<button type="button" class="btn small" data-act="template" style="justify-self:start" title="добавить в описание шаблон с пунктами">Шаблон описания</button>`}
           ${filesHTML(h, ro)}
           <label class="f">Критерий вердикта<input data-f="criterion" maxlength="${LIM.criterion}" ${r} value="${esc(h.criterion)}" placeholder="на каком периоде выбираем, на каком проверяем, какие метрики"></label>
+          ${planHTML(h, ro)}
           <div class="block"><div class="block-head"><span class="eyebrow">результат проверки — журнал экспериментов</span><a href="${JOURNAL}" target="_blank" rel="noopener" class="hint">открыть журнал</a></div>
             ${ex.length ? `<div class="exps">${ex.map(expHTML).join("")}</div>` : `<span class="hint">Эксперимента в журнале пока нет.</span>`}
             <label class="f">Эксперименты этой гипотезы${auto.size ? ` (из каталога: ${[...auto].map(esc).join(", ")}; добавьте другие)` : ""}<input data-f="exps" maxlength="300" ${r} value="${esc(h.exps.filter((x) => !auto.has(x)).join(", "))}" placeholder="номера из журнала через запятую: S12, M18"></label>
+            <label class="f">Как проверяли — алгоритм по шагам простыми словами, где смотреть график<textarea class="grow" data-f="how" maxlength="${LIM.how}" ${r} placeholder="какие данные взяли, что посчитали по шагам, что на графике">${esc(h.how)}</textarea></label>
             <label class="f">Вывод<textarea class="grow" data-f="result" maxlength="${LIM.result}" ${r} placeholder="что получилось, с цифрами">${esc(h.result)}</textarea></label>
             <label class="f">Другая ссылка (документ, если эксперимента в журнале нет)<input data-f="link" maxlength="${LIM.link}" ${r} value="${esc(h.link)}" placeholder="https://github.com/…"></label>
             ${/^https:\/\//.test(h.link) ? `<a href="${esc(h.link)}" target="_blank" rel="noopener" class="hint">открыть ссылку</a>` : ""}
@@ -705,6 +761,8 @@ label.f input.title { font-weight: 600; font-size: 15px; }
         if (keep.focus) ed.querySelector(`[data-f="${keep.focus}"]`)?.focus();
       }
       ed.querySelectorAll("textarea.grow").forEach(grow);
+      const md = ed.querySelector("[data-md='plan']"), hh = docs.get(ed.dataset.code);
+      if (md && hh && hh.plan) renderMd(hh.plan.text, md);
     }
     resolveNames(list);
   }
@@ -734,7 +792,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
     const v = readEditor(ed);
     if (!v.title && !h.title && !v.text) { toast("Нужно название или описание."); return; }
     const patch = {};
-    for (const k of ["title", "text", "criterion", "result", "link", "status", "kind", "source", "area"]) if ((h[k] || "") !== v[k]) patch[k] = v[k];
+    for (const k of ["title", "text", "criterion", "result", "how", "link", "status", "kind", "source", "area"]) if ((h[k] || "") !== v[k]) patch[k] = v[k];
     const auto = new Set(J.byHyp[code] || []);
     const exps = parseExps(v.exps).filter((x) => !auto.has(x));
     if (exps.join() !== h.exps.filter((x) => !auto.has(x)).join()) patch.exps = exps;
@@ -1396,6 +1454,9 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       const k = act.dataset.act;
       if (k === "close") { view.open = null; setHash(null); render(); }
       else if (k === "save") await saveEditor(code, ed);
+      else if (k === "plan-save") await savePlan(code, ed, null);
+      else if (k === "plan-ok") await savePlan(code, ed, "ok");
+      else if (k === "plan-fix") await savePlan(code, ed, "fix");
       else if (k === "sprint" && h) await write(() => col.doc(code).update({ sprint: h.sprint === thisWeek ? "" : thisWeek, updatedAt: new Date().toISOString() }),
                                                h.sprint === thisWeek ? "Снято с этой недели" : "Взято на эту неделю");
       else if (k === "getfile" && h) {
