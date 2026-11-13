@@ -2,10 +2,10 @@
 прежде чем покупать журнал заявок Мосбиржи, накопить и проверить идеи на своих снимках).
 
 Каждую минуту (cron) — 4 снимка, раз в 15 с: по всем бумагам параллельно GetOrderBook depth 20. Строка JSON на снимок:
-{"t": время стакана UTC, "lp": последняя цена, "b": [[цена, лоты] × 20], "a": [[цена, лоты] × 20]}.
-Горячий день — data/raw/orderbook/<дата>/<бумага>.jsonl; законченные дни → gzip → Яндекс Диск
-yadisk:forexmodel/стакан/<бумага>/<год>/<дата>.jsonl.gz (rclone), с сервера удаляются. Вне торговых часов (06:50–23:55 МСК)
-скрипт сразу выходит. Учёт — reports/live/orderbook_manifest.json; сбой — в группу не чаще раза в 6 часов.
+{"s": бумага, "t": время стакана UTC, "lp": последняя цена, "b": [[цена, лоты] × 20], "a": [[цена, лоты] × 20]}.
+На сервере — только текущий час (Денис 14.11: «данные сразу на Яндекс Диск»): data/raw/orderbook/<дата>_<ЧЧ>.jsonl
+(все бумаги в одном файле, час по МСК); законченный час → gzip → yadisk:forexmodel/стакан/<год>/<дата>/<ЧЧ>.jsonl.gz
+(rclone) и удаляется с сервера — 17 файлов в день, ~1 МБ каждый. Вне торговых часов (06:50–23:55 МСК) — только выгрузка. Учёт — reports/live/orderbook_manifest.json; сбой — в группу не чаще раза в 6 часов.
 
 cron (часы сервера +05):  * * * * *  /home/dev/forexmodel/scripts/queues/orderbook_rec.sh
 """
@@ -59,23 +59,24 @@ def snap(api: TInvest, uid: str) -> dict | None:
             "b": px(r.get("bids", [])), "a": px(r.get("asks", []))}
 
 
-def upload_finished(today: str, man: dict) -> list[str]:
+def upload_finished(current: str, man: dict) -> list[str]:
+    """Все часовые файлы, кроме текущего часа, → Диск; после успешной выгрузки — удалить с сервера."""
     errors = []
-    for d in sorted(p for p in OUT.iterdir() if p.is_dir() and p.name < today):
-        for f in sorted(d.glob("*.jsonl")):
-            gz = f.with_suffix(".jsonl.gz")
-            with open(f, "rb") as src, gzip.open(gz, "wb", compresslevel=6) as dst:
-                shutil.copyfileobj(src, dst)
-            r = subprocess.run([str(RCLONE), "copyto", str(gz), f"{REMOTE}/{f.stem}/{d.name[:4]}/{d.name}.jsonl.gz",
-                                "--stats", "0", "--retries", "3"], capture_output=True, text=True, timeout=900)
-            if r.returncode == 0:
-                man.setdefault(f.stem, {})[d.name] = {"lines": sum(1 for _ in open(f)), "mb": round(gz.stat().st_size / 2**20, 2)}
-                f.unlink()
-            else:
-                errors.append(f"{f.stem} {d.name}: не выгрузилось на Диск")
-            gz.unlink(missing_ok=True)
-        if not any(d.iterdir()):
-            d.rmdir()
+    for f in sorted(OUT.glob("*.jsonl")):
+        if f.stem >= current:
+            continue
+        date, hh = f.stem.split("_")
+        gz = f.with_suffix(".jsonl.gz")
+        with open(f, "rb") as src, gzip.open(gz, "wb", compresslevel=6) as dst:
+            shutil.copyfileobj(src, dst)
+        r = subprocess.run([str(RCLONE), "copyto", str(gz), f"{REMOTE}/{date[:4]}/{date}/{hh}.jsonl.gz",
+                            "--stats", "0", "--retries", "3"], capture_output=True, text=True, timeout=600)
+        if r.returncode == 0:
+            man.setdefault(date, {})[hh] = {"lines": sum(1 for _ in open(f)), "mb": round(gz.stat().st_size / 2**20, 2)}
+            f.unlink()
+        else:
+            errors.append(f"{f.stem}: не выгрузилось на Диск")
+        gz.unlink(missing_ok=True)
     return errors
 
 
@@ -83,22 +84,22 @@ def main() -> int:
     now = datetime.now(MSK)
     OUT.mkdir(parents=True, exist_ok=True)
     man = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
-    errors = upload_finished(now.strftime("%Y-%m-%d"), man) if now.hour == 0 or now.minute % 30 == 0 else []
+    current = now.strftime("%Y-%m-%d_%H")
+    errors = upload_finished(current, man)
     if not (now.replace(hour=6, minute=50) <= now <= now.replace(hour=23, minute=55)):
         MANIFEST.write_text(json.dumps(man, ensure_ascii=False, indent=1))
         return 0
     api = TInvest(sandbox=False)
     m = uids(api)
-    day = OUT / now.strftime("%Y-%m-%d")
-    day.mkdir(exist_ok=True)
     start = time.time()
     with ThreadPoolExecutor(8) as ex:
         for k in range(SNAPS):
             res = dict(zip(SECIDS, ex.map(lambda s: snap(api, m[s]), SECIDS)))
-            for s, r in res.items():
-                if r and (r["b"] or r["a"]):
-                    with open(day / f"{s}.jsonl", "a") as fh:
-                        fh.write(json.dumps(r, separators=(",", ":")) + "\n")
+            hour_file = OUT / f"{datetime.now(MSK).strftime('%Y-%m-%d_%H')}.jsonl"
+            with open(hour_file, "a") as fh:
+                for s, r in res.items():
+                    if r and (r["b"] or r["a"]):
+                        fh.write(json.dumps({"s": s, **r}, separators=(",", ":")) + "\n")
             if k < SNAPS - 1:
                 time.sleep(max(0.0, start + EVERY * (k + 1) - time.time()))
     if errors:
