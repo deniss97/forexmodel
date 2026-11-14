@@ -42,6 +42,20 @@ def num(q) -> float:
     return int(q.get("units", 0) or 0) + int(q.get("nano", 0) or 0) / 1e9
 
 
+def fill_price(r: dict, pieces: int, ref: float) -> float:
+    """Средняя цена одной бумаги из ответа брокера. executedOrderPrice у состояния заявки — сумма всей заявки
+    (цена × штук; ошибка 11.11: 16 SBER по 298.17 записались как «по 4770.72»), у ответа на рыночную заявку бывает
+    ценой бумаги. Берём из кандидатов (averagePositionPrice, executedOrderPrice, executedOrderPrice / штук) ближайший
+    к рыночной цене ref."""
+    ex, avg = num(r.get("executedOrderPrice")), num(r.get("averagePositionPrice"))
+    cands = [x for x in (avg, ex, ex / pieces if pieces > 0 else 0.0) if x > 0]
+    if not cands:
+        return float(ref)
+    if ref > 0:
+        return min(cands, key=lambda x: abs(x - ref))
+    return avg or ex                       # рынка не знаем: средняя цена позиции, иначе как прислал брокер
+
+
 def log_order(row: dict) -> None:
     """Строка журнала заявок — по столбцам файла (у покупки и продажи разные поля; новые поля — файл переписывается)."""
     ORDERS.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +107,7 @@ def open_position(api, acc: str, share, p: dict, cfg: dict, sleep=time.sleep, no
         r = _wait_fill(api, acc, api.limit(acc, share, want - got, cap, buy=True), wait, sleep)
         n = int(r.get("lotsExecuted", 0) or 0)
         if n:
-            px = num(r.get("executedOrderPrice")) or num(r.get("averagePositionPrice")) or last
+            px = fill_price(r, n * share.lot, last)
             got, cost, comm = got + n, cost + n * px, comm + num(r.get("executedCommission"))
             log_order({"время": now or pd.Timestamp.now(), "бумага": share.ticker, "действие": "купить (лимит)", "лотов": n, "цена": px,
                        "лимит": round(cap, 4), "комиссия": num(r.get("executedCommission")), "заявка": r.get("orderId")})
@@ -133,7 +147,11 @@ def close_position(api, acc: str, share, pieces: int, attempts: int = 3, sleep=t
             log.append(f"попытка {k}: {str(e)[:120]}")
             sleep(3 * k)
             continue
-        px = num(r.get("executedOrderPrice"))
+        try:
+            ref = float(api.last_price(share.uid))
+        except Exception:
+            ref = 0.0
+        px = fill_price(r, lots * share.lot, ref)
         log_order({"время": now or pd.Timestamp.now(), "бумага": share.ticker, "действие": f"продать (рынок, {why})", "лотов": lots,
                    "цена": px, "комиссия": num(r.get("executedCommission")), "заявка": r.get("orderId")})
         log.append(f"продано {lots} лот. по {px:g}")

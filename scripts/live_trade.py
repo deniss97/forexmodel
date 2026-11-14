@@ -102,6 +102,13 @@ def log_order(row: dict) -> None:
 
 def execute(api, acc: str, shares: dict, acts: list[Action], state: dict, send: bool, now: pd.Timestamp) -> list[str]:
     from forexmodel.broker.tinvest import q2d
+    from live_exec import fill_price       # сумма заявки → цена одной бумаги (ошибка 11.11)
+
+    def ref(uid):
+        try:
+            return float(api.last_price(uid))
+        except Exception:
+            return 0.0
 
     out = []
     for a in acts:
@@ -114,7 +121,7 @@ def execute(api, acc: str, shares: dict, acts: list[Action], state: dict, send: 
             continue
         if a.kind == "buy":
             r = api.market(acc, sh.uid, a.lots, buy=True)
-            entry = float(q2d(r.get("executedOrderPrice"))) or float(api.last_price(sh.uid))
+            entry = fill_price(r, a.lots * sh.lot, ref(sh.uid))
             atr = a.extra["atr"]
             stop, act_px, indent = entry - a.extra["стоп_atr"] * atr, entry + a.extra["активация_atr"] * atr, a.extra["отступ"]
             sl = api.stop_loss(acc, sh, a.lots, stop)
@@ -129,7 +136,7 @@ def execute(api, acc: str, shares: dict, acts: list[Action], state: dict, send: 
                 if o.get("instrumentUid") == sh.uid:
                     api.cancel_stop(acc, o["stopOrderId"])
             r = api.market(acc, sh.uid, a.lots, buy=False)
-            px = float(q2d(r.get("executedOrderPrice")))
+            px = fill_price(r, a.lots * sh.lot, ref(sh.uid))
             log_order({"время": now, "инструмент": a.inst, "действие": "продать (срок)", "лотов": a.lots, "цена": px,
                        "комиссия": float(q2d(r.get("executedCommission")))})
             state.pop(a.inst, None)

@@ -135,3 +135,35 @@ def test_close_cancels_only_this_stock_stops_and_sells_held():
 def test_close_when_nothing_held_is_gone():
     r = lx.close_position(FakeAPI(), "acc", Share(), 3, sleep=nosleep)
     assert not r.ok and r.gone
+
+
+def test_fill_price_total_amount_11_11():
+    """Ошибка 11.11: состояние заявки отдало executedOrderPrice = сумма (16 SBER по 298.17 = 4770.72)."""
+    r = {"executedOrderPrice": q(4770.72), "lotsExecuted": 16}
+    assert lx.fill_price(r, 16, 298.0) == pytest.approx(298.17)
+    assert lx.fill_price({"executedOrderPrice": q(298.17)}, 16, 298.0) == pytest.approx(298.17)   # уже цена бумаги
+    assert lx.fill_price({"executedOrderPrice": q(4770.72), "averagePositionPrice": q(298.17)}, 16, 0.0) == pytest.approx(298.17)
+    assert lx.fill_price({}, 16, 298.0) == 298.0
+
+
+class TotalAPI(FakeAPI):
+    """Брокер, как 11.11: в состоянии заявки и в ответе на продажу — сумма заявки, а не цена бумаги."""
+    def limit(self, acc, share, lots, price, buy):
+        r = super().limit(acc, share, lots, price, buy)
+        r["executedOrderPrice"] = q(round((price - 0.2) * r["lotsExecuted"], 2))
+        self.state[r["orderId"]] = dict(r)
+        return r
+
+    def market(self, acc, uid, lots, buy):
+        self.sold.append(lots)
+        return {"orderId": "m1", "executedOrderPrice": q(301.0 * lots), "executedCommission": q(0.5)}
+
+
+def test_open_close_many_lots_price_per_share():
+    api = TotalAPI(prices=(300.5,), fills=(16,))
+    res = lx.open_position(api, "acc", Share(), {**P, "лоты": 16}, CFG, sleep=nosleep)
+    assert res.ok and res.lots == 16
+    assert res.price == pytest.approx(300.7, abs=0.01)    # лимит 300.9, исполнено на 0.2 ниже — цена бумаги, не сумма
+    api.held = {"u1": 16}
+    out = lx.close_position(api, "acc", Share(), 16, sleep=nosleep)
+    assert out.price == pytest.approx(301.0)

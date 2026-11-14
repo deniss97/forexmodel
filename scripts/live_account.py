@@ -1,6 +1,8 @@
 """Счёт по сигналам контура (ТЗ инференса Тимура, решения 26.10 и 28.10): какие сигналы берём на счёт, что держим,
 когда закрываем, и уведомления. Сделки — по кнопкам в группе (mode: button): «Исполнить» — бот покупает через API
-(scripts/live_bot.py, live_exec.py), «Купил сам» — сделка руками в приложении; mode: manual — только уведомления.
+(scripts/live_bot.py, live_exec.py), «Купил сам» — сделка руками в приложении; mode: manual — только уведомления;
+mode: auto (11.11, Денис) — взятый сигнал покупается сразу после «ОТКРЫТЬ» тем же путём, что «Исполнить» (auto_open),
+итог — сообщением в группу; не вышло — сообщение с кнопками для ручного исполнения.
 
 Каждый час после сигналов (S42 — scripts/live_signals.py → reports/live/s42_state.json; S46, S48 —
 scripts/live_iterator.py → reports/live/iterator_state.json):
@@ -264,7 +266,12 @@ def msg_open(p: dict, cfg: dict | None = None) -> str:
     text = (f"{head} {p['стратегия']} · {p['бумага']}\nКупить {p['штук']} шт. ({p['лоты']} лот.) по рынку ≈ {f(p['цена'])} ₽ "
             f"на {f(p['сумма'], 0)} ₽.\nСтоп-лосс: {f(p['стоп'])} ({(p['стоп'] / p['цена'] - 1) * 100:+.1f}%){cap}.{trail}\n"
             f"Вход стратегии {p['вход_в']:%d.%m %H:%M}; закрыть не позже {p['срок']:%d.%m %H:%M}.")
-    if cfg and cfg.get("mode") == "button":
+    if cfg and cfg.get("mode") == "auto":
+        lim = p["цена"] * (1 + float(cfg.get("max_slippage_pct", 0.3)) / 100)
+        text += (f"\n\n🤖 Покупаю автоматически через API: не дороже {f(lim)} ₽ (допуск {cfg.get('max_slippage_pct', 0.3)}%), "
+                 f"стоп{' и трейлинг' if p.get('активация') else ''} — у брокера. Итог придёт следующим сообщением. "
+                 f"Остановить автопокупки — /stop.")
+    elif cfg and cfg.get("mode") == "button":
         lim = p["цена"] * (1 + float(cfg.get("max_slippage_pct", 0.3)) / 100)
         text += (f"\n\n«Исполнить» — бот купит через API не дороже {f(lim)} ₽ (допуск {cfg.get('max_slippage_pct', 0.3)}%) и сам "
                  f"поставит стоп{' и трейлинг' if p.get('активация') else ''}. «Купил сам» — если покупаете в приложении.")
@@ -459,7 +466,8 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
     """Один часовой шаг счёта под блокировкой: (сообщения с кнопками, строка итога)."""
     lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text()).items()}
     allowed = allowed_stocks(cfg, lots)
-    button = cfg.get("mode") == "button"
+    button = cfg.get("mode") in ("button", "auto")   # кнопки закрытия и «Исполнить» после неудачи — в обоих режимах
+    auto = cfg.get("mode") == "auto"
     s42_state = json.loads((OUT / "s42_state.json").read_text(encoding="utf-8")) if (OUT / "s42_state.json").exists() else {}
     it_state = json.loads((OUT / "iterator_state.json").read_text(encoding="utf-8")) if (OUT / "iterator_state.json").exists() else {}
     sig42, pos42 = s42_signals(s42_state, allowed.get("S42", []))
@@ -501,7 +509,7 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
     take, alt = allocate(fresh, still, cfg, lots, stop_on, disabled, prices)
     for p in take:
         p.update({"статус": "к исполнению", "назначено": now})
-        msgs.append((msg_open(p, cfg), open_buttons(p) if button else None))
+        msgs.append((msg_open(p, cfg), open_buttons(p) if button and not auto else None))
     append_csv(ALT, [{**{k: s.get(k) for k in ("стратегия", "бумага", "вход_в", "цена", "стоп", "срок", "причина")}, "запуск": now}
                      for s in alt])
     if alt:                                    # ТЗ: о неоткрытии и причине; лимит сделок — отдельной тревогой
@@ -516,7 +524,7 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
 
     # 3. позиции у брокера: взятые сигналы исполнены ли (куплено руками — тоже видно)
     positions = still + take
-    if use_broker and cfg.get("mode") in ("manual", "button") and positions:
+    if use_broker and cfg.get("mode") in ("manual", "button", "auto") and positions:
         b = broker_view(lots, cfg.get("account"), sandbox=cfg.get("broker") == "sandbox")
         if b and "бумаги" in b:
             for p in positions:
@@ -622,8 +630,32 @@ def main(argv=None) -> int:
     for m, buttons in msgs:                    # сеть — уже без блокировки
         notify.send(m, buttons=buttons)
         print(m, "\n", flush=True)
+    if cfg.get("mode") == "auto" and not a.no_broker:
+        auto_open(now)
     print(summary)
     return 0
+
+
+class GroupSay:
+    """Сообщения в группу для исполнения без бота (то же, что Telegram.say бота: текст и кнопки)."""
+    def say(self, text: str, buttons=None) -> None:
+        notify.send(text, buttons=buttons)
+        print(text, "\n", flush=True)
+
+
+def auto_open(now: pd.Timestamp) -> None:
+    """mode: auto — сигналы этого часа покупаются сразу, тем же путём, что кнопка «Исполнить» (live_bot.do_open):
+    стоп-кран, срок, допуск проскальзывания, стоп и трейлинг у брокера, сообщения «⏳ Покупаю» и «✅ Куплено» / «❌ Не
+    исполнено» (тогда — с кнопками «Исполнить» / «Купил сам» / «Пропустить»). Ошибка одной бумаги не мешает остальным."""
+    import live_bot                            # здесь: live_bot сам импортирует этот модуль
+    with state_lock():
+        todo = [p for p in load_state()["позиции"] if p.get("статус") == "к исполнению" and p.get("назначено") == now]
+    say = GroupSay()
+    for p in todo:
+        try:
+            live_bot.do_open(say, pid(p), "автоматически")
+        except Exception as e:
+            say.say(f"❌ Автопокупка {p['стратегия']} {p['бумага']} не удалась: {str(e)[:300]}", buttons=open_buttons(p))
 
 
 if __name__ == "__main__":
