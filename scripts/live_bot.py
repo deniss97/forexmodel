@@ -106,6 +106,10 @@ configs/account.yaml (настройки), docs/results/inference_tz.md (как 
 docs/meetings/ (протоколы созвонов), docs/hypotheses.md (банк гипотез)."""
 
 
+MODES = {"auto": "автопокупка по сигналу (с уведомлением)", "button": "кнопки «Исполнить» / «Купил сам»",
+         "manual": "только уведомления"}
+
+
 def now() -> pd.Timestamp:
     return pd.Timestamp.now("Europe/Moscow").tz_localize(None).floor("s")
 
@@ -282,7 +286,7 @@ def status_text(cfg: dict) -> str:
     lines = [f"📊 Счёт · {t:%d.%m %H:%M}",
              f"Стоп-кран: {'ВКЛЮЧЁН ⛔ — новые сделки не открываются' if stop_on(cfg) else 'выключен ✅'}"
              + (f"\n  {la.STOP_FILE.read_text(encoding='utf-8').strip().splitlines()[0][:200]}" if la.STOP_FILE.exists() else ""),
-             f"Режим: {'кнопки «Исполнить» / «Купил сам»' if cfg.get('mode') == 'button' else cfg.get('mode')}, "
+             f"Режим: {MODES.get(cfg.get('mode'), cfg.get('mode'))}, "
              f"{'песочница' if cfg.get('broker') == 'sandbox' else 'боевой счёт'}; выходные: {'берём' if cfg.get('weekends', True) else 'без новых сигналов'}"]
     lots = {k: v["lot"] for k, v in json.loads((ROOT / cfg["lots_file"]).read_text()).items()}
     allowed = la.allowed_stocks(cfg, lots)
