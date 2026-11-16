@@ -116,6 +116,9 @@ tbody tr.exp:hover, tbody tr.exp[aria-selected="true"] { background: var(--accen
 .pos { color: var(--win); } .neg { color: var(--loss); }
 .nolog li { margin-bottom: 6px; color: var(--ink2); font-size: 13.5px; }
 .nolog a { color: var(--accent); }
+.nolog .nl-img summary { cursor: pointer; color: var(--accent); margin-top: 4px; }
+.nolog .nl-img img { display: block; width: 100%; max-width: 1100px; height: auto; margin: 8px 0; border: 1px solid var(--accent-soft); border-radius: 4px; }
+.nolog li.nl-hit { background: var(--accent-soft); padding: 6px 8px; border-radius: 6px; }
 .empty { padding: 24px; color: var(--ink2); text-align: center; }
 .kt { font: 500 11px var(--mono); border: 1px solid var(--rule); border-radius: 4px; padding: 0 5px; color: var(--ink2); }
 .kt.k-variation { color: var(--up); border-color: var(--up); }
@@ -586,9 +589,12 @@ h3 { font-size: 15px; }
     const na = R.experiments.filter((e) => e.archived).length;
     $("#arch-n").textContent = na ? `(${na})` : ""; $("#arch-box").hidden = !na;
     renderScopes(); renderRows();
-    $("#nolog").innerHTML = R.no_log.map((x) => `<li><b>${esc(x.title)}.</b> ${esc(x.result)} · <a href="${esc(x.doc)}" target="_blank" rel="noopener">подробно</a></li>`).join("");
+    $("#nolog").innerHTML = R.no_log.map((x) => `<li${x.id ? ` id="nl-${esc(x.id)}"` : ""}><b>${x.id ? esc(x.id) + " · " : ""}${esc(x.title)}.</b> ${esc(x.result)} · <a href="${esc(x.doc)}" target="_blank" rel="noopener">подробно</a>`
+      + (x.images && x.images.length ? `<details class="nl-img"><summary>картинки (${x.images.length})</summary>${x.images.map((src) => `<a href="${esc(src)}" target="_blank" rel="noopener"><img src="${esc(src)}" alt="" loading="lazy"></a>`).join("")}</details>` : "")
+      + `</li>`).join("");
     const h = (location.hash || "").slice(1);
     if (h && R.experiments.some((e) => e.id === h)) openDetail(h);
+    else if (h && $("#nl-" + h)) { const li = $("#nl-" + h); li.classList.add("nl-hit"); const d = li.querySelector("details"); if (d) d.open = true; li.scrollIntoView({ block: "start" }); }
   }).catch(() => { $("#rows").innerHTML = `<tr><td colspan="11" class="empty">Не удалось загрузить журнал. Обновите страницу.</td></tr>`; });
 })();
 </script>

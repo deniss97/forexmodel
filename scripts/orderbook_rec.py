@@ -106,7 +106,7 @@ def main() -> int:
         last = man.get("_alert")
         if not last or time.time() - float(last) > 6 * 3600:
             import notify  # noqa: PLC0415
-            notify.send("⚠️ Запись стакана (Т-Инвестиции → Яндекс Диск):\n" + "\n".join(errors[:10]))
+            notify.send("⚠️ Запись стакана (Т-Инвестиции → Яндекс Диск):\n" + "\n".join(errors[:10]), channel="research")
             man["_alert"] = time.time()
     MANIFEST.write_text(json.dumps(man, ensure_ascii=False, indent=1))
     return 0

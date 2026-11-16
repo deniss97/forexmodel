@@ -159,7 +159,7 @@ def main(argv=None) -> int:
             sys.path.insert(0, str(Path(__file__).parent))
             import notify
             notify.send("⚠️ Лента Т-Инвестиций (раз в сутки на Яндекс Диск):\n" + "\n".join(errors[:10])
-                        + "\nПовтор — следующей ночью.")
+                        + "\nПовтор — следующей ночью.", channel="research")
     return 1 if errors else 0
 
 

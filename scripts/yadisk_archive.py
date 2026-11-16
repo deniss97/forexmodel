@@ -122,7 +122,7 @@ def main(argv=None) -> int:
     n, errors = run(a.dry_run)
     print(f"[архив] {'было бы выгружено' if a.dry_run else 'выгружено'} файлов: {n}; ошибок: {len(errors)}", flush=True)
     if errors and not a.dry_run:
-        notify.send("⚠️ Архив минуток на Яндекс Диск не обновлён:\n" + "\n".join(errors[:10]) + "\nКонтур работает: данные на сервере целы.")
+        notify.send("⚠️ Архив минуток на Яндекс Диск не обновлён:\n" + "\n".join(errors[:10]) + "\nКонтур работает: данные на сервере целы.", channel="research")
     return 1 if errors else 0
 
 
