@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Отчёт № 7 · 10.11–16.11.2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=block" rel="stylesheet">
+<style>
+:root { --ink: #15233b; --ink2: #4a5568; --muted: #7a8391; --line: #e2ddd2; --paper: #f6f4ef;
+  --blue: #2459b3; --blue-soft: #e6edf8; --orange: #a9521a; --green: #1e7a4f; --green-soft: #e3f2ea; --red: #b3261e; --red-soft: #fbe9e7; }
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 19px/1.45 "IBM Plex Sans", "DejaVu Sans", sans-serif; color: var(--ink); background: var(--paper); }
+.slide { width: 1280px; height: 720px; padding: 50px 64px 40px; position: relative; overflow: hidden; break-after: page; background: var(--paper); display: flex; flex-direction: column; }
+.slide:last-child { break-after: auto; }
+h1, h2 { font-family: "Manrope", sans-serif; letter-spacing: -0.015em; margin: 0; }
+h2 { font-size: 36px; font-weight: 800; line-height: 1.12; margin-bottom: 8px; }
+.kicker { font: 600 13px "IBM Plex Sans", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--orange); margin-bottom: 10px; }
+.lead { font-size: 20px; color: var(--ink2); margin: 0 0 14px; max-width: 1120px; }
+.foot { position: absolute; left: 64px; right: 64px; bottom: 16px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+img.chart { width: 100%; border-radius: 6px; }
+code { font-family: "JetBrains Mono", monospace; font-size: .85em; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+b { font-weight: 600; }
+ul { margin: 0; padding-left: 22px; } li { margin: 0 0 7px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.note { font-size: 17px; color: var(--ink2); }
+.cover { background: var(--ink); color: #fff; padding: 70px 80px; }
+.cover::after { content: ""; position: absolute; right: -160px; top: -160px; width: 620px; height: 620px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(36,89,179,.6), rgba(36,89,179,0) 70%); }
+.cover .kicker { color: #f0b48a; }
+.cover h1 { font-size: 62px; font-weight: 800; line-height: 1.04; margin: 22px 0 22px; max-width: 980px; position: relative; z-index: 1; }
+.cover .sub { font-size: 23px; color: #c9d3e3; max-width: 940px; position: relative; z-index: 1; }
+.cover .meta { margin-top: auto; display: flex; gap: 14px; position: relative; z-index: 1; }
+.pill { border: 1px solid rgba(255,255,255,.3); border-radius: 30px; padding: 7px 18px; font-size: 16px; color: #e8edf5; }
+.bs { display: grid; grid-template-columns: 210px 1fr 1fr; border-top: 2px solid var(--ink); }
+.bs > div { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
+.bs .h { font: 600 13px "IBM Plex Sans"; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
+.bs .k { font-weight: 600; }
+.bs.tight > div { padding: 8px 16px 8px 0; font-size: 17px; }
+.bs .now { color: var(--ink); } .bs .was { color: var(--ink2); }
+.tag { display: inline-block; font: 600 13px "IBM Plex Sans"; border-radius: 4px; padding: 1px 7px; margin-right: 6px; }
+.tag.g { background: var(--green-soft); color: var(--green); } .tag.r { background: var(--red-soft); color: var(--red); } .tag.b { background: var(--blue-soft); color: var(--blue); }
+table { border-collapse: collapse; width: 100%; font-size: 16.5px; }
+th { text-align: left; font: 600 12.5px "IBM Plex Sans"; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 6px 12px 6px 0; }
+td { border-bottom: 1px solid var(--line); padding: 7px 12px 7px 0; vertical-align: top; }
+td.d { white-space: nowrap; font-weight: 600; width: 78px; }
+.box { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 14px 20px; font-size: 17.5px; }
+.box.r { border-left: 5px solid var(--red); } .box.g { border-left: 5px solid var(--green); } .box.b { border-left: 5px solid var(--blue); }
+.big { font: 800 44px "Manrope"; line-height: 1; margin-bottom: 6px; }
+.big.r { color: var(--red); } .big.g { color: var(--green); } .big.b { color: var(--blue); }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 12px; }
+.grid2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; margin-top: 10px; }
+</style>
+</head><body>
+<section class="slide cover">
+  <div class="kicker">forexmodel · еженедельный отчёт № 7</div>
+  <h1>Робот сам покупает по сигналу, гипотезы идут через банк</h1>
+  <div class="sub">10.11 – 16.11.2026. С 11.11 счёт работает в режиме auto: S42 купил SBER и GAZP через API за 27–57 секунд после сигнала. Сверка с бэктестом сама остановила S48 на бумаге (11 убытков подряд). Процесс проверки 2.0 заработал целиком: план в банке → подтверждение автора → расчёт → итог в банк и в группу, обход дважды в день. Копим свои данные: лента сделок и стакан 21 акции на Яндекс Диске. По планам проверены H40 — нет, H74 — ждёт оценки на глаз, H90 — нет, H89 (нефть) — первый заход.</div>
+  <div class="meta"><span class="pill">10.11 – 16.11.2026</span><span class="pill">счёт 15 000 ₽ · S42 · auto</span><span class="pill">созвоны 10.11, 11.11, 12.11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Главное</div>
+  <h2>Было → стало за неделю</h2>
+  <div class="bs tight" style="margin-top:6px">
+    <div class="h"></div><div class="h">было 09.11</div><div class="h">стало 16.11</div>
+    <div class="k">Сделки на счёте</div><div class="was">1 пробная (06.11, 1 лот, по кнопке)</div><div class="now"><span class="tag g">2 настоящие</span>11.11 S42: SBER 16 шт. и GAZP 30 шт., куплено роботом без кнопки</div>
+    <div class="k">Покупка</div><div class="was">«Исполнить» нажимает человек</div><div class="now"><span class="tag b">mode: auto</span>заявка уходит сама, в группу — уведомление; ошибка «цена = сумма заявки» найдена и исправлена в тот же день</div>
+    <div class="k">S46 / S48 (бумага)</div><div class="was">8 из 8 в минус к 02.11</div><div class="now"><span class="tag r">S48 — стоп</span>сверка: 11 сделок подряд в минус, −25%, p = 0.001; S46 в норме (8 сделок, −3.3%)</div>
+    <div class="k">Как проверяем гипотезы</div><div class="was">считал сам, не видно, что проверено</div><div class="now"><span class="tag g">процесс 2.0</span>план и вопросы в банке → автор подтверждает → расчёт → итог с графиками в банк и в группу</div>
+    <div class="k">Свои данные</div><div class="was">лента ISS каждые 15 мин</div><div class="now"><span class="tag g">+ 2 потока</span>лента Т-Инвестиций (21 акция, каждый день) и стакан 21 акции раз в 15 с — всё на Диске</div>
+    <div class="k">Гипотезы по планам</div><div class="was">0 подтверждённых планов</div><div class="now"><span class="tag r">H40 нет</span><span class="tag r">H90 нет</span><span class="tag b">H74 ждёт</span><span class="tag b">H89 первый заход</span></div>
+    <div class="k">Планы ждут ответов</div><div class="was">—</div><div class="now"><span class="tag b">7 планов</span>Тимуру — H39, H64, H78, H87, H93 и оценка фигур H74; Денису и Тагиру — H91, H92</div>
+  </div>
+  <div class="foot"><span>Отчёт № 7 · 10.11–16.11.2026</span><span>2</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Что сделали</div>
+  <h2>По дням</h2>
+  <table style="margin-top:4px; font-size:14.5px">
+    <tr><th>дата</th><th>что</th><th>зачем</th></tr>
+    <tr><td class="d">10.11</td><td>Созвон 37 мин: процесс проверки 2.0, уровни объёма — признак модели, а не сигнал; 9 задач Тимура</td><td>видеть, что именно проверено</td></tr>
+    <tr><td class="d">11.11</td><td>Созвон 14 мин (календарь — «стопудовая фича», связь нефтегаза, резкие движения LKOH). Режим auto: S42 купил SBER и GAZP через API. Исправлена цена исполнения (бралась сумма заявки)</td><td>решение Дениса: открывать по сигналу автоматически</td></tr>
+    <tr><td class="d">12.11</td><td>Созвон 5 мин: план и вопросы — в банке, подтверждает автор. Блок плана в банке, планы H40, H89, H90, задачи T62–T70. Лента Т-Инвестиций 21 акции → Диск (сертификат Минцифры)</td><td>своя лента сделок после 06.04.2026</td></tr>
+    <tr><td class="d">13.11</td><td>Обход банка: облачная задача (банк) ↔ ветка <code>bank-sync</code> ↔ сервер (данные и расчёт), будильник с сервера</td><td>банк виден только из облака, данные — только на сервере</td></tr>
+    <tr><td class="d">14.11</td><td>Приложение Claude на GitHub — цепочка заработала. Стакан 21 акции раз в 15 с → Диск. Часовой кеш 19 акций, образцы графиков, «зёрна» в банке, H91–H93. <b>H40 — нет</b></td><td>копить данные о заявках вместо покупки архива</td></tr>
+    <tr><td class="d">15.11</td><td>Тимур подтвердил планы H74, H89, H90</td><td>можно считать</td></tr>
+    <tr><td class="d">16.11</td><td><b>H74</b> посчитана сервером (ждёт оценки на глаз), страница H84 обновлена, <b>H90 — нет</b>, <b>H89 — первый заход по нефти</b>, график реальных сделок, проверка стакана</td><td>итоги недели к отчёту</td></tr>
+  </table>
+  <div class="foot"><span>docs/meetings/2026-11-10_timur.md · 2026-11-11_timur.md · 2026-11-12_timur.md</span><span>3</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Счёт</div>
+  <h2>Первые сделки на реальные деньги: робот купил сам</h2>
+  <p class="lead" style="font-size:17px;margin-bottom:6px">S42 · SBER: сигнал за час 17:00 → куплено через API в 17:00:57 по 298.17 (контур 298.00, +0.06%). GAZP: 18:00:27 по 116.96 (+0.17%). Стопы и трейлинг стоят у брокера. Сейчас SBER −0.77% (−37 ₽), GAZP −1.43% (−50 ₽); закрыть не позже 21.11.</p>
+  <img class="chart" src="live_trades.png" style="height:520px;width:auto;align-self:center">
+  <div class="foot"><span>scripts/live_trades_week.py · сделки — reports/live/account_state.json</span><span>4</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Бумажный режим и сверка</div>
+  <h2>Сверка остановила S48: 11 убытков подряд</h2>
+  <p class="lead">Сделки стратегий на живых данных с 24.10 против бэктеста тех же стратегий на тех же бумагах (2021–2026). Сверка каждый день решает: «в норме», «внимание» (p &lt; 5%) или «стоп» (p &lt; 1%).</p>
+  <table style="font-size:18px">
+    <tr><th>стратегия</th><th>сделок</th><th>средняя, %</th><th>в бэктесте, %</th><th>сумма, %</th><th>p</th><th>статус</th></tr>
+    <tr><td><b>S42</b> (счёт)</td><td>3</td><td>−2.36</td><td>+0.40</td><td>−7.1</td><td>—</td><td><span class="tag b">мало сделок</span></td></tr>
+    <tr><td><b>S46</b> пробой 55 дней</td><td>8</td><td>−0.41</td><td>+0.36</td><td>−3.3</td><td>0.30</td><td><span class="tag g">в норме</span></td></tr>
+    <tr><td><b>S48</b> пробой 20 дней</td><td>11</td><td>−2.28</td><td>+0.32</td><td>−25.1</td><td>0.001</td><td><span class="tag r">стоп</span></td></tr>
+  </table>
+  <div class="cols" style="margin-top:18px">
+    <div class="box r"><b>S48:</b> все 11 сделок в минус на 8 бумагах (RTKM три раза, AFLT дважды). Механизм стоп-крана сработал как задумано: сигналы S48 на счёт не берутся (<code>strategy_stop.json</code>).</div>
+    <div class="box b"><b>Что решить:</b> S48 и S46 — пробои на 19 акциях; в ноябре рынок без трендов, пробои ложные. Вернуть S48 после 20 сделок без серии убытков или убрать совсем? На счёте сейчас только S42.</div>
+  </div>
+  <div class="foot"><span>reports/live/deviation.md (на 15.11) · iterator_journal.csv: S46/S48 с 26.10 — 19 закрытых, 3 в плюсе</span><span>5</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Процесс 2.0</div>
+  <h2>Каждая гипотеза: план → подтверждение → расчёт → итог</h2>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:14px">
+    <div class="box b"><b>1. Карточка</b><br>идея — только в банк, со статусом «новая»; свои идеи Claude — тоже карточкой</div>
+    <div class="box b"><b>2. План</b><br>Claude пишет простыми словами: данные, шаги, график, что значит «да», и 2–4 вопроса</div>
+    <div class="box g"><b>3. Подтверждение</b><br>автор отвечает на вопросы и жмёт «Подтвердить план»</div>
+    <div class="box b"><b>4. Расчёт</b><br>на сервере, строго по плану и ответам; «начинаю» — в группу</div>
+    <div class="box g"><b>5. Итог</b><br>в банк: вывод, «как проверяли», графики, зерно; ответом в группу</div>
+  </div>
+  <div class="cols" style="margin-top:22px">
+    <div><ul class="note">
+      <li><b>Обход дважды в день</b> (09:10 и 19:10 МСК): облако пишет планы и итоги в банк, подтверждённые планы кладёт в очередь</li>
+      <li><b>Сервер</b> (09:40 и 19:40 МСК) считает одно задание из очереди и возвращает итог через ветку <code>bank-sync</code></li>
+      <li>Первый полный оборот — H40 (14.11), затем H74 (16.11)</li>
+    </ul></div>
+    <div><ul class="note">
+      <li><b>«Зерно»</b> — полезное наблюдение из каждой проверки, даже отрицательной; вкладка «Зёрна», уже 12 штук</li>
+      <li><b>Образцы графиков</b>: «событие» (путь цены до и после), «признак» (10 корзин и доходность вперёд), сделки на свечах, разбивка по годам</li>
+    </ul></div>
+  </div>
+  <div class="foot"><span>scripts/queues/bank_round_cloud_prompt.md · bank_round.sh · bank_round_prompt.md</span><span>6</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Свои данные</div>
+  <h2>Копим то, что нельзя скачать задним числом</h2>
+  <div class="kpis">
+    <div class="box"><div class="big b">21</div>акция — лента сделок Т-Инвестиций с 07.04.2026, каждый день в 06:15 на Диск</div>
+    <div class="box"><div class="big b">4/мин</div>снимков стакана по 21 акции, глубина 20 уровней; законченный час — сразу на Диск</div>
+    <div class="box"><div class="big g">100%</div>снимков в будни: 240 в час на бумагу, 5040 строк в час; 16.11 — ни одного пропуска</div>
+  </div>
+  <div class="cols" style="margin-top:20px">
+    <div class="box b"><b>Объём:</b> будний день ≈ 6 МБ, выходной ≈ 3 МБ, месяц ≈ 130 МБ. На Диске сейчас 47 часов (10 МБ). В выходные на 9-м и 23-м часу не хватает ~10 минут — пауза торгов выходного дня.</div>
+    <div class="box"><b>Зачем:</b> гипотезы о стакане и плотностях (после H83 и H88) — считать, когда наберётся месяц записи, то есть с середины декабря. Архив Мосбиржи «тип А» не покупаем.</div>
+  </div>
+  <div class="foot"><span>scripts/tinvest_tape.py · scripts/orderbook_rec.py · yadisk:forexmodel/стакан/2026/</span><span>7</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H40 · план 14.11 · <span style="color:var(--red)">нет</span></div>
+  <h2>Сделки под большим уровнем объёма идут не хуже остальных</h2>
+  <p class="lead" style="font-size:17px">3596 сделок S42, S46, S48 и модели LKOH за 2022–2026: PF 1.06 под уровнем против 1.13 у остальных, знак разницы меняется от половины к половине у всех трёх стратегий, перестановочный тест p = 0.74. У 73% входов большого уровня по ходу вообще нет — стратегии входят на пробое, выше накопленного объёма.</p>
+  <img class="chart" src="h40_groups.png" style="height:410px;width:auto;align-self:center">
+  <div class="foot"><span>Зерно: объём часа входа в профиль брать нельзя — пробой рисует «уровень» на цене входа · docs/results/h40_trades.md</span><span>8</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H74 · план 15.11 · <span style="color:var(--blue)">ждёт оценки на глаз</span></div>
+  <h2>Разметка фигур работает; после пробоя лучше рынка — только двойное дно</h2>
+  <p class="lead" style="font-size:16.5px">Дневные свечи 19 акций, 2015–2026. Книжные пороги почти пусты (флаг «+90% за 1–2 месяца» — 3 случая за 11 лет). На ослабленных порогах — 762 фигуры, 381 на выборе и 381 на проверке. Двойное дно: +2.2 ATR за 72 ч в обеих половинах проверки; флаг и bump-and-run — заметно хуже обычного часа.</p>
+  <img class="chart" src="h74_forward.png" style="height:330px;width:auto;align-self:center">
+  <div class="box b" style="margin-top:8px;font-size:16px"><b>Нужно от Тимура и Тагира:</b> страница с 208 примерами (<code>docs/results/h74_patterns/patterns.html</code>) — кнопки «фигура / не фигура», по плану нужно ≥ 80% «фигура». Код Тагира на сервер не попал — сравнить разметки, когда пришлёт.</div>
+  <div class="foot"><span>docs/results/h74_patterns.md</span><span>9</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H90 · план 15.11 · <span style="color:var(--red)">нет</span></div>
+  <h2>Соседи по нефтегазу не догоняют резкий ход одной бумаги</h2>
+  <div class="cols" style="grid-template-columns:1.25fr 1fr;align-items:start">
+    <img class="chart" src="h90_paths.png">
+    <ul style="font-size:16.5px;margin-top:4px">
+      <li>Толчок: бумага за 15 мин ≥ 1 / 1.5 / 2%, остальные пять — нет. Минутки 2016–2026.</li>
+      <li>Соседи идут <b>вместе</b> с толчком (+0.2–0.3% за те же 15 мин), а после стоят: за час −0.04…+0.07% при толчке 2.3–2.7% — догон 0–3%, нужна была треть.</li>
+      <li>«Купить отстающего соседа через 2–5 мин, выйти через час»: на выборе PF 0.69–1.00, на проверке 0.82–0.89. Средняя без издержек +0.04–0.10% меньше комиссии 0.1%. Лонг — хуже.</li>
+      <li>«Бумага разошлась с сектором» (вопрос Тимура): выбор PF 1.88, проверка 1.09 и 0.94.</li>
+    </ul>
+  </div>
+  <div class="foot"><span>Зерно: соседство работает только одновременно — признак «сектор уже сдвинулся» для модели как фон часа, не опережающий · docs/results/h90_sector.md</span><span>10</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H89 · план 15.11 · первый заход: нефть · <span style="color:var(--blue)">ждёт</span></div>
+  <h2>Отчёт EIA о запасах нефти: на акциях ничего полезного</h2>
+  <div class="cols" style="grid-template-columns:1.3fr 1fr;align-items:start">
+    <img class="chart" src="h89_profile.png">
+    <ul style="font-size:15.5px;margin-top:2px">
+      <li>567 отчётов EIA с 2016 года (среда 17:30 МСК летом, 18:30 зимой) — даты и запасы из открытой таблицы EIA.</li>
+      <li>Размах после отчёта выше обычного в 1.0–1.2 раза, но у SBER и VTBR — столько же: оживление всего рынка, а не нефтянки.</li>
+      <li>Всплеск первых 5 минут (~1.3–1.4 раза) был в 2016–2020, в 2021–2026 его нет.</li>
+      <li>Направление не угадывается: «за первыми 5 минутами» PF 0.37–0.79.</li>
+      <li>Фильтр «не входить за сутки до отчёта»: S42 1.32→1.28 и 1.11→1.15, S46 и S48 — тоже вразнобой; режет 16–22% сделок. <b>Нет.</b></li>
+      <li><b>Не посчитано:</b> сама нефть (BR есть в ленте ALGOPACK, выгрузка 222 дней — 15–20 ч) и ОПЕК+ (нужна история investing.com).</li>
+    </ul>
+  </div>
+  <div class="foot"><span>Зерно: еженедельные события как фильтр не годятся — режут каждую пятую сделку · docs/results/h89_oil.md</span><span>11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Ждут ответов</div>
+  <h2>Без ответа автора гипотезу не считаем</h2>
+  <table style="font-size:16px">
+    <tr><th>кто</th><th>гипотеза</th><th>что нужно</th></tr>
+    <tr><td class="d">Тимур</td><td><b>H74</b> подбор разметки фигур</td><td>оценить 208 примеров на странице (вместе с Тагиром)</td></tr>
+    <tr><td class="d">Тимур</td><td><b>H39</b> обучение на размеченных ситуациях и фигурах</td><td>4 вопроса к плану; после H74 — какие фигуры брать</td></tr>
+    <tr><td class="d">Тимур</td><td><b>H64</b> обучение на нейросети</td><td>план продолжения, 3 вопроса</td></tr>
+    <tr><td class="d">Тимур</td><td><b>H78</b> следовать за трейдерами: Telegram, Пульс, портфели</td><td>4 вопроса: какие каналы, как отбирать</td></tr>
+    <tr><td class="d">Тимур</td><td><b>H93</b> «таблица поводырей»: держат ли уровни трейдера</td><td>3 вопроса по таблице ссылок 12.11</td></tr>
+    <tr><td class="d">Тимур</td><td><b>H87</b> «ширина импульса» (скептик к H09)</td><td>план продолжения: досчитать на свежих данных?</td></tr>
+    <tr><td class="d">Денис</td><td><b>H91</b> резкие движения: что отличает продолжившиеся</td><td>3 вопроса к плану</td></tr>
+    <tr><td class="d">Денис / Тагир</td><td><b>H92</b> резкие движения и режим рынка до и после 2022</td><td>3 вопроса к плану</td></tr>
+  </table>
+  <div class="foot"><span>Банк гипотез — фильтр «план ждёт подтверждения»</span><span>12</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Планы</div>
+  <h2>Неделя 17.11 – 23.11</h2>
+  <div class="cols">
+    <div><ul>
+      <li><b>Счёт:</b> довести SBER и GAZP до выхода (не позже 21.11), разобрать каждую сделку; решить судьбу S48</li>
+      <li><b>H89 дальше:</b> нефть сама (BR из ленты ALGOPACK — выгрузка в фоне ночью), ОПЕК+ и сохранённая история календаря investing.com</li>
+      <li><b>Планы ждут ответов</b> — 8 строк на прошлом слайде; как подтвердят — сервер считает в ближайший обход</li>
+    </ul></div>
+    <div><ul>
+      <li><b>H74 → H39:</b> после оценки Тимура и Тагира — фигуры как признак модели (двойное дно)</li>
+      <li><b>Стакан:</b> копим до середины декабря, потом гипотезы о плотностях</li>
+      <li><b>Терминал MOEX:</b> посмотреть у Тимура по показу экрана, потом Wine или облачная Windows</li>
+      <li><b>Материалы Тимура</b> по вертикальному и горизонтальному объёму — в банк карточкой</li>
+    </ul></div>
+  </div>
+  <div class="foot"><span>Отчёт № 7 · 10.11–16.11.2026</span><span>13</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">Где всё лежит</div>
+  <h2>Файлы недели</h2>
+  <table style="font-size:16px">
+    <tr><th>что</th><th>где</th></tr>
+    <tr><td>H40 — сделки под уровнем объёма</td><td><code>docs/results/h40_trades.md</code></td></tr>
+    <tr><td>H74 — разметка фигур, страница для оценки</td><td><code>docs/results/h74_patterns.md</code>, <code>h74_patterns/patterns.html</code></td></tr>
+    <tr><td>H90 — соседи по сектору</td><td><code>docs/results/h90_sector.md</code></td></tr>
+    <tr><td>H89 — календарь, нефть</td><td><code>docs/results/h89_oil.md</code>, даты отчётов EIA — <code>data/calendar/eia_wpsr_releases.csv</code></td></tr>
+    <tr><td>Реальные сделки, сверка</td><td><code>docs/results/weekly/2026-11-16/live_trades.*</code>, <code>reports/live/deviation.md</code></td></tr>
+    <tr><td>Процесс 2.0</td><td><code>scripts/queues/bank_round*.{sh,md}</code>, ветка <code>bank-sync</code></td></tr>
+    <tr><td>Лента и стакан</td><td>Яндекс Диск: <code>forexmodel/лента Т-Инвестиций/</code>, <code>forexmodel/стакан/</code></td></tr>
+    <tr><td>Журнал экспериментов</td><td><code>docs/experiments/catalog.yaml</code> (раздел no_log)</td></tr>
+  </table>
+  <div class="foot"><span>Отчёт № 7 · 10.11–16.11.2026</span><span>14</span></div>
+</section>
+</body></html>
