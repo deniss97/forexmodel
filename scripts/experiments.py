@@ -175,6 +175,13 @@ def write_bank_digest(reg: dict) -> None:
                      "baseline": e.get("baseline"), "verdict": e.get("verdict", ""), "outcome": e.get("outcome", ""),
                      "kind": e.get("kind", "clean"), "archived": e.get("archived", ""),
                      "scope": reg["names"].get(e["main"], e["main"]), "m": pick(r.get("m")), "b": pick(r.get("b"))})
+    for x in reg.get("no_log", []):          # проверки без журнала сделок с адресом (#H40): ссылка из карточки банка
+        if x.get("id"):
+            hc = x["id"] if x["id"].upper().startswith("H") else None
+            rows.append({"id": x["id"], "family": "", "title": x["title"], "hypothesis": hc, "baseline": None,
+                         "verdict": "без журнала сделок" + (f", картинок {len(x['images'])}" if x.get("images") else ""),
+                         "outcome": x.get("result", ""), "kind": "no_log", "archived": "",
+                         "scope": "раздел «Проверено без журнала сделок»", "m": None, "b": None})
     BANK.write_text(json.dumps({"updated": reg.get("updated") or now_utc(), "families": reg["families"], "kinds": KINDS, "experiments": rows}, ensure_ascii=False,
                                separators=(",", ":")), encoding="utf-8")
 
@@ -352,11 +359,26 @@ def main(argv=None) -> int:
     out = {"updated": stamp, "protocol": {"test_start": "2021-01-01", "periods": list(PERIODS)}, "families": cat["families"], "names": NAMES, "kinds": KINDS,
            "hypotheses": hypotheses_for({e["hypothesis"] for e in entries if e.get("hypothesis")}),
            "experiments": entries,
-           "no_log": [{**x, "doc": GH + x["doc"]} for x in cat.get("no_log", [])]}
+           "no_log": [no_log_entry(x) for x in cat.get("no_log", [])]}
     (SITE / "registry.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     write_bank_digest(out)
     print(f"готово: {len(cards)} пересчитано, в реестре {len(entries)} → {DOC.relative_to(ROOT)}")
     return 0
+
+
+def no_log_entry(x: dict) -> dict:
+    """Проверка без журнала сделок: ссылка на отчёт на GitHub; картинки (images, пути от docs/) копируются в
+    data/img/<id>/ — страница журнала показывает их сама (созвон 17.11: результат с картинкой — в журнале)."""
+    out = {**x, "doc": GH + x["doc"]}
+    if x.get("images"):
+        dst = SITE / "img" / x["id"]
+        dst.mkdir(parents=True, exist_ok=True)
+        out["images"] = []
+        for rel in x["images"]:
+            src = ROOT / "docs" / rel
+            (dst / src.name).write_bytes(src.read_bytes())
+            out["images"].append(f"data/img/{x['id']}/{src.name}")
+    return out
 
 
 if __name__ == "__main__":

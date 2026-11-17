@@ -208,7 +208,7 @@ def alert(errors: list[str], manifest: dict) -> None:
         return
     import notify
     notify.send("⚠️ Лента сделок Мосбиржи (сбор каждые 15 мин, выгрузка на Яндекс Диск):\n" + "\n".join(errors[:10])
-                + "\nНевыгруженные дни лежат на сервере, повтор — автоматически.")
+                + "\nНевыгруженные дни лежат на сервере, повтор — автоматически.", channel="research")
     manifest["_alert"] = pd.Timestamp.now().isoformat(timespec="seconds")
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")

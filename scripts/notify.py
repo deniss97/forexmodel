@@ -5,6 +5,13 @@ reports/live/notifications.log, в Telegram — если задан бот.
     token: "123456789:AA..."
     chat_id: 123456789          # свой id (написать боту и открыть https://api.telegram.org/bot<токен>/getUpdates) или id группы
 Без файла сообщения только пишутся в журнал. Проверка: python scripts/notify.py "проверка связи".
+
+Два канала (созвон 17.11: сделки и гипотезы — в разные чаты):
+    trade    — сделки, стопы, счёт, сверка с бэктестом, команды бота (token / chat_id верхнего уровня);
+    research — гипотезы (hyp_post.py), отчёты (send_doc.py), сбои сбора данных (лента, стакан, архив). Секция
+               research: {chat_id: …, token: …} в том же файле; token можно не задавать — тогда пишет тот же бот
+               (его надо добавить в новый чат). Пока секции нет, research уходит в торговый чат.
+    python scripts/notify.py --research "проверка связи"
 Кнопки под сообщением (buttons — ряды пар «надпись, данные») нажимают в группе; нажатия разбирает бот scripts/live_bot.py.
 """
 from __future__ import annotations
@@ -29,29 +36,42 @@ def _log(text: str, sent: bool) -> None:
         fh.write(f"--- {stamp} {'отправлено' if sent else 'не отправлено (нет бота или ошибка)'}\n{text}\n")
 
 
+def target(channel: str = "trade") -> tuple[str, int | str] | None:
+    """(токен, chat_id) канала; None — бот не настроен. research без своей секции — торговый чат."""
+    cfg = yaml.safe_load(CFG.read_text(encoding="utf-8")) if CFG.exists() else None
+    if not cfg or not cfg.get("token") or not cfg.get("chat_id"):
+        return None
+    if channel == "research":
+        r = cfg.get("research") or {}
+        return r.get("token") or cfg["token"], r.get("chat_id") or cfg["chat_id"]
+    return cfg["token"], cfg["chat_id"]
+
+
 def keyboard(buttons: list[list[tuple[str, str]]]) -> dict:
     """[[("✅ Исполнить", "x:…"), …], …] → reply_markup Telegram (данные кнопки — до 64 байт)."""
     return {"inline_keyboard": [[{"text": t, "callback_data": d[:64]} for t, d in row] for row in buttons]}
 
 
-def send(text: str, retries: int = 3, buttons: list[list[tuple[str, str]]] | None = None) -> bool:
+def send(text: str, retries: int = 3, buttons: list[list[tuple[str, str]]] | None = None,
+         channel: str = "trade") -> bool:
     """Сообщение в Telegram; True — доставлено. Несколько попыток (ТЗ: при сбое — повтор), всё — в журнал."""
-    return send_id(text, retries, buttons) is not None
+    return send_id(text, retries, buttons, channel=channel) is not None
 
 
 def send_id(text: str, retries: int = 3, buttons: list[list[tuple[str, str]]] | None = None,
-            reply_to: int | None = None) -> int | None:
+            reply_to: int | None = None, channel: str = "trade") -> int | None:
     """Как send, но возвращает номер сообщения (message_id) или None; reply_to — ответить на сообщение группы."""
-    cfg = yaml.safe_load(CFG.read_text(encoding="utf-8")) if CFG.exists() else None
+    t = target(channel)
     mid = None
-    if cfg and cfg.get("token") and cfg.get("chat_id"):
-        msg = {"chat_id": cfg["chat_id"], "text": text[:4000], "disable_web_page_preview": True}
+    if t:
+        token, chat = t
+        msg = {"chat_id": chat, "text": text[:4000], "disable_web_page_preview": True}
         if buttons:
             msg["reply_markup"] = keyboard(buttons)
         if reply_to:
             msg["reply_parameters"] = {"message_id": int(reply_to), "allow_sending_without_reply": True}
         body = json.dumps(msg).encode()
-        req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['token']}/sendMessage", body,
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", body,
                                      {"Content-Type": "application/json"})
         for k in range(retries):
             try:
@@ -62,24 +82,26 @@ def send_id(text: str, retries: int = 3, buttons: list[list[tuple[str, str]]] | 
                     break
             except Exception:                    # сеть, ограничение частоты — повтор с паузой
                 time.sleep(3 * (k + 1))
-    _log(text, mid is not None)
+    _log(f"[{channel}] {text}" if channel != "trade" else text, mid is not None)
     return mid
 
 
-def photo(path: Path, caption: str = "", retries: int = 3, reply_to: int | None = None) -> bool:
+def photo(path: Path, caption: str = "", retries: int = 3, reply_to: int | None = None,
+          channel: str = "trade") -> bool:
     """Картинка в группу (sendPhoto, multipart без внешних библиотек); True — доставлено. В журнал — подпись.
     reply_to — ответить на сообщение группы (номер сообщения)."""
-    cfg = yaml.safe_load(CFG.read_text(encoding="utf-8")) if CFG.exists() else None
+    t = target(channel)
     ok = False
-    if cfg and cfg.get("token") and cfg.get("chat_id"):
+    if t:
+        token, chat = t
         boundary = "----forexmodel" + str(int(time.time() * 1000))
         parts = [(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n').encode()
-                 for k, v in (("chat_id", cfg["chat_id"]), ("caption", caption[:1000]),
+                 for k, v in (("chat_id", chat), ("caption", caption[:1000]),
                               *((("reply_to_message_id", int(reply_to)),) if reply_to else ()))]
         parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="photo"; filename="{Path(path).name}"\r\n'
                        f'Content-Type: image/png\r\n\r\n').encode() + Path(path).read_bytes() + b"\r\n")
         body = b"".join(parts) + f"--{boundary}--\r\n".encode()
-        req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['token']}/sendPhoto", body,
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendPhoto", body,
                                      {"Content-Type": f"multipart/form-data; boundary={boundary}"})
         for k in range(retries):
             try:
@@ -88,9 +110,12 @@ def photo(path: Path, caption: str = "", retries: int = 3, reply_to: int | None 
                     break
             except Exception:
                 time.sleep(3 * (k + 1))
-    _log(f"[картинка {Path(path).name}] {caption}", ok)
+    _log(f"[{channel}] [картинка {Path(path).name}] {caption}" if channel != "trade" else f"[картинка {Path(path).name}] {caption}", ok)
     return ok
 
 
 if __name__ == "__main__":
-    print("доставлено" if send(" ".join(sys.argv[1:]) or "проверка связи") else f"не доставлено — см. {LOG.relative_to(ROOT)}")
+    args = sys.argv[1:]
+    ch = "research" if args[:1] == ["--research"] else "trade"
+    args = args[1:] if ch == "research" else args
+    print("доставлено" if send(" ".join(args) or "проверка связи", channel=ch) else f"не доставлено — см. {LOG.relative_to(ROOT)}")

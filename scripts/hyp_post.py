@@ -1,4 +1,5 @@
-"""Сообщения в группу проекта о работе над гипотезами (просьба Дениса 12.11).
+"""Сообщения о работе над гипотезами (просьба Дениса 12.11) — в исследовательский чат (канал research, notify.py;
+созвон 17.11: гипотезы отдельно от сделок).
 
 * start  — «начинаю гипотезу Hxx»: подробное описание простыми словами (то, что подтверждено в плане банка);
 * result — итог ответом (reply) на сообщение start этой гипотезы, с картинками, если есть;
@@ -62,20 +63,26 @@ def main(argv=None) -> int:
 
     reply = None
     if a.kind == "result":
-        reply = (store.get(code) or {}).get("start")
+        rec0 = store.get(code) or {}
+        reply = rec0.get("start")
+        chat = (notify.target("research") or (None, None))[1]
+        if reply and str(rec0.get("chat", "")) != str(chat):   # «начинаю» ушло в другой чат (до разделения) — не отвечаем
+            reply = None
         if not reply:
             print(f"нет сообщения start для {code} — результат уйдёт отдельным сообщением")
     first = None
     for part in chunks(text):
-        mid = notify.send_id(part, reply_to=reply if first is None else first)
+        mid = notify.send_id(part, reply_to=reply if first is None else first, channel="research")
         if mid is None:
             print("не доставлено — см. reports/live/notifications.log"); return 1
         first = first or mid
     for ph in a.photo:
-        notify.photo(Path(ph), reply_to=first or reply)
+        notify.photo(Path(ph), reply_to=first or reply, channel="research")
     if a.kind != "note":
         rec = store.setdefault(code, {})
         rec[a.kind] = first
+        if a.kind == "start":
+            rec["chat"] = (notify.target("research") or (None, None))[1]
         rec[a.kind + "_at"] = datetime.now().isoformat(timespec="seconds")
         STORE.parent.mkdir(parents=True, exist_ok=True)
         STORE.write_text(json.dumps(store, ensure_ascii=False, indent=1), encoding="utf-8")
