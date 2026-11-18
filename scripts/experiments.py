@@ -216,7 +216,8 @@ def hypotheses_for(codes) -> dict:
 def refresh_meta() -> int:
     """--meta: обновить в registry.json описания, вид, архив и гипотезы из каталога без пересчёта метрик."""
     reg = json.loads((SITE / "registry.json").read_text(encoding="utf-8"))
-    _, exps = load_catalog()
+    cat, exps = load_catalog()
+    reg["no_log"] = [no_log_entry(x) for x in cat.get("no_log", [])]   # и проверки без журнала сделок (картинки, #Hxx)
     reg["experiments"] = [{**e, **meta(exps[e["id"]])} for e in reg["experiments"] if e["id"] in exps]
     reg["kinds"] = KINDS
     reg["updated"] = now_utc()

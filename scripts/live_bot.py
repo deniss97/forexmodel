@@ -820,10 +820,18 @@ def main() -> int:
     last_monitor = 0.0
     while True:
         try:
-            ups = tg.call("getUpdates", {"offset": bst["offset"], "timeout": 50, "allowed_updates": ["message", "callback_query"]},
+            ups = tg.call("getUpdates", {"offset": bst["offset"], "timeout": 50,
+                                         "allowed_updates": ["message", "callback_query", "my_chat_member"]},
                           timeout=65).get("result", [])
             for u in ups:
                 bst["offset"] = u["update_id"] + 1
+                # чужие чаты (например, исследовательский, 18.11) — запомнить id и название, чтобы вписать в telegram.yaml
+                ch = (u.get("message") or u.get("my_chat_member") or {}).get("chat") or {}
+                if ch.get("id") and ch["id"] != tg.chat:
+                    seen = bst.setdefault("seen_chats", {})
+                    if str(ch["id"]) not in seen:
+                        print(f"{now()} другой чат: {ch['id']} «{ch.get('title') or ch.get('username') or ''}»", flush=True)
+                    seen[str(ch["id"])] = {"title": str(ch.get("title") or ch.get("username") or "")[:100], "type": ch.get("type"), "at": str(now())}
                 save_bot(bst)                  # обработанное не повторится после перезапуска
                 try:
                     if "callback_query" in u and u["callback_query"].get("message", {}).get("chat", {}).get("id") == tg.chat:
