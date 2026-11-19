@@ -511,6 +511,68 @@ def do_ask(tg: Telegram, question: str, name: str) -> None:
     threading.Thread(target=work, daemon=True).start()
 
 
+RLOCK = threading.Lock()
+RLOG = OUT / "research_chat.jsonl"
+RHELP = ("Это исследовательский чат: гипотезы, проверки, отчёты.\n"
+         "/ask вопрос — спросить Claude о гипотезах, результатах, данных. Можно попросить файл, таблицу, картинку, код "
+         "или архив: «/ask пришли таблицу случаев H94», «/ask архив картинок H40». До 45 МБ бот пришлёт сам, больше — "
+         "ссылкой на Яндекс Диск. Ключи и токены не отправляются никогда.\n"
+         "Сделки и счёт — в торговой группе.")
+
+
+def research_log(msg: dict) -> None:
+    """Всё, что бот видит в исследовательском чате, — в reports/live/research_chat.jsonl (бот видит команды, ответы
+    на свои сообщения, а если он администратор чата — все сообщения)."""
+    rec = {"id": msg.get("message_id"), "date": str(pd.Timestamp(msg.get("date", 0), unit="s", tz="UTC").tz_convert("Europe/Moscow").tz_localize(None)),
+           "from": who(msg.get("from", {})), "text": msg.get("text") or msg.get("caption") or "",
+           "reply_to": (msg.get("reply_to_message") or {}).get("message_id"),
+           "files": [k for k in ("document", "photo", "video", "voice", "audio") if k in msg]}
+    with open(RLOG, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def do_research_ask(rt: Telegram, question: str, name: str) -> None:
+    import research_ask as ra
+    if not question.strip():
+        rt.say("Напишите вопрос после команды, например: /ask пришли таблицу случаев H94")
+        return
+    if not RLOCK.acquire(blocking=False):
+        rt.say("Ещё отвечаю на предыдущий вопрос — подождите пару минут.")
+        return
+    rt.say(f"🤔 Думаю — {name}. Обычно 1–3 минуты: читаю файлы проекта.")
+
+    def work():
+        try:
+            try:
+                answer = ra.ask_claude(question, name)
+            except subprocess.TimeoutExpired:
+                answer = "Не успел ответить за 10 минут — попробуйте вопрос покороче."
+            text, rels = ra.split_answer(answer)
+            for i, chunk in enumerate(split_text(text or "Готово.")):
+                rt.say(("💬 " if i == 0 else "") + chunk)
+            if rels:
+                ra.deliver(rels, lambda path, cap: ra.send_document(rt.base.split("/bot")[1].rstrip("/"), rt.chat, path, cap), rt.say)
+        except Exception as e:
+            traceback.print_exc()
+            rt.say(f"Не получилось: {str(e)[:200]}")
+        finally:
+            RLOCK.release()
+
+    threading.Thread(target=work, daemon=True).start()
+
+
+def on_research(rt: Telegram, msg: dict) -> None:
+    research_log(msg)
+    text = msg.get("text", "")
+    if not text.startswith("/"):
+        return
+    cmd = text.split()[0].split("@")[0].lstrip("/").lower()
+    if cmd == "ask":
+        do_research_ask(rt, text.split(maxsplit=1)[1] if len(text.split(maxsplit=1)) > 1 else "", who(msg.get("from", {})))
+    elif cmd in ("help", "start"):
+        rt.say(RHELP)
+
+
 def do_chart(tg: Telegram) -> None:
     """Картинка отдельным процессом: matplotlib не раздувает память бота; отправляет сам скрипт."""
     def work():
@@ -811,6 +873,9 @@ def monitor(tg: Telegram, bst: dict) -> None:
 def main() -> int:
     tcfg = yaml.safe_load(TG_CFG.read_text(encoding="utf-8"))
     tg = Telegram(tcfg["token"], tcfg["chat_id"])
+    rc = tcfg.get("research") or {}
+    # исследовательский чат: тот же бот (свой токен — у другого бота, его обновления сюда не придут)
+    rt = Telegram(rc.get("token") or tcfg["token"], rc["chat_id"]) if rc.get("chat_id") and (rc.get("token") in (None, tcfg["token"])) else None
     bst = load_bot()
     tg.call("setMyCommands", {"commands": [{"command": c, "description": d} for c, d in COMMANDS]})
     if not bst["started"] or now() - pd.Timestamp(bst["started"]) > pd.Timedelta(hours=6):
@@ -836,6 +901,8 @@ def main() -> int:
                 try:
                     if "callback_query" in u and u["callback_query"].get("message", {}).get("chat", {}).get("id") == tg.chat:
                         on_callback(tg, bst, u["callback_query"])
+                    elif rt and u.get("message", {}).get("chat", {}).get("id") == rt.chat:
+                        on_research(rt, u["message"])
                     elif u.get("message", {}).get("chat", {}).get("id") == tg.chat and u["message"].get("text", "").startswith("/"):
                         on_command(tg, bst, u["message"]["text"], who(u["message"].get("from", {})))
                 except Exception as e:
