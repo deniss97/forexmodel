@@ -50,6 +50,10 @@ def main(argv=None) -> int:
     ap.add_argument("text", nargs="?")
     ap.add_argument("--file")
     ap.add_argument("--photo", nargs="*", default=[])
+    # к результату — архив с отчётом, картинками, таблицами и скриптами гипотезы (Денис, 20.11: «в чат с результатами
+    # и архивы с резами»): docs/results/<код>*, scripts/<код>*.py и что перечислено здесь
+    ap.add_argument("--archive", nargs="*", default=[], help="ещё пути в архив (например data/derived/h94_cases.parquet)")
+    ap.add_argument("--no-archive", action="store_true")
     a = ap.parse_args(argv)
     if a.kind == "note" and a.code and not a.text:      # note "текст" — текст попадает в позицию кода
         a.text, a.code = a.code, None
@@ -78,6 +82,14 @@ def main(argv=None) -> int:
         first = first or mid
     for ph in a.photo:
         notify.photo(Path(ph), reply_to=first or reply, channel="research")
+    if a.kind == "result" and not a.no_archive:
+        import research_ask as ra
+        from send_doc import document
+        rels = ra.result_paths(code) + list(a.archive)
+        if rels:
+            ra.deliver(rels, lambda path, cap: document(path, f"{code}: отчёт, картинки, таблицы и скрипты · {cap}",
+                                                        reply_to=first) is not None,
+                       lambda t: notify.send_id(t, reply_to=first, channel="research"), name=code)
     if a.kind != "note":
         rec = store.setdefault(code, {})
         rec[a.kind] = first

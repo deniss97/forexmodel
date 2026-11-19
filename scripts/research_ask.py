@@ -93,18 +93,18 @@ def walk(p: Path) -> list[Path]:
     return out
 
 
-def package(paths: list[Path]) -> tuple[Path, bool]:
-    """→ (что отправить, временный ли это архив)."""
-    if len(paths) == 1 and paths[0].is_file():
+def package(paths: list[Path], name: str | None = None) -> tuple[Path, bool]:
+    """→ (что отправить, временный ли это архив). name — имя архива без .zip (например «H94»); пути внутри — от корня
+    проекта, чтобы было видно, где что лежит."""
+    if len(paths) == 1 and paths[0].is_file() and not name:
         return paths[0], False
     OUT.mkdir(parents=True, exist_ok=True)
-    name = (paths[0].name if len(paths) == 1 else "файлы") + time.strftime("_%Y%m%d_%H%M%S") + ".zip"
-    z = OUT / name
+    name = name or (paths[0].name if len(paths) == 1 else "файлы_" + time.strftime("%Y%m%d_%H%M"))
+    z = OUT / f"{name}.zip"
     with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
         for p in paths:
-            base = p.parent
             for f in walk(p):
-                zf.write(f, f.relative_to(base).as_posix())
+                zf.write(f, f.relative_to(ROOT).as_posix())
     return z, True
 
 
@@ -136,7 +136,7 @@ def send_document(token: str, chat: int, path: Path, caption: str = "") -> bool:
     return False
 
 
-def deliver(rels: list[str], send_file, say) -> None:
+def deliver(rels: list[str], send_file, say, name: str | None = None) -> None:
     """Пути из ответа → файлы в чат (send_file(path, caption) -> bool, say(text))."""
     ok, bad = [], []
     for rel in rels:
@@ -150,9 +150,9 @@ def deliver(rels: list[str], send_file, say) -> None:
     if total > MAX_TOTAL:
         say(f"Слишком много: {total / 1024 ** 3:.1f} ГБ за раз. Попросите часть (бумагу, год) — или Денис выгрузит с сервера.")
         return
-    if len(ok) > 1 or ok[0].is_dir() or total > TG_LIMIT:
+    if name or len(ok) > 1 or ok[0].is_dir() or total > TG_LIMIT:
         say(f"📦 Собираю {'архив' if (len(ok) > 1 or ok[0].is_dir()) else 'файл'} ({total / 1024 ** 2:.1f} МБ)…")
-    out, tmp = package(ok)
+    out, tmp = package(ok, name)
     size = out.stat().st_size
     try:
         if size <= TG_LIMIT:
@@ -165,6 +165,14 @@ def deliver(rels: list[str], send_file, say) -> None:
     finally:
         if tmp:
             out.unlink(missing_ok=True)
+
+
+def result_paths(code: str) -> list[str]:
+    """Всё по гипотезе для архива с результатом: отчёт и папки docs/results/<код>*, скрипты scripts/<код>*.py."""
+    c = code.lower()
+    out = [p for p in sorted((ROOT / "docs" / "results").glob(f"{c}*")) if p.name == c or p.name[len(c):len(c) + 1] in "._"]
+    out += [p for p in sorted((ROOT / "scripts").glob(f"{c}*.py")) if p.stem == c or p.stem[len(c):len(c) + 1] == "_"]
+    return [p.relative_to(ROOT).as_posix() for p in out]
 
 
 def split_answer(answer: str) -> tuple[str, list[str]]:
