@@ -9,6 +9,12 @@
 На графике: полоса — 60 минут, за которые цена прошла пик хода; стрелка с номером — на свече пика. Справа — список
 случаев: щелчок (или ← / →) — график переходит к случаю с запасом истории до него.
 
+Коридор и вертикальный объём (просьба Тимура 23.11, сообщение 445): кнопка «Выделить отрезок» (или Shift + протянуть
+мышью) — выделяешь произвольный отрезок по оси времени, и у правой шкалы рисуется профиль объёма по ценам только за
+этот отрезок: шаг 1 / 2 / 5 / 10 ₽, уровень наибольшего объёма (POC) и зона 70% объёма. Объём — из минутных свечей:
+объём минуты делится поровну по рублёвым уровням от её минимума до максимума (покупки/продажи — нет: секундные данные
+с разбивкой кончаются 06.04.2026).
+
     python scripts/h94_html.py [--tk LKOH] [--k 3] [--since 2025-08-01]
     → docs/results/h94/<бумага>_<k>ATR_1h.html, <бумага>_<k>ATR_5m.html (автономные: библиотека графиков внутри)
 """
@@ -61,8 +67,20 @@ def epoch(t: pd.Timestamp) -> int:
         (pd.Timestamp(t) - pd.Timestamp("1970-01-01")) // pd.Timedelta(seconds=1))
 
 
+def minutes(d: pd.DataFrame) -> dict:
+    """Минутки для профиля объёма, компактно: время (разность в минутах), нижний рублёвый уровень (разность), ширина в
+    уровнях, объём. Объём минуты в браузере делится поровну по уровням [lo, lo + w]."""
+    import numpy as np
+
+    t = np.array([epoch(x) for x in d.index], dtype=np.int64) // 60
+    lo = np.floor(d["low"].to_numpy()).astype(np.int64)
+    hi = np.floor(d["high"].to_numpy()).astype(np.int64)
+    return {"t0": int(t[0]), "dt": np.diff(t, prepend=t[0]).tolist(), "lo0": int(lo[0]),
+            "dlo": np.diff(lo, prepend=lo[0]).tolist(), "w": (hi - lo).tolist(), "v": d["volume"].astype(np.int64).tolist()}
+
+
 def page(tk: str, tf: str, b: pd.DataFrame, cases: list[dict], k: float, since: str, last: str, rule: str,
-         ctx_before: int, ctx_after: int) -> str:
+         ctx_before: int, ctx_after: int, vm: dict | None = None) -> str:
     candles = [[epoch(t), round(r.open, 4), round(r.high, 4), round(r.low, 4), round(r.close, 4)]
                for t, r in b.iterrows()]
     meta = {"tk": tk, "tf": tf, "k": k, "w": W, "ctxBefore": ctx_before, "ctxAfter": ctx_after,
@@ -70,7 +88,7 @@ def page(tk: str, tf: str, b: pd.DataFrame, cases: list[dict], k: float, since: 
     up = sum(c["dir"] == 1 for c in cases)
     night = sum(c["cross"] for c in cases)
     title = f"{tk}: ходы на {k:g} часовых ATR за {W} минут — {tf}"
-    data = json.dumps({"candles": candles, "cases": cases, "meta": meta}, ensure_ascii=False, separators=(",", ":"))
+    data = json.dumps({"candles": candles, "cases": cases, "meta": meta, "vm": vm}, ensure_ascii=False, separators=(",", ":"))
     return f"""<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
@@ -98,6 +116,14 @@ tr.c:hover {{ background:var(--sel); }}
 tr.on {{ background:var(--sel); font-weight:600; }}
 .u {{ color:var(--up); }} .d {{ color:var(--down); }}
 .n {{ color:var(--muted); font-size:11px; }}
+#ov {{ position:absolute; inset:0; z-index:2; pointer-events:none; }}
+#chart.sel {{ cursor:col-resize; }}
+.vp {{ padding:8px 10px; border-bottom:1px solid var(--line); font-size:12.5px; }}
+.vp .row {{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }}
+.vp button, .vp select {{ border:1px solid var(--line); background:var(--bg); color:var(--ink); border-radius:6px; padding:3px 8px; cursor:pointer; font-size:12.5px; }}
+.vp button.on {{ background:var(--sel); border-color:#2a6bd8; font-weight:600; }}
+.vp .info {{ color:var(--muted); margin-top:6px; line-height:1.5; }}
+.vp .info b {{ color:var(--ink); }}
 .legend {{ position:absolute; left:10px; top:8px; z-index:3; font-size:12px; color:var(--muted); background:color-mix(in srgb, var(--bg) 85%, transparent); padding:3px 6px; border-radius:4px; pointer-events:none; }}
 @media (max-width: 760px) {{ main {{ flex-direction:column; height:auto; }} #chart {{ height:60vh; }} aside {{ width:auto; border-left:0; border-top:1px solid var(--line); height:40vh; }} }}
 </style></head>
@@ -108,8 +134,14 @@ tr.on {{ background:var(--sel); font-weight:600; }}
   ход за {W} мин ≥ {k:g} × ATR, ATR — средний размах 14 прошлых часов. Полоса — те {W} минут, стрелка — пик хода. Время — МСК.</div>
 </header>
 <main>
-  <div id="chart"><div class="legend" id="legend"></div></div>
+  <div id="chart"><div class="legend" id="legend"></div><canvas id="ov"></canvas></div>
   <aside>
+    <div class="vp">
+      <div class="row"><button id="selbtn" title="или Shift + протянуть мышью">Выделить отрезок</button>
+        <select id="vstep" title="шаг цены профиля"><option value="1">1 ₽</option><option value="2">2 ₽</option><option value="5">5 ₽</option><option value="10">10 ₽</option></select>
+        <button id="selclr">Сбросить</button></div>
+      <div class="info" id="vinfo">Вертикальный объём за выбранный отрезок: нажмите «Выделить отрезок» (или держите Shift) и протяните мышью по графику.</div>
+    </div>
     <div class="nav"><button id="prev">← пред.</button><button id="next">след. →</button><button id="all">весь график</button><span class="pos" id="pos"></span></div>
     <div class="list"><table><thead><tr><th>№</th><th>пик, МСК</th><th></th><th>ATR</th><th>ход</th></tr></thead><tbody id="rows"></tbody></table></div>
   </aside>
@@ -176,6 +208,113 @@ document.getElementById('prev').onclick = () => show(cur - 1);
 document.getElementById('next').onclick = () => show(cur + 1);
 document.getElementById('all').onclick = () => {{ chart.timeScale().fitContent(); legend.textContent = ''; }};
 document.addEventListener('keydown', e => {{ if (e.key === 'ArrowRight') show(cur + 1); if (e.key === 'ArrowLeft') show(cur - 1); }});
+// ---- коридор по времени и вертикальный объём за него
+const VM = D.vm;
+let mt = null, mlo = null, mw = null, mv = null;
+if (VM) {{
+  const n = VM.v.length; mt = new Float64Array(n); mlo = new Int32Array(n); mw = VM.w; mv = VM.v;
+  let t = VM.t0, l = VM.lo0;
+  for (let i = 0; i < n; i++) {{ t += VM.dt[i]; l += VM.dlo[i]; mt[i] = t * 60; mlo[i] = l; }}
+}}
+const lb = (arr, x) => {{ let lo = 0, hi = arr.length; while (lo < hi) {{ const m = (lo + hi) >> 1; if (arr[m] < x) lo = m + 1; else hi = m; }} return lo; }};
+const ov = document.getElementById('ov'), ctx = ov.getContext('2d');
+const selbtn = document.getElementById('selbtn'), vinfo = document.getElementById('vinfo'), vstep = document.getElementById('vstep');
+let selMode = false, drag = null, sel = null, prof = null, lastKey = '';
+const nf = x => Math.round(x).toLocaleString('ru-RU');
+function profile(a, b) {{
+  const step = +vstep.value, t1 = times[a], t2 = times[b] + D.meta.step;
+  const i1 = lb(mt, t1), i2 = lb(mt, t2);
+  const lv = new Map(); let tot = 0, rub = 0;
+  for (let i = i1; i < i2; i++) {{
+    const w = mw[i] + 1, per = mv[i] / w;
+    for (let j = 0; j < w; j++) {{ const L = Math.floor((mlo[i] + j) / step) * step; lv.set(L, (lv.get(L) || 0) + per); rub += per * (mlo[i] + j + 0.5); }}
+    tot += mv[i];
+  }}
+  const lev = [...lv.entries()].sort((x, y) => x[0] - y[0]);
+  if (!lev.length) return null;
+  let pi = 0; lev.forEach((e, i) => {{ if (e[1] > lev[pi][1]) pi = i; }});
+  let lo = pi, hi = pi, acc = lev[pi][1];                     // зона 70%: расширяем от POC в сторону большего объёма
+  while (acc < 0.7 * tot && (lo > 0 || hi < lev.length - 1)) {{
+    const dn = lo > 0 ? lev[lo - 1][1] : -1, up = hi < lev.length - 1 ? lev[hi + 1][1] : -1;
+    if (up >= dn) acc += lev[++hi][1]; else acc += lev[--lo][1];
+  }}
+  return {{ step, lev, tot, rub, poc: lev[pi][0], vaLo: lev[lo][0], vaHi: lev[hi][0] + step, pi, lo, hi, minutes: i2 - i1 }};
+}}
+function draw() {{
+  const W = el.clientWidth, H = el.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (ov.width !== W * dpr || ov.height !== H * dpr) {{ ov.width = W * dpr; ov.height = H * dpr; ov.style.width = W + 'px'; ov.style.height = H + 'px'; }}
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  const r = drag || sel; if (!r) return;
+  const ts = chart.timeScale(), plotW = W - chart.priceScale('right').width();
+  const tsH = ts.height ? ts.height() : 26;
+  const bs = ts.options().barSpacing / 2;                     // logicalToCoordinate берёт только целые индексы
+  const c1 = ts.logicalToCoordinate(Math.min(r.a, r.b)), c2 = ts.logicalToCoordinate(Math.max(r.a, r.b));
+  if (c1 !== null && c2 !== null) {{
+    const x1 = Math.max(0, c1 - bs), x2 = Math.min(plotW, c2 + bs);
+    ctx.fillStyle = 'rgba(240,140,0,.10)'; ctx.fillRect(x1, 0, x2 - x1, H - tsH);
+    ctx.strokeStyle = 'rgba(240,140,0,.9)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(x1, 0); ctx.lineTo(x1, H - tsH); ctx.moveTo(x2, 0); ctx.lineTo(x2, H - tsH); ctx.stroke(); ctx.setLineDash([]);
+  }}
+  if (!prof || drag) return;
+  const maxV = prof.lev[prof.pi][1], maxW = plotW * 0.3;
+  prof.lev.forEach((e, i) => {{
+    const y1 = cs.priceToCoordinate(e[0]), y2 = cs.priceToCoordinate(e[0] + prof.step);
+    if (y1 === null || y2 === null) return;
+    const top = Math.min(y1, y2), h = Math.max(1, Math.abs(y1 - y2) - (Math.abs(y1 - y2) > 3 ? 1 : 0));
+    const w = e[1] / maxV * maxW;
+    ctx.fillStyle = i === prof.pi ? 'rgba(240,140,0,.85)' : (i >= prof.lo && i <= prof.hi ? 'rgba(42,107,216,.55)' : 'rgba(42,107,216,.25)');
+    ctx.fillRect(plotW - w, top, w, h);
+  }});
+  ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = css('--ink'); ctx.textAlign = 'right';
+  [[prof.vaHi, 'VAH'], [prof.poc + prof.step / 2, 'POC'], [prof.vaLo, 'VAL']].forEach(([p, t]) => {{
+    const y = cs.priceToCoordinate(p); if (y === null) return;
+    const txt = t + ' ' + p.toLocaleString('ru-RU'), tw = ctx.measureText(txt).width, x = plotW - maxW - 6;
+    ctx.fillStyle = css('--bg'); ctx.globalAlpha = 0.85; ctx.fillRect(x - tw - 3, y - 8, tw + 6, 15); ctx.globalAlpha = 1;
+    ctx.fillStyle = t === 'POC' ? '#f08c00' : css('--ink'); ctx.fillText(txt, x, y + 4);
+    ctx.strokeStyle = t === 'POC' ? 'rgba(240,140,0,.7)' : 'rgba(42,107,216,.6)'; ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(x + 2, y); ctx.lineTo(plotW, y); ctx.stroke(); ctx.setLineDash([]);
+  }});
+}}
+function info() {{
+  if (!sel || !prof) {{ vinfo.innerHTML = sel ? 'За отрезок минуток нет.' : 'Вертикальный объём за выбранный отрезок: нажмите «Выделить отрезок» (или держите Shift) и протяните мышью по графику.'; return; }}
+  const a = Math.min(sel.a, sel.b), b = Math.max(sel.a, sel.b);
+  vinfo.innerHTML = `Отрезок <b>${{fmt(times[a])}} – ${{fmt(times[b] + D.meta.step)}}</b> (${{b - a + 1}} св., ${{nf(prof.minutes)}} мин.)<br>` +
+    `Объём <b>${{nf(prof.tot)}}</b> шт. ≈ <b>${{(prof.rub / 1e9).toFixed(2)}}</b> млрд ₽<br>` +
+    `<span style="color:#f08c00">■</span> POC (больше всего объёма) <b>${{prof.poc.toLocaleString('ru-RU')}}–${{(prof.poc + prof.step).toLocaleString('ru-RU')}}</b> ₽<br>` +
+    `<span style="color:#2a6bd8">■</span> 70% объёма: <b>${{prof.vaLo.toLocaleString('ru-RU')}} – ${{prof.vaHi.toLocaleString('ru-RU')}}</b> ₽`;
+}}
+function recompute() {{ prof = sel && VM ? profile(Math.min(sel.a, sel.b), Math.max(sel.a, sel.b)) : null; info(); lastKey = ''; }}
+const logicalAt = e => {{ const r = el.getBoundingClientRect(); const L = chart.timeScale().coordinateToLogical(e.clientX - r.left);
+  return L === null ? null : Math.max(0, Math.min(times.length - 1, Math.round(L))); }};
+const lock = on => chart.applyOptions({{ handleScroll: !on, handleScale: !on }});   // пока выделяем — график не двигается
+const down = e => {{
+  if (!(selMode || e.shiftKey) || e.button !== 0) return;
+  e.stopPropagation(); e.preventDefault();
+  if (drag) return;
+  const L = logicalAt(e); if (L === null) return;
+  lock(true); drag = {{ a: L, b: L }}; lastKey = '';
+}};
+el.addEventListener('pointerdown', down, true);
+el.addEventListener('mousedown', down, true);
+window.addEventListener('keydown', e => {{ if (e.key === 'Shift') lock(true); }});
+window.addEventListener('keyup', e => {{ if (e.key === 'Shift' && !selMode && !drag) lock(false); }});
+window.addEventListener('pointermove', e => {{ if (!drag) return; const L = logicalAt(e); if (L !== null) {{ drag.b = L; lastKey = ''; }} }}, true);
+window.addEventListener('pointerup', e => {{
+  if (!drag) return; sel = drag; drag = null; recompute();
+  if (selMode) {{ selMode = false; selbtn.classList.remove('on'); el.classList.remove('sel'); }}
+  if (!e.shiftKey) lock(false);
+}}, true);
+selbtn.onclick = () => {{ selMode = !selMode; selbtn.classList.toggle('on', selMode); el.classList.toggle('sel', selMode); lock(selMode); }};
+document.getElementById('selclr').onclick = () => {{ sel = null; drag = null; recompute(); }};
+vstep.onchange = recompute;
+(function loop() {{                                            // перерисовка, когда двигают или масштабируют график
+  const r = drag || sel;
+  const key = r ? [el.clientWidth, el.clientHeight, chart.timeScale().logicalToCoordinate(r.a), chart.timeScale().logicalToCoordinate(r.b),
+    prof ? cs.priceToCoordinate(prof.poc) : 0, prof ? cs.priceToCoordinate(prof.poc + 100) : 0].join() : 'none';
+  if (key !== lastKey) {{ lastKey = key; draw(); }}
+  requestAnimationFrame(loop);
+}})();
+if (!VM) {{ selbtn.disabled = true; vinfo.textContent = 'Минуток для профиля в файле нет.'; }}
 show(0);
 </script>
 </body></html>
@@ -204,10 +343,11 @@ def main() -> int:
                       "cross": bool(e["cross"])})
     d = d[d.index >= since]
     last = d.index.max()
+    vm = minutes(d)
     OUT.mkdir(parents=True, exist_ok=True)
     for tf, rule, before, after in (("часовые свечи", "1h", 60, 25), ("5-минутные свечи", "5min", 150, 60)):
         b = bars(d, rule)
-        html = page(a.tk, tf, b, cases, a.k, f"{since:%d.%m.%Y}", f"{last:%d.%m.%Y}", rule, before, after)
+        html = page(a.tk, tf, b, cases, a.k, f"{since:%d.%m.%Y}", f"{last:%d.%m.%Y}", rule, before, after, vm)
         p = OUT / f"{a.tk}_{a.k:g}ATR_{'1h' if rule == '1h' else '5m'}.html"
         p.write_text(html, encoding="utf-8")
         print(f"{p.relative_to(ROOT)}: свечей {len(b)}, случаев {len(cases)}, {p.stat().st_size / 1e6:.1f} МБ")
