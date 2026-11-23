@@ -531,7 +531,19 @@ def research_log(msg: dict) -> None:
         fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-def do_research_ask(rt: Telegram, question: str, name: str) -> None:
+def research_answer_log(ask_id: int | None, name: str, question: str, text: str, rels: list, err: str | None) -> None:
+    """Ответ бота на /ask — в тот же журнал чата (Денис, 21.11: «сохраняй, что отвечаешь через /ask»)."""
+    rec = {"id": None, "date": str(pd.Timestamp.now(tz="Europe/Moscow").tz_localize(None).floor("s")),
+           "from": "бот (/ask)", "reply_to": ask_id, "asked_by": name, "question": question,
+           "text": text if not err else f"Не получилось: {err}", "files": [str(r) for r in rels]}
+    try:
+        with open(RLOG, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        traceback.print_exc()
+
+
+def do_research_ask(rt: Telegram, question: str, name: str, ask_id: int | None = None) -> None:
     import research_ask as ra
     if not question.strip():
         rt.say("Напишите вопрос после команды, например: /ask пришли таблицу случаев H94")
@@ -542,6 +554,7 @@ def do_research_ask(rt: Telegram, question: str, name: str) -> None:
     rt.say(f"🤔 Думаю — {name}. Обычно 1–3 минуты: читаю файлы проекта.")
 
     def work():
+        text, rels, err = "", [], None
         try:
             try:
                 answer = ra.ask_claude(question, name)
@@ -554,9 +567,11 @@ def do_research_ask(rt: Telegram, question: str, name: str) -> None:
                 ra.deliver(rels, lambda path, cap: ra.send_document(rt.base.split("/bot")[1].rstrip("/"), rt.chat, path, cap), rt.say)
         except Exception as e:
             traceback.print_exc()
-            rt.say(f"Не получилось: {str(e)[:200]}")
+            err = str(e)[:200]
+            rt.say(f"Не получилось: {err}")
         finally:
             RLOCK.release()
+            research_answer_log(ask_id, name, question, text, rels, err)
 
     threading.Thread(target=work, daemon=True).start()
 
@@ -568,7 +583,8 @@ def on_research(rt: Telegram, msg: dict) -> None:
         return
     cmd = text.split()[0].split("@")[0].lstrip("/").lower()
     if cmd == "ask":
-        do_research_ask(rt, text.split(maxsplit=1)[1] if len(text.split(maxsplit=1)) > 1 else "", who(msg.get("from", {})))
+        do_research_ask(rt, text.split(maxsplit=1)[1] if len(text.split(maxsplit=1)) > 1 else "", who(msg.get("from", {})),
+                        msg.get("message_id"))
     elif cmd in ("help", "start"):
         rt.say(RHELP)
 
