@@ -4,10 +4,15 @@
   1. Стратегия против бэктеста. Сделки стратегии на живых данных с начала режима (24.10): S42 —
      reports/live/s42_journal.csv, S46 и S48 — reports/live/iterator_journal.csv. Сравнение — со сделками той же стратегии на
      тех же бумагах на проверке 2021–2026 (журнал: S42; S46 + S53; S48 + S55), результат на единицу позиции после
-     издержек. Средняя живая сделка против распределения средних из стольких же случайных сделок бэктеста (5000 повторов):
-     ниже 5% повторов — «внимание», ниже 1% — «стоп»: стратегия попадает в reports/live/strategy_stop.json, и счёт
-     (scripts/live_account.py) перестаёт брать её сигналы, пока её не уберут оттуда руками. Меньше 5 сделок — «мало сделок».
-     Плюс серия убытков подряд против 99-го процентиля такой серии в случайных выборках бэктеста — «внимание».
+     издержек. Считаем **по дням входа**: сделки, открытые в один день, — одна ставка (средняя за день), и в бэктесте
+     тоже (24.11: сделки одного дня связаны, корреляция ~0.25, и прежнее правило по отдельным сделкам ложно
+     останавливало стратегию в ~5% запусков вместо 1% — docs/results/s42_check_audit.md). Средний живой день против
+     средних всех окон из стольких же **подряд идущих** дней бэктеста (плохие дни идут полосами — случайные дни это
+     прячут): ниже 5% окон — «внимание», ниже 0.5% — «стоп», но «стоп» только от 8 дней входа. Порог подобран так, чтобы
+     на бэктестах S42/S46/S48 ложный «стоп» за первые 8–12 дней был ~1–2% запусков (при каждодневной проверке).
+     При «стопе» стратегия попадает в reports/live/strategy_stop.json, и счёт
+     (scripts/live_account.py) перестаёт брать её сигналы, пока её не уберут оттуда руками. Меньше 5 дней входа —
+     «мало сделок». Плюс серия убыточных дней подряд против 99-го процентиля такой серии в случайных выборках — «внимание».
   2. Наше исполнение против сигналов. Позиции счёта (reports/live/account_trades.csv, account_state.json) против
      исполненных сделок у брокера (только чтение): проскальзывание на входе и выходе, опоздание, сигналы, которые мы
      не исполнили. Проскальзывание в среднем хуже 0.15% на сторону (в бэктесте заложено 0.05%) от 5 сделок — «внимание».
@@ -38,7 +43,9 @@ COST = 0.2                     # издержки биржи за круг, % (0
 REF = {"S42": ["S42"], "S46": ["S46", "S53"], "S48": ["S48", "S55"]}
 STOCKS = {"S42": ["sber", "gazp", "lkoh"], "S46": ["sber", "gazp", "lkoh", *NEW_STOCKS], "S48": ["sber", "gazp", "lkoh", *NEW_STOCKS]}
 DRAWS = 5000
-MIN_TRADES = 5
+MIN_TRADES = 5                 # дней входа для любой оценки (и сделок — для проскальзывания)
+STOP_DAYS = 8                  # дней входа, с которых возможен «стоп»
+STOP_P, WARN_P = 0.005, 0.05   # доля окон бэктеста не хуже живых: «стоп» / «внимание»
 
 
 def reference() -> dict[str, pd.DataFrame]:
@@ -49,7 +56,7 @@ def reference() -> dict[str, pd.DataFrame]:
         t = pd.concat([load_trades(exps[i]) for i in ids], ignore_index=True)
         t = t[t["instrument"].isin(STOCKS[code]) & (t["open_dt"] >= TEST)]
         size = t["size"].to_numpy(float) if "size" in t else np.ones(len(t))
-        out[code] = t.assign(unit=t["profit_pct"].to_numpy(float) / np.where(size > 0, size, 1))
+        out[code] = t.assign(unit=t["profit_pct"].to_numpy(float) / np.where(size > 0, size, 1), day=t["open_dt"].dt.normalize())
     return out
 
 
@@ -69,7 +76,13 @@ def live() -> dict[str, pd.DataFrame]:
         parts.append(t[["стратегия", "бумага", "вход", "выход", "unit"]])
     t = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=["стратегия", "бумага", "вход", "выход", "unit"])
     t = t[t["вход"] >= START]
+    t = t.assign(day=pd.to_datetime(t["вход"]).dt.normalize())
     return {code: t[t["стратегия"] == code] for code in REF}
+
+
+def by_day(t: pd.DataFrame) -> np.ndarray:
+    """Результат по дням входа: сделки одного дня — одна ставка (средняя), по порядку дней."""
+    return t.groupby("day")["unit"].mean().sort_index().to_numpy(float) if len(t) else np.array([])
 
 
 def losing_streak(v: np.ndarray) -> int:
@@ -80,18 +93,20 @@ def losing_streak(v: np.ndarray) -> int:
     return best
 
 
-def judge(live_unit: np.ndarray, ref_unit: np.ndarray, rng: np.random.Generator) -> dict:
-    """Насколько живые сделки похожи на бэктест: доля случайных выборок бэктеста со средней не выше живой."""
-    n = len(live_unit)
-    r = {"сделок": n, "средняя": float(live_unit.mean()) if n else np.nan, "средняя бэктеста": float(ref_unit.mean()),
-         "сумма": float(live_unit.sum()) if n else 0.0}
-    if n < MIN_TRADES:
+def judge(live_t: pd.DataFrame, ref_t: pd.DataFrame, rng: np.random.Generator) -> dict:
+    """Насколько живая торговля похожа на бэктест — по дням входа: доля окон из стольких же подряд идущих дней бэктеста
+    со средней не выше живой. «Стоп» — только от STOP_DAYS дней входа."""
+    live_unit, ref_day, live_day = live_t["unit"].to_numpy(float), by_day(ref_t), by_day(live_t)
+    n, nd = len(live_unit), len(live_day)
+    r = {"сделок": n, "дней": nd, "средняя": float(live_unit.mean()) if n else np.nan,
+         "средняя бэктеста": float(ref_t["unit"].mean()), "сумма": float(live_unit.sum()) if n else 0.0}
+    if nd < MIN_TRADES:
         return {**r, "статус": "мало сделок", "p": np.nan}
-    draws = ref_unit[rng.integers(0, len(ref_unit), (DRAWS, n))]
-    p = float((draws.mean(axis=1) <= live_unit.mean()).mean())
-    streak = losing_streak(live_unit)
-    lim = float(np.percentile([losing_streak(d) for d in draws[:1000]], 99))
-    status = "стоп" if p < 0.01 else "внимание" if p < 0.05 or streak > lim else "в норме"
+    win = np.lib.stride_tricks.sliding_window_view(ref_day, nd)       # все окна из nd подряд идущих дней бэктеста
+    p = float((win.mean(axis=1) <= live_day.mean()).mean())
+    streak = losing_streak(live_day)
+    lim = float(np.percentile([losing_streak(w) for w in win], 99))
+    status = ("стоп" if p < STOP_P and nd >= STOP_DAYS else "внимание" if p < WARN_P or streak > lim else "в норме")
     return {**r, "p": p, "убытков подряд": streak, "предел серии": lim, "статус": status}
 
 
@@ -161,12 +176,12 @@ def main() -> int:
     stopped = set(json.loads(STOP.read_text())) if STOP.exists() else set()
     rows, msgs = [], []
     for code in REF:
-        r = judge(lv[code]["unit"].to_numpy(float), ref[code]["unit"].to_numpy(float), rng)
+        r = judge(lv[code], ref[code], rng)
         rows.append({"стратегия": code, **r})
         if r["статус"] != old.get(code) and r["статус"] in ("внимание", "стоп"):
-            msgs.append(f"{'⛔' if r['статус'] == 'стоп' else '⚠️'} Сверка с симуляцией: {code} — {r['статус']}. {r['сделок']} сделок на живых "
+            msgs.append(f"{'⛔' if r['статус'] == 'стоп' else '⚠️'} Сверка с симуляцией: {code} — {r['статус']}. {r['сделок']} сделок ({r['дней']} дней входа) на живых "
                         f"данных, средняя {r['средняя']:+.2f}% против {r['средняя бэктеста']:+.2f}% в бэктесте (так плохо — в {r['p'] * 100:.1f}% "
-                        f"случайных выборок бэктеста)" + (". Новые сигналы стратегии не берём, пока её не уберут из reports/live/strategy_stop.json."
+                        f"окон из стольких же подряд идущих дней бэктеста)" + (". Новые сигналы стратегии не берём, пока её не уберут из reports/live/strategy_stop.json."
                                                           if r["статус"] == "стоп" else "."))
         if r["статус"] == "стоп":
             stopped.add(code)
@@ -199,11 +214,13 @@ def write_doc(s: pd.DataFrame, per: pd.DataFrame, ex: dict, alt: pd.DataFrame, s
     now = pd.Timestamp.now("Europe/Moscow").tz_localize(None)
     md = ["# Сверка живой торговли с симуляцией", "", f"На {now:%d.%m.%Y %H:%M}. Сделки стратегий на живых данных с {START:%d.%m.%Y} против "
           "бэктеста той же стратегии на тех же бумагах (проверка 2021–2026), результат на единицу позиции после издержек. "
-          "p — доля случайных выборок бэктеста из стольких же сделок со средней не выше живой: ниже 5% — «внимание», ниже 1% — «стоп».",
-          "", "| стратегия | сделок | средняя, % | в бэктесте, % | сумма, % | p | убытков подряд (предел) | статус |", "|---|---|---|---|---|---|---|---|"]
+          "Считаем по дням входа (сделки одного дня — одна ставка): p — доля окон из стольких же подряд идущих дней бэктеста "
+          "со средней не выше живой: ниже 5% — «внимание», ниже 0.5% — «стоп» (только от 8 дней входа; меньше 5 дней — «мало сделок»).",
+          "", "| стратегия | сделок | дней входа | средняя сделка, % | в бэктесте, % | сумма, % | p | убыточных дней подряд (предел) | статус |",
+          "|---|---|---|---|---|---|---|---|---|"]
     for r in s.to_dict("records"):
         streak = f"{r.get('убытков подряд', '—')} ({r.get('предел серии', 0):.0f})" if "убытков подряд" in r and pd.notna(r.get("убытков подряд")) else "—"
-        md.append(f"| {r['стратегия']} | {r['сделок']} | {f(r['средняя'])} | {f(r['средняя бэктеста'])} | {f(r['сумма'], 1)} | "
+        md.append(f"| {r['стратегия']} | {r['сделок']} | {r['дней']} | {f(r['средняя'])} | {f(r['средняя бэктеста'])} | {f(r['сумма'], 1)} | "
                   f"{'—' if pd.isna(r['p']) else f'{r['p']:.3f}'} | {streak} | {r['статус']} |")
     md += ["", f"Остановлены сверкой (счёт не берёт их сигналы): {', '.join(sorted(stopped)) or 'нет'} — reports/live/strategy_stop.json.", ""]
     if len(per):
