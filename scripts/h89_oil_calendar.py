@@ -39,8 +39,9 @@ OUT = ROOT / "docs" / "results" / "h89_oil"
 OUT.mkdir(parents=True, exist_ok=True)
 OIL = ["LKOH", "ROSN", "TATN", "SNGSP", "GAZP", "NVTK"]
 CTRL = ["SBER", "VTBR"]
-SRC = {"GAZP": RAW / "GAZP_1m_15-26_upd.csv", "LKOH": RAW / "LKOH_1m_15-26.csv", "SBER": RAW / "SBER_1m_15-26.csv"}
-BR = ROOT / "data" / "derived" / "h89_br_1m.parquet"
+SRC = {"GAZP": RAW / "GAZP_1m_15-26_upd.csv", "LKOH": RAW / "LKOH_1m_15-26.csv", "SBER": RAW / "SBER_1m_15-26.csv",
+       # нефть сама: фьючерс Brent на Мосбирже, все контракты с истёкшими из ISS, склейка (moex_data.py futures BR, 18.11)
+       "BR": RAW / "moex" / "BR_1m_cont.csv"}
 W0, W1 = -60, 120
 COST = 0.10
 C1, C2, C3 = "#2a78d6", "#eb6834", "#888888"
@@ -142,8 +143,10 @@ def main() -> None:
     base_days = {d.strftime("%Y-%m-%d") for d in base}
     lines = ["## Числа", ""]
     prof, rows, dirrows = {}, [], []
-    for tk in OIL + CTRL:
+    pxs = {}
+    for tk in ["BR"] + OIL + CTRL:
         px = minutes(tk, ev_days | base_days)
+        pxs[tk] = px
         e = window_abs(px, list(cal["release"]))
         b = window_abs(px, base)
         prof[tk] = (e, b)
@@ -185,18 +188,27 @@ def main() -> None:
     lines += ["Направление: корреляция неожиданности запасов (z изменения к 52 неделям) с ходом за 30 минут; торговля «за "
               "первыми 5 минутами» (вход на 5-й минуте в сторону хода, выход через 60 минут, издержки 0.1%):", "",
               md(dt), ""]
-    # нефть сама (BR из ленты), если выгружена
-    if BR.exists():
-        br = pd.read_parquet(BR)["close"]
-        e = window_abs(br, list(cal["release"]))
-        b = window_abs(br, base)
-        prof["BR (нефть)"] = (e, b)
-        ok = np.isfinite(e[:, -W0:-W0 + 30]).any(axis=1)
-        lines += [f"Нефть BR (лента ALGOPACK, {ok.sum()} отчётов): размах 30 мин после "
-                  f"{np.nanmean(e[:, -W0:-W0 + 30]):.4f}% против {np.nanmean(b[:, -W0:-W0 + 30]):.4f}% — "
-                  f"отношение {np.nanmean(e[:, -W0:-W0 + 30]) / np.nanmean(b[:, -W0:-W0 + 30]):.2f}", ""]
-        for _, r in cal.iterrows():
-            pass
+    # передача: идёт ли акция за нефтью. Корреляция хода за 30 минут после отчёта; торговля «акция за нефтью» —
+    # вход на 5-й минуте в сторону хода нефти за первые 5 минут, выход через 60 минут, издержки 0.1%
+    rows = []
+    br = dr[dr["tk"] == "BR"].set_index("t")
+    for tk in OIL + CTRL:
+        g = dr[dr["tk"] == tk].set_index("t").join(br[["m5", "m30"]], rsuffix="_br")
+        for h in ("2016–2020", "2021–2026"):
+            x = g[g["half"] == h]
+            c = x.dropna(subset=["m30", "m30_br"])
+            y = x.dropna(subset=["m5_br", "m5_65"])
+            y = y[y["m5_br"].abs() > 0.1]
+            tr = np.sign(y["m5_br"]) * y["m5_65"] - COST
+            rows.append({"бумага": tk, "половина": h, "событий": len(c),
+                         "корр. (нефть, акция) 30 мин": round(c["m30"].corr(c["m30_br"]), 3),
+                         "сделок «за нефтью»": len(tr), "средняя %": round(tr.mean(), 3), "PF": round(pf(tr), 2),
+                         "доля плюсовых": round((tr > 0).mean(), 2)})
+    tt = pd.DataFrame(rows)
+    tt.to_csv(OUT / "transmission.csv", index=False)
+    lines += ["Идёт ли акция за нефтью: корреляция хода за 30 минут после отчёта с ходом BR; торговля «за нефтью» "
+              "(нефть за первые 5 минут ушла больше чем на 0.1% — вход в акцию в ту же сторону на 5-й минуте, выход "
+              "через 60 минут, издержки 0.1%):", "", md(tt), ""]
     chart_profile(prof, cal, base)
     lines += filt(cal)
     (OUT / "summary.md").write_text("\n".join(lines))
@@ -250,15 +262,10 @@ def chart_profile(prof: dict, cal: pd.DataFrame, base: list) -> None:
         for h, col in (("2016–2020", C3), ("2021–2026", C1)):
             me = np.array([half(t) == h for t in cal["release"]])
             mb = np.array([half(t) == h for t in base])
-            if tk.startswith("BR"):
-                me = np.ones(len(cal), bool)
-                mb = np.ones(len(base), bool)
             ev = np.nanmean(e[me], axis=0).reshape(-1, 5).mean(axis=1)
             bs = np.nanmean(b[mb], axis=0).reshape(-1, 5).mean(axis=1)
             ax.plot(xb, ev / np.nanmean(bs), color=col, lw=2, label=f"отчёт EIA, {h}")
             ax.plot(xb, bs / np.nanmean(bs), color=col, lw=1, ls="--", label=f"обычный день, {h}")
-            if tk.startswith("BR"):
-                break
         ax.axvline(0, color="k", lw=0.8)
         ax.set_title(tk, fontsize=10)
         style(ax)
@@ -267,7 +274,7 @@ def chart_profile(prof: dict, cal: pd.DataFrame, base: list) -> None:
     axes.ravel()[0].legend(fontsize=7)
     fig.supxlabel("минуты от выхода отчёта EIA (10:30 Нью-Йорк = 17:30 МСК летом, 18:30 зимой)")
     fig.supylabel("размах за минуту / средний размах обычного дня")
-    fig.suptitle("H89: размах акций вокруг отчёта EIA о запасах нефти — сплошные: дни отчёта, пунктир: те же минуты"
+    fig.suptitle("H89: размах нефти (BR) и акций вокруг отчёта EIA о запасах нефти — сплошные: дни отчёта, пунктир: те же минуты"
                  " вторника и четверга")
     fig.tight_layout()
     fig.savefig(OUT / "profile.png", dpi=110)
