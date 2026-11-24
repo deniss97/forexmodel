@@ -211,6 +211,12 @@ label.f input.title { font-weight: 600; font-size: 15px; }
 .plan-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pstate { font: 500 12px var(--mono); }
 .pwait { color: var(--st-ask); } .pok { color: var(--st-yes); } .pfix { color: var(--st-no); }
+/* итерации гипотезы (предложение Тимура 25.11): прошлые план и итог — в архив, уточнение — новый план и новый расчёт */
+.iters details { border-top: 1px solid var(--line); padding: 6px 0; }
+.iters summary { cursor: pointer; font-size: 14px; font-weight: 500; }
+.iters .it-body { display: grid; gap: 6px; padding: 6px 0 2px 12px; font-size: 14px; }
+.iters .it-body pre { white-space: pre-wrap; font: inherit; margin: 0; }
+.iter-ask { background: color-mix(in srgb, var(--st-ask) 10%, transparent); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
 
 /* просмотр ноутбука Jupyter */
 .nb-wrap { position: fixed; inset: 0; background: rgba(10, 14, 22, 0.45); z-index: 20; display: grid; place-items: center; padding: 16px; }
@@ -317,6 +323,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
           <li>Плюс одна «дикая карта»: большое влияние при низкой уверенности.</li>
           <li>До проверки записываем критерий вердикта: на каком периоде выбираем, на каком проверяем, какие метрики.</li>
           <li><b>План проверки (с 12.11):</b> перед расчётом Claude пишет в гипотезе своими словами, что и как посчитает и что покажет на графике, и задаёт вопросы. Автор гипотезы отвечает и жмёт «Подтвердить план» — только после этого расчёт. Фильтр «план ждёт подтверждения» показывает, где нужен ответ.</li>
+          <li><b>Итерации (с 25.11, предложение Тимура):</b> если после итога нужно уточнить или досчитать — в гипотезе кнопка «Добавить итерацию»: пишете уточнение, прошлые план и вывод уходят в архив итераций, Claude пишет новый план, после «Подтвердить план» — новый расчёт (в чате и журнале он называется H94.2, H94.3 …).</li>
           <li>Проверяем ровно то, что описано и подтверждено; после расчёта в гипотезе — «Как проверяли» по шагам и график. Сравниваем по профит-фактору и итогу без 2 лучших сделок; результат — эксперимент в журнале с графиком сделок.</li>
           <li>Новая стратегия не обязана быть лучше B01: цель — портфель из 8–10 стратегий. Важно, прибыльна ли она сама по себе на проверке, торгует ли в другое время и что даёт вместе с остальными.</li>
         </ol>
@@ -443,7 +450,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
   const STATUSES = { new: "новая", work: "в работе", yes: "подтвердилась", no: "не подтвердилась", hold: "отложена", ask: "уточнить" };
   const OPEN = ["new", "work", "ask", "hold"];
   const DIMS = [["i", "В", "влияние"], ["c", "У", "уверенность"], ["e", "С", "стоимость (5 — дёшево)"]];
-  const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400, how: 8000, seed: 2000, plan: 12000, q: 1000, a: 3000, note: 3000 };
+  const LIM = { title: 160, text: 20000, source: 120, criterion: 1000, result: 4000, link: 400, how: 8000, seed: 2000, plan: 12000, q: 1000, a: 3000, note: 3000, iter: 3000 };
   const PSTATE = { wait: "план ждёт подтверждения", ok: "план подтверждён", fix: "план: нужны правки" };
   const FILE_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
     mp4: "video/mp4", webm: "video/webm", pdf: "application/pdf", csv: "text/csv", md: "text/markdown", markdown: "text/markdown",
@@ -506,7 +513,11 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       questions: Array.isArray(d.plan.questions) ? d.plan.questions.filter((x) => x && str(x.q, LIM.q)).slice(0, 20)
         .map((x) => ({ q: str(x.q, LIM.q), a: str(x.a, LIM.a), by: safeId(x.by), at: str(x.at, 40) })) : [],
       okBy: safeId(d.plan.okBy), okAt: str(d.plan.okAt, 40), note: str(d.plan.note, LIM.note), noteBy: safeId(d.plan.noteBy) } : null;
+    const iters = Array.isArray(d.iters) ? d.iters.filter((x) => x && typeof x === "object").slice(0, 30).map((x, i) => ({
+      n: Number.isFinite(Number(x.n)) ? Number(x.n) : i + 1, at: str(x.at, 40), by: safeId(x.by), status: STATUSES[x.status] ? x.status : "",
+      ask: str(x.ask, LIM.iter), plan: str(x.plan, LIM.plan), result: str(x.result, LIM.result), how: str(x.how, LIM.how), seed: str(x.seed, LIM.seed) })) : [];
     return {
+      iters, iterNote: str(d.iterNote, LIM.iter), iterAt: str(d.iterAt, 40), iterBy: safeId(d.iterBy),
       plan: pl, how: str(d.how, LIM.how), seed: str(d.seed, LIM.seed),
       code: id, num, votes, draft: dr && dr.i && dr.c && dr.e ? dr : null,
       title: str(d.title, LIM.title), text, source: str(d.source, LIM.source), criterion: str(d.criterion, LIM.criterion),
@@ -641,16 +652,44 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       ${list ? `<div class="files">${list}</div>` : `<span class="hint">Файлов нет. Сюда — ТЗ, скриншоты, таблицы, ноутбуки Jupyter: Word .docx, картинки, PDF, CSV, Markdown, JSON, .ipynb, текст, видео до 20 МБ.</span>`}${why}</div>`;
   }
 
+  // итерации: N-я итерация = прошлых в архиве + 1; задание серверу называется H94.2, H94.3 …
+  const iterNo = (h) => h.iters.length + 1;
+  function itersHTML(h, ro) {
+    const past = h.iters.map((x) => `<details><summary>Итерация ${x.n}${x.status ? " — " + esc(STATUSES[x.status]) : ""}${x.at ? ` · закрыта ${esc(when(x.at))}` : ""}</summary>
+      <div class="it-body">${x.ask ? `<div><span class="eyebrow">уточнение</span><pre>${esc(x.ask)}</pre></div>` : ""}
+        ${x.result ? `<div><span class="eyebrow">вывод</span><pre>${esc(x.result)}</pre></div>` : ""}
+        ${x.how ? `<div><span class="eyebrow">как проверяли</span><pre>${esc(x.how)}</pre></div>` : ""}
+        ${x.plan ? `<div><span class="eyebrow">план</span><pre>${esc(x.plan)}</pre></div>` : ""}</div></details>`).join("");
+    const can = !ro && h.plan && h.plan.state === "ok" && (h.result.trim() || ["yes", "no", "hold"].includes(h.status));
+    const add = can ? `<label class="f">Уточнение для итерации ${iterNo(h) + 1} — что изменить или досчитать<textarea class="grow" data-f="iterask" maxlength="${LIM.iter}" placeholder="например: взять другой порог, добавить бумаги, посмотреть отдельные случаи"></textarea></label>
+      <div class="plan-acts"><button type="button" class="btn small primary" data-act="iter-add">Добавить итерацию</button>
+      <span class="hint">Текущие план и вывод уйдут в архив ниже, Claude напишет новый план с учётом уточнения, после подтверждения — новый расчёт.</span></div>` : "";
+    if (!past && !add) return "";
+    return `<div class="block iters"><div class="block-head"><span class="eyebrow">итерации${h.iters.length ? ` — сейчас ${iterNo(h)}-я` : ""}</span></div>${add}${past}</div>`;
+  }
+  async function addIter(code, ed) {
+    const h = docs.get(code); if (!h || !h.plan) return;
+    const ask = (readEditor(ed).iterask || "").trim();
+    if (!ask) { toast("Напишите уточнение — что изменить в новой итерации."); return; }
+    const now = new Date().toISOString();
+    const arch = { n: iterNo(h), at: now, by: me.id || null, status: h.status, ask: h.iterNote, plan: h.plan.text, result: h.result, how: h.how, seed: h.seed };
+    await write(() => col.doc(code).update({ iters: [...h.iters, arch], iterNote: ask, iterAt: now, iterBy: me.id || null, plan: null,
+      status: "work", result: "", how: "", updatedAt: now, ...(me.id ? { updatedBy: me.id } : {}) }),
+      `Итерация ${iterNo(h) + 1} добавлена — Claude напишет новый план`);
+  }
+
   function planHTML(h, ro) {
     const P = h.plan;
-    if (!P) return `<div class="block plan"><div class="block-head"><span class="eyebrow">план проверки</span></div>
+    const ask = h.iterNote ? `<div class="iter-ask"><b>Уточнение к итерации ${iterNo(h)}</b>${h.iterBy ? ` · <span data-uid="${esc(h.iterBy)}">…</span>` : ""}${h.iterAt ? ", " + esc(when(h.iterAt)) : ""}: ${esc(h.iterNote)}</div>` : "";
+    const itl = h.iters.length ? ` — итерация ${iterNo(h)}` : "";
+    if (!P) return `<div class="block plan"><div class="block-head"><span class="eyebrow">план проверки${itl}</span></div>${ask}
       <span class="hint">Перед расчётом Claude пишет здесь своими словами, что и как будет считать, и задаёт уточняющие вопросы. Считает только после того, как автор гипотезы (или Денис) ответит и нажмёт «Подтвердить план».</span></div>`;
     const qs = P.questions.map((x, i) => `<div class="qa"><span class="q">${i + 1}. ${esc(x.q)}</span>
       <label class="f">Ответ${x.a && x.by ? ` · <span data-uid="${esc(x.by)}">…</span>${x.at ? ", " + esc(when(x.at)) : ""}` : ""}<textarea class="grow" data-f="qa${i}" maxlength="${LIM.a}" ${ro ? "readonly" : ""} placeholder="ваш ответ">${esc(x.a)}</textarea></label></div>`).join("");
     const st = P.state === "ok" ? `подтвердил(а) <span data-uid="${esc(P.okBy || "")}">…</span>${P.okAt ? ", " + esc(when(P.okAt)) : ""}` : PSTATE[P.state];
     return `<div class="block plan ${P.state === "ok" ? "ok" : P.state === "fix" ? "fix" : ""}">
-      <div class="block-head"><span class="eyebrow">план проверки — от Claude, до расчёта</span><span class="pstate p${P.state}">${st}</span></div>
-      <div class="md-view" data-md="plan"></div>${P.at ? `<span class="hint">план записан ${esc(when(P.at))}</span>` : ""}
+      <div class="block-head"><span class="eyebrow">план проверки${itl} — от Claude, до расчёта</span><span class="pstate p${P.state}">${st}</span></div>
+      ${ask}<div class="md-view" data-md="plan"></div>${P.at ? `<span class="hint">план записан ${esc(when(P.at))}</span>` : ""}
       ${qs ? `<span class="eyebrow">вопросы</span>${qs}` : ""}
       <label class="f">Замечания к плану${P.note && P.noteBy ? ` · <span data-uid="${esc(P.noteBy)}">…</span>` : ""}<textarea class="grow" data-f="plannote" maxlength="${LIM.note}" ${ro ? "readonly" : ""} placeholder="что поправить в плане, если нужно">${esc(P.note)}</textarea></label>
       ${ro ? "" : `<div class="plan-acts"><button type="button" class="btn small" data-act="plan-save">Сохранить ответы</button>
@@ -703,6 +742,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
             <label class="f">Другая ссылка (документ, если эксперимента в журнале нет)<input data-f="link" maxlength="${LIM.link}" ${r} value="${esc(h.link)}" placeholder="https://github.com/…"></label>
             ${/^https:\/\//.test(h.link) ? `<a href="${esc(h.link)}" target="_blank" rel="noopener" class="hint">открыть ссылку</a>` : ""}
           </div>
+          ${itersHTML(h, ro)}
         </div>
         <div class="col">
           <label class="f">Раздел<select data-f="area" ${dis}>${opt(AREA, h.area, "не задан")}</select></label>
@@ -1476,6 +1516,7 @@ label.f input.title { font-weight: 600; font-size: 15px; }
       else if (k === "plan-save") await savePlan(code, ed, null);
       else if (k === "plan-ok") await savePlan(code, ed, "ok");
       else if (k === "plan-fix") await savePlan(code, ed, "fix");
+      else if (k === "iter-add") await addIter(code, ed);
       else if (k === "sprint" && h) await write(() => col.doc(code).update({ sprint: h.sprint === thisWeek ? "" : thisWeek, updatedAt: new Date().toISOString() }),
                                                h.sprint === thisWeek ? "Снято с этой недели" : "Взято на эту неделю");
       else if (k === "getfile" && h) {
