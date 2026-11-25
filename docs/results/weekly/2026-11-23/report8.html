@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Отчёт № 8 · 17.11–23.11.2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=block" rel="stylesheet">
+<style>
+:root { --ink: #15233b; --ink2: #4a5568; --muted: #7a8391; --line: #e2ddd2; --paper: #f6f4ef;
+  --blue: #2459b3; --blue-soft: #e6edf8; --orange: #a9521a; --green: #1e7a4f; --green-soft: #e3f2ea; --red: #b3261e; --red-soft: #fbe9e7; }
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font: 19px/1.45 "IBM Plex Sans", "DejaVu Sans", sans-serif; color: var(--ink); background: var(--paper); }
+.slide { width: 1280px; height: 720px; padding: 50px 64px 40px; position: relative; overflow: hidden; break-after: page; background: var(--paper); display: flex; flex-direction: column; }
+.slide:last-child { break-after: auto; }
+h1, h2 { font-family: "Manrope", sans-serif; letter-spacing: -0.015em; margin: 0; }
+h2 { font-size: 36px; font-weight: 800; line-height: 1.12; margin-bottom: 8px; }
+.kicker { font: 600 13px "IBM Plex Sans", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--orange); margin-bottom: 10px; }
+.lead { font-size: 20px; color: var(--ink2); margin: 0 0 14px; max-width: 1120px; }
+.foot { position: absolute; left: 64px; right: 64px; bottom: 16px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+img.chart { width: 100%; border-radius: 6px; }
+code { font-family: "JetBrains Mono", monospace; font-size: .85em; background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+b { font-weight: 600; }
+ul { margin: 0; padding-left: 22px; } li { margin: 0 0 7px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.note { font-size: 17px; color: var(--ink2); }
+.cover { background: var(--ink); color: #fff; padding: 70px 80px; }
+.cover::after { content: ""; position: absolute; right: -160px; top: -160px; width: 620px; height: 620px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(36,89,179,.6), rgba(36,89,179,0) 70%); }
+.cover .kicker { color: #f0b48a; }
+.cover h1 { font-size: 62px; font-weight: 800; line-height: 1.04; margin: 22px 0 22px; max-width: 980px; position: relative; z-index: 1; }
+.cover .sub { font-size: 23px; color: #c9d3e3; max-width: 940px; position: relative; z-index: 1; }
+.cover .meta { margin-top: auto; display: flex; gap: 14px; position: relative; z-index: 1; }
+.pill { border: 1px solid rgba(255,255,255,.3); border-radius: 30px; padding: 7px 18px; font-size: 16px; color: #e8edf5; }
+.bs { display: grid; grid-template-columns: 210px 1fr 1fr; border-top: 2px solid var(--ink); }
+.bs > div { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
+.bs .h { font: 600 13px "IBM Plex Sans"; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding-top: 10px; }
+.bs .k { font-weight: 600; }
+.bs.tight > div { padding: 8px 16px 8px 0; font-size: 17px; }
+.bs .now { color: var(--ink); } .bs .was { color: var(--ink2); }
+.tag { display: inline-block; font: 600 13px "IBM Plex Sans"; border-radius: 4px; padding: 1px 7px; margin-right: 6px; }
+.tag.g { background: var(--green-soft); color: var(--green); } .tag.r { background: var(--red-soft); color: var(--red); } .tag.b { background: var(--blue-soft); color: var(--blue); }
+table { border-collapse: collapse; width: 100%; font-size: 16.5px; }
+th { text-align: left; font: 600 12.5px "IBM Plex Sans"; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 6px 12px 6px 0; }
+td { border-bottom: 1px solid var(--line); padding: 7px 12px 7px 0; vertical-align: top; }
+td.d { white-space: nowrap; font-weight: 600; width: 78px; }
+.box { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 14px 20px; font-size: 17.5px; }
+.box.r { border-left: 5px solid var(--red); } .box.g { border-left: 5px solid var(--green); } .box.b { border-left: 5px solid var(--blue); }
+.big { font: 800 44px "Manrope"; line-height: 1; margin-bottom: 6px; }
+.big.r { color: var(--red); } .big.g { color: var(--green); } .big.b { color: var(--blue); }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 12px; }
+.grid2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; margin-top: 10px; }
+</style>
+</head><body>
+<section class="slide cover">
+  <div class="kicker">forexmodel · еженедельный отчёт № 8</div>
+  <h1>Резкие ходы не продолжаются, а после обвала цена отскакивает</h1>
+  <div class="sub">17.11 – 23.11.2026. Гипотезы переехали в отдельный исследовательский чат, там работает /ask: вопросы и файлы, архивы с результатами. Посчитаны H94 (резкие ходы — продолжения нет, после падения отскок к закрытию → новая H96) и H89 по самой нефти (нет). Первые две реальные сделки S42 закрылись в минус, и 21.11 сверка с бэктестом остановила S42 — счёт сейчас ничем не торгует. Тимур предложил размечать фигуры на часе и 15 минутах — разметка его кодом даёт в 8 раз больше примеров на часе и в 45 раз — на 15 минутах.</div>
+  <div class="meta"><span class="pill">17.11 – 23.11.2026</span><span class="pill">счёт 15 000 ₽ · S42 · auto</span><span class="pill">созвоны 17.11, 23.11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">итог недели</div>
+  <h2>Было → стало за неделю</h2>
+  <div class="bs tight">
+    <div class="h"></div><div class="h">было 16.11</div><div class="h">стало 23.11</div>
+    <div class="k">Чаты</div><div class="was">сделки и гипотезы в одной группе</div><div class="now"><span class="tag g">сделано</span>исследовательский чат: гипотезы, отчёты, /ask с файлами и архивами</div>
+    <div class="k">Счёт</div><div class="was">SBER и GAZP открыты с 11.11</div><div class="now"><span class="tag r">−266 ₽</span>обе закрыты стопом у брокера (GAZP −4.2%, SBER −2.5%); <b>21.11 сверка остановила S42</b> — счёт не торгует</div>
+    <div class="k">Бумага</div><div class="was">S48: 12 из 12 в минусе</div><div class="now"><span class="tag r">стоп</span>S48 — 16 из 16 в минусе (остановлена сверкой); S46 — в норме, 4 из 12 в плюсе</div>
+    <div class="k">H94</div><div class="was">идея Тимура, план с вопросами</div><div class="now"><span class="tag r">нет</span>продолжения нет; <b>после падения — отскок</b> к закрытию в 60–77% дней → H96</div>
+    <div class="k">H89 нефть</div><div class="was">ждала данных по нефти</div><div class="now"><span class="tag r">нет</span>Brent с Мосбиржи 2015–2026: нефть дёргается, направление не угадать</div>
+    <div class="k">H40</div><div class="was">без картинки и ссылки</div><div class="now"><span class="tag g">закрыта</span>картинки случаев в журнале, итог и архив в чате</div>
+    <div class="k">Фигуры</div><div class="was">на дневках ~50 на фигуру</div><div class="now"><span class="tag b">идея 23.11</span>час и 15 минут: примеров в 8 и 45 раз больше</div>
+    <div class="k">Банк</div><div class="was">7 планов ждут ответа</div><div class="now">H91/H92 удалены (дубли H94); новые H95, H96, H97 — <b>8 планов ждут Тимура</b></div>
+  </div>
+  <div class="foot"><span>Отчёт № 8 · 17.11–23.11.2026</span><span>2</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">хронология</div>
+  <h2>По дням</h2>
+  <table>
+    <tr><th>день</th><th>что сделано</th></tr>
+    <tr><td class="d">17.11</td><td>Созвон: план на неделю. Два чата в коде. H40 — все сделки 2025–2026 и 38 случаев под уровнем крупно. Ликбез «биржа и проект простыми словами».</td></tr>
+    <tr><td class="d">18.11</td><td>Раздел банка «Рыночные неэффективности», план H94. Нефть Brent с ISS (все 209 контрактов). H89 по самой нефти — нет. Ревизия модели. Подключён исследовательский чат.</td></tr>
+    <tr><td class="d">19.11</td><td>Тимур подтвердил план H94. GAZP на счёте закрыт стопом у брокера.</td></tr>
+    <tr><td class="d">20.11</td><td>H94 посчитана → H96 «покупка после обвала». /ask в исследовательском чате с отправкой файлов и архивов. H91/H92 удалены. План H95. SBER закрыт по стопу. Архивы H40 и H94 в чате.</td></tr>
+    <tr><td class="d">21.11</td><td><b>Сверка остановила S42</b> (5 сделок, −3.19% против +0.40%). H78: набор для выгрузки Telegram-канала (скрипт, инструкция, вариант для Windows). H94: лента сделок на 10 сильнейших случаях, страница со случаями для Тимура.</td></tr>
+    <tr><td class="d">23.11</td><td>Созвон: новостные движения, фигуры на младших таймфреймах, возврат к фильтру. Фигуры кодом Тимура на часе и 15 минутах. H97 — новостные и неновостные движения. Освобождено место на сервере.</td></tr>
+  </table>
+  <div class="foot"><span>docs/meetings/2026-11-17_timur.md · 2026-11-23_timur.md · git log</span><span>3</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">счёт · реальные деньги</div>
+  <h2>Обе сделки S42 закрыты стопом в минус: −266 ₽</h2>
+  <div class="cols" style="grid-template-columns: 1.55fr 1fr">
+    <img class="chart" src="live_closed.png" style="height:560px;width:auto">
+    <div>
+      <div class="box r"><div class="big r">−266 ₽</div>GAZP −146 ₽ (−4.2%), SBER −120 ₽ (−2.5%) на 8 280 ₽ в позициях, плюс комиссии 6.5 ₽. До трейлинга не дошла ни одна.</div>
+      <div class="box b" style="margin-top:14px"><b>Обе продала стоп-заявка у брокера:</b> GAZP 19.11 в 16:00 по 112.08 (стоп 112.09), SBER 20.11 в 12:18 по 290.66 (стоп 290.41). Цены выхода теперь берутся из операций брокера — раньше контур писал цену свечи (GAZP 113.76) и занижал убыток.</div>
+      <div class="box r" style="margin-top:14px"><b>21.11 сверка остановила S42</b> (−3.19% на сделку против +0.40% в бэктесте). Сигналы на счёт не идут, пока не решим.</div>
+    </div>
+  </div>
+  <div class="foot"><span>scripts/live_trades_closed.py · reports/live/account_trades.csv</span><span>4</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">сверка с бэктестом</div>
+  <h2>Сверка остановила S42 и S48; в норме только S46</h2>
+  <div class="kpis">
+    <div class="box r"><div class="big r">S48 · 0 / 16</div>S48 (пробой 20 дней): ни одной прибыльной закрытой сделки с 26.10, в сумме −37.7%; за неделю ещё 4 сделки, −12.5%.</div>
+    <div class="box"><div class="big">4 / 12</div>S46 (пробой 55 дней): 4 из 12 в плюсе, в сумме −8.9%; за неделю 4 сделки, −3.5%.</div>
+    <div class="box r"><div class="big r">S42 · стоп</div>5 сделок с 24.10 (счёт и бумага), в среднем −3.19% против +0.40% в бэктесте, p = 0.003. Остановлена 21.11.</div>
+  </div>
+  <p class="lead" style="margin-top:22px">В бэктесте на проверке 2021–2026 обе в плюсе: S46 — PF 1.70, прибыльных 33% сделок; S48 — PF 1.11, прибыльных 31%. Месяц на бумаге — мало для вывода о стратегии, но 16 убытков подряд при 31% прибыльных случаются с вероятностью около 0.3% — S48 сейчас работает не так, как в бэктесте. Сверка не берёт сигналы S42 и S48 на счёт; на бумаге они продолжают считаться — это видно в журнале.</p>
+  <div class="foot"><span>reports/live/deviation.md (на 22.11) · iterator_journal.csv · S46/S48 на бумаге с 26.10</span><span>5</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">процесс</div>
+  <h2>Исследовательский чат: гипотезы отдельно, /ask с файлами</h2>
+  <div class="grid2x2">
+    <div class="box b"><b>Два чата.</b> Сделки и счёт — в торговой группе. Гипотезы, отчёты, сбои сбора данных — в «Forexmodel. Исследовательский чат».</div>
+    <div class="box b"><b>/ask вопрос</b> — Claude отвечает по файлам проекта. Можно попросить таблицу, картинку, код или архив: до 45 МБ бот пришлёт сам, больше — ссылкой на Яндекс Диск. Ключи и токены не отправляются никогда.</div>
+    <div class="box b"><b>Итог гипотезы = текст + картинки + архив.</b> К каждому итогу — Hxx.zip: отчёт, картинки, таблицы, скрипты. Отправлены H40.zip и H94.zip (31 МБ, все случаи с признаками).</div>
+    <div class="box"><b>Что видит бот.</b> В группах бот видит только команды и ответы на свои сообщения. Чтобы он видел весь чат (и вопросы без /ask), его нужно сделать администратором.</div>
+  </div>
+  <div class="foot"><span>scripts/research_ask.py · scripts/live_bot.py · reports/live/research_chat.jsonl</span><span>6</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H94 · рыночные неэффективности</div>
+  <h2>Резкий ход не продолжается; после падения цена отскакивает</h2>
+  <div class="cols" style="grid-template-columns: 1.6fr 1fr">
+    <img class="chart" src="h94_rebound.png" style="height:auto">
+    <div>
+      <ul>
+        <li><b>Частые «резкие часы»</b> (часовой ATR, 0.5–1% за час) — монетка: продолжений 48–49% против 50% у случайных минут; таких случаев тысячи.</li>
+        <li><b>Ни один признак</b> не дал продолжения: форма хода на 5 минутах, объём, пробой уровня или максимума дня, ЦБ/EIA/отсечка.</li>
+        <li><b>После падения на 2 дневных ATR за час</b> к закрытию цена выше в 77% дней (2016–2020) и 70% (2021–2026), в среднем +0.8…+2%. Без 2022 года — 67%.</li>
+        <li>После взлёта зеркального рисунка нет.</li>
+      </ul>
+      <div class="box g" style="margin-top:12px">→ <b>H96 «покупка после обвала»</b>: проверка как стратегии (лонг до закрытия дня, стоп, издержки, журнал сделок). План ждёт ответов.</div>
+    </div>
+  </div>
+  <div class="foot"><span>docs/results/h94.md · журнал #H94 · 7 бумаг, 2016–2026</span><span>7</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H94 · сами случаи</div>
+  <h2>Как выглядят резкие ходы на 5-минутках</h2>
+  <img class="chart" src="h94_cases.png" style="height:560px;width:auto;align-self:center">
+  <div class="foot"><span>scripts/h94_cases.py · 8 последних случаев на 2 дневных ATR за час (2023–2026)</span><span>8</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H94 · лента сделок</div>
+  <h2>Разворот после обвала виден и в ленте: продавцы уходят</h2>
+  <div class="cols" style="grid-template-columns: 1.5fr 1fr">
+    <img class="chart" src="h94_tape.png" style="height:auto">
+    <div>
+      <ul>
+        <li>10 сильнейших случаев с 2022 года (лента ALGOPACK).</li>
+        <li><b>Во время обвала</b> покупки — 38% оборота (медиана), <b>в следующий час</b> — уже 51%.</li>
+        <li>При взлёте — 53% во время хода и 56% после: перелома нет.</li>
+        <li>За час хода проходит 6–38% дневного оборота бумаги.</li>
+      </ul>
+      <p class="note">Случаев мало (6 взлётов, 4 обвала) — это описание, не статистика. Ленту на всех случаях — вместе с H96.</p>
+    </div>
+  </div>
+  <div class="foot"><span>scripts/h94_tape.py · docs/results/h94/top_cases.md</span><span>9</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H89 · экономический календарь</div>
+  <h2>Отчёт EIA шевелит нефть, но куда она пойдёт — не угадать</h2>
+  <div class="cols" style="grid-template-columns: 1.6fr 1fr">
+    <img class="chart" src="h89_profile.png" style="height:auto">
+    <div>
+      <ul>
+        <li><b>Нефть Brent с Мосбиржи</b>, все 209 контрактов бесплатно из ISS — ALGOPACK не понадобился.</li>
+        <li>В первые 5 минут после отчёта нефть движется в 2–3 раза сильнее обычного.</li>
+        <li>Направление по запасам — корреляция −0.18 до 2021 и −0.05 после; «войти за первыми 5 минутами» — PF 0.59–0.66.</li>
+        <li>Акции за нефтью после 2021 почти не идут: «купить LKOH/ROSN, если нефть дёрнулась» — PF 0.41–0.82.</li>
+      </ul>
+      <div class="box r" style="margin-top:10px">Итог — нет. ОПЕК+ не посчитан: нужна история календаря investing.com.</div>
+    </div>
+  </div>
+  <div class="foot"><span>docs/results/h89_oil.md · журнал #H89 · data/raw/moex/BR_1m_cont.csv</span><span>10</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">модель · ревизия (пункт 5 созвона 17.11)</div>
+  <h2>Направление модель не угадывает; волатильность — хорошо</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Направление.</b> До комиссии +0.03…+0.06% на сделку — того же порядка, что комиссия. 20+ попыток улучшить (разметка, регрессия, ансамбль, мета-модель, признаки, лента, нейросеть, TokDiT) — ничего.</li>
+        <li><b>H64 (нейросеть) уже посчитана</b> как L12 — хуже CatBoost: PF 0.52 против 0.77.</li>
+        <li><b>Волатильность</b> модель предсказывает хорошо: корреляция прогноза с фактом 0.76, у ATR — 0.40.</li>
+        <li>Но в торговле пока полезнее простой ATR: «не торговать в тихие периоды» улучшает сделку на всех seed.</li>
+      </ul>
+    </div>
+    <div class="box b"><b>Что можно проверить</b> (идея Тимура — работать от волатильности):
+      <ul style="margin-top:8px">
+        <li>прогноз волатильности как фильтр и размер позиции для S42/S46;</li>
+        <li>как ширина стопа;</li>
+        <li>где модель ошибается — это и есть «взрывы» H94;</li>
+        <li>опционы — позже.</li>
+      </ul></div>
+  </div>
+  <div class="foot"><span>docs/results/model_review.md · журнал M01–M21, L01–L13</span><span>11</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">H95 · фигуры на младших таймфреймах (созвон 23.11)</div>
+  <h2>На часе фигур в 8 раз больше, на 15 минутах — в 45</h2>
+  <div class="cols" style="grid-template-columns: 1.5fr 1fr">
+    <img class="chart" src="h95_counts.png" style="height:auto">
+    <div>
+      <p class="lead">Тимур: «на дневках по треугольнику ~50 примеров — это ни о чём, нужно 200–1000; фигуры — фрактал».</p>
+      <ul>
+                <li><b>SBER, GAZP, LKOH</b>: фигур с пробоем на дневках 3–110 на фигуру, на часе 44–877, на 15 минутах 314–5032.</li>
+        <li><b>Все 19 акций, час:</b> 1451–6597 на фигуру (тройные — по 376). Порог Тимура «хотя бы 200» проходит каждая фигура.</li>
+        <li><b>Заглядывание вперёд</b> (пробой раньше, чем фигура видна) от таймфрейма не зависит: треугольники 18–30%, флаги 11–17%, двойные дно/вершина — 0. Входить — только после known_at, как в H74.</li>
+      </ul>
+      <div class="box b" style="margin-top:8px">Только подсчёт кодом Тимура. Сделки по фигурам — H95, план ждёт ответов.</div>
+    </div>
+  </div>
+  <div class="foot"><span>scripts/h95_tf_counts.py · docs/results/h95/counts_by_tf.csv</span><span>12</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">данные для H78 и H97</div>
+  <h2>Выгрузка Telegram-каналов: набор для Тимура</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>H78 «следовать за авторами сигналов»</b>: закрытый платный канал, на который подписан друг Тимура. У сервера нет пользовательского аккаунта Telegram — выгружать нужно с компьютера человека.</li>
+        <li>21.11 в чат ушли скрипт <code>tg_export.py</code>, инструкция и вариант для Windows «двойным щелчком» (сам ставит Python). Пробный запуск — 50 последних постов без медиа.</li>
+        <li>Тимур упёрся в «Too many attempts» на my.telegram.org — ответ в чате через /ask: подождать, не жать повторно.</li>
+      </ul>
+    </div>
+    <div class="box b"><b>Тот же набор пригодится для H97</b> — новостные и неновостные движения (идея Тимура 23.11): история новостных каналов (Интерфакс, РБК, MarketTwits) даёт точное время каждой новости. Тогда случаи H94 и H96 можно разделить на «на новости» и «без новости».<p class="note" style="margin-top:10px">Содержимое платного канала не публикуем и в отчёты не выносим.</p></div>
+  </div>
+  <div class="foot"><span>scripts/tg_export.py · docs/tg_export_timur.md · tools/tg_export_win/</span><span>13</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">банк гипотез</div>
+  <h2>8 планов ждут ответа Тимура</h2>
+  <table>
+    <tr><th>гипотеза</th><th>что</th><th>главный вопрос</th></tr>
+    <tr><td class="d">H96</td><td>покупка после обвала (из H94)</td><td>только лонг? выход до закрытия дня или держать?</td></tr>
+    <tr><td class="d">H97</td><td>новостные и неновостные движения</td><td>какие каналы, кто выгрузит</td></tr>
+    <tr><td class="d">H95</td><td>фигуры как сигнал входа</td><td>какой выход; ждать ли разметку Тагира; теперь — и на каком таймфрейме</td></tr>
+    <tr><td class="d">H78</td><td>следовать за авторами сигналов</td><td>ждёт выгрузку канала</td></tr>
+    <tr><td class="d">H93</td><td>таблица уровней трейдера</td><td>кто и как выгружает её каждый день</td></tr>
+    <tr><td class="d">H87</td><td>«ширина импульса» для S42</td><td>фильтр входа или больше позиций</td></tr>
+    <tr><td class="d">H64</td><td>нейросеть вместо CatBoost</td><td>уже посчитана как L12 — закрыть или «нейросеть для волатильности»?</td></tr>
+    <tr><td class="d">H39</td><td>обучение на размеченных фигурах</td><td>какие фигуры; объединить с H95?</td></tr>
+  </table>
+  <div class="foot"><span>банк гипотез · фильтр «план ждёт подтверждения»</span><span>14</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">созвон 23.11 и планы</div>
+  <h2>Неделя 24.11 – 30.11</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Фильтр, к которому стоит вернуться</b> (Тимур покажет вечером). Кандидат из журнала — лонг по трёхслойному тренд-фильтру (H60): на SBER, GAZP, PLZL, TATN, NLMK, MAGN, CHMF в плюсе и на выборе, и на проверке, и без 2 лучших сделок (PF на проверке 1.27–1.44).</li>
+        <li><b>H96</b> — как только Тимур ответит: сделки, стоп, журнал.</li>
+        <li><b>Фигуры</b>: разметка Тимура (пришлёт), H95 на часе — после ответа на план.</li>
+        <li><b>H97 / H78</b> — выгрузка каналов.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li><b>Решение по счёту:</b> S42 остановлена сверкой, счёт стоит. Варианты: ждать (5 сделок — мало), снова включить с меньшей суммой или перейти на S46 — единственную в норме. Плюс: что было с GAZP 19.11.</li>
+        <li><b>Модель:</b> прогноз волатильности как фильтр и стоп для S42/S46 — карточкой, если интересно.</li>
+        <li>Бот — администратором исследовательского чата, чтобы видел все сообщения.</li>
+        <li>ОПЕК+ для H89 — нужна история календаря investing.com (браузер).</li>
+      </ul>
+      <div class="box" style="margin-top:12px">Место на сервере: свободно 9.9 ГБ (было 5.8) — убраны кэши и видео, контракты фьючерсов на Яндекс Диске.</div>
+    </div>
+  </div>
+  <div class="foot"><span>docs/meetings/2026-11-23_timur.md</span><span>15</span></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">где всё лежит</div>
+  <h2>Файлы недели</h2>
+  <table>
+    <tr><th>что</th><th>где</th></tr>
+    <tr><td>H94 — отчёт, таблицы, случаи</td><td><code>docs/results/h94.md</code>, <code>docs/results/h94/</code>, журнал #H94, архив H94.zip в чате</td></tr>
+    <tr><td>H89 — нефть сама</td><td><code>docs/results/h89_oil.md</code>, журнал #H89; ряд Brent — <code>data/raw/moex/BR_1m_cont.csv</code></td></tr>
+    <tr><td>H40 — картинки случаев</td><td><code>docs/results/h40_trades.md</code>, журнал #H40, архив H40.zip в чате</td></tr>
+    <tr><td>Ревизия модели</td><td><code>docs/results/model_review.md</code></td></tr>
+    <tr><td>Фигуры по таймфреймам</td><td><code>docs/results/h95/counts_by_tf.csv</code></td></tr>
+    <tr><td>/ask и архивы в чат</td><td><code>scripts/research_ask.py</code>, <code>scripts/hyp_post.py</code></td></tr>
+    <tr><td>Выгрузка Telegram</td><td><code>scripts/tg_export.py</code>, <code>docs/tg_export_timur.md</code></td></tr>
+    <tr><td>Созвоны</td><td><code>docs/meetings/2026-11-17_timur.md</code>, <code>2026-11-23_timur.md</code></td></tr>
+  </table>
+  <div class="foot"><span>Отчёт № 8 · 17.11–23.11.2026</span><span>16</span></div>
+</section>
+</body></html>

@@ -12,6 +12,13 @@
   4. ход цены после честного входа в ATR часа против обычного часа (как в моём H74), со знаком направления фигуры;
   5. исходы «цель / стоп» функцией автора evaluate (без комиссий).
     python scripts/h74_timur.py
+    python scripts/h74_timur.py --page     # только страница lkoh_timur.html
+
+Страница lkoh_timur.html (разметка автора на LKOH, последние 750 дней) + коридор и вертикальный объём (просьба Тимура
+23.11, сообщение 445 в исследовательском чате): «Выделить отрезок» (или Shift + протянуть мышью) — справа на той же
+шкале цены профиль объёма только за выбранные дни: шаг 1–50 ₽ (по умолчанию 10), POC и зона 70% объёма. Объём — минутки
+основной сессии 10–18 ч (как дневные свечи страницы); объём минуты делится поровну по рублёвым уровням от её
+минимума до максимума.
 """
 from __future__ import annotations
 
@@ -201,14 +208,127 @@ def charts(a: pd.DataFrame, t3: pd.DataFrame) -> None:
     plt.close(fig)
 
 
+def day_levels(tk: str, days: pd.DatetimeIndex) -> dict[str, list[int]]:
+    """Объём по рублёвым уровням за каждый день: {"2024-05-17": [нижний уровень, объём уровня, следующего, …]}.
+    Минутки основной сессии (10–18 ч, как дневные свечи страницы); объём минуты — поровну по уровням [low, high]."""
+    src = mine.SRC.get(tk, mine.RAW / "moex" / f"{tk}_1m.csv")
+    first = days.min()
+    parts = []
+    for ch in pd.read_csv(src, usecols=["high", "low", "volume", "begin"], chunksize=500_000):
+        ch["begin"] = pd.to_datetime(ch["begin"])
+        ch = ch[(ch["begin"] >= first) & ch["begin"].dt.hour.between(10, 18) & (ch["volume"] > 0)]
+        if len(ch):
+            parts.append(ch)
+    m = pd.concat(parts)
+    lo = np.floor(m["low"].to_numpy()).astype(np.int64)
+    w = np.floor(m["high"].to_numpy()).astype(np.int64) - lo + 1
+    rep = np.repeat(np.arange(len(m)), w)
+    lev = lo[rep] + (np.arange(len(rep)) - np.repeat(np.cumsum(w) - w, w))
+    vol = (m["volume"].to_numpy() / w)[rep]
+    day = m["begin"].dt.normalize().to_numpy()[rep]
+    g = pd.DataFrame({"day": day, "lev": lev, "v": vol}).groupby(["day", "lev"])["v"].sum()
+    out = {}
+    for dday, s in g.groupby(level=0):
+        lv = s.index.get_level_values(1)
+        full = s.droplevel(0).reindex(range(lv.min(), lv.max() + 1), fill_value=0)
+        out[pd.Timestamp(dday).strftime("%Y-%m-%d")] = [int(lv.min())] + np.rint(full.to_numpy()).astype(int).tolist()
+    return out
+
+
+VP_JS = r"""
+(function () {
+  const gd = document.getElementById('{plot_id}');
+  const VL = __VL__;
+  const bar = document.createElement('div');
+  bar.style.cssText = 'font:13px system-ui,sans-serif;padding:8px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e4e7ec';
+  bar.innerHTML = '<button id="vpSel" title="или Shift + протянуть мышью">Выделить отрезок</button>' +
+    '<label>шаг <select id="vpStep"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option></select> ₽</label>' +
+    '<button id="vpClr">Сбросить</button><span id="vpInfo" style="color:#475467">Вертикальный объём за выбранный отрезок: «Выделить отрезок» (или Shift) и протяните мышью по графику.</span>';
+  gd.parentNode.insertBefore(bar, gd);
+  bar.querySelectorAll('button,select').forEach(b => b.style.cssText = 'border:1px solid #d0d5dd;background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:13px');
+  const selBtn = document.getElementById('vpSel'), info = document.getElementById('vpInfo'), stepEl = document.getElementById('vpStep');
+  const days = Object.keys(VL).sort();
+  const nf = x => Math.round(x).toLocaleString('ru-RU');
+  let mode = false, drag = null, sel = null, prevDrag = null;
+  const xa = () => gd._fullLayout.xaxis;
+  const dayAt = e => {
+    const r = gd.getBoundingClientRect(), a = xa();
+    const px = e.clientX - r.left - a._offset; if (px < 0 || px > a._length) return null;
+    const ms = a.p2c(px); if (ms === undefined || isNaN(ms)) return null;
+    return new Date(ms).toISOString().slice(0, 10);
+  };
+  const setMode = on => { mode = on; selBtn.style.background = on ? '#eef4ff' : '#fff'; selBtn.style.fontWeight = on ? '600' : '400';
+    if (on) { prevDrag = gd._fullLayout.dragmode; Plotly.relayout(gd, { dragmode: false }); }
+    else if (prevDrag !== null) { Plotly.relayout(gd, { dragmode: prevDrag }); prevDrag = null; } };
+  const shapes = () => (gd.layout.shapes || []).filter(s => s.name !== 'vpCorr');
+  function corridor(r) {
+    const a = r.a < r.b ? r.a : r.b, b = r.a < r.b ? r.b : r.a;
+    Plotly.relayout(gd, { shapes: shapes().concat([{ name: 'vpCorr', type: 'rect', xref: 'x', yref: 'paper', x0: a + ' 00:00', x1: b + ' 23:59',
+      y0: 0, y1: 1, fillcolor: 'rgba(240,140,0,.12)', line: { color: 'rgba(240,140,0,.9)', width: 1, dash: 'dot' }, layer: 'below' }]) });
+  }
+  function profile() {
+    const step = +stepEl.value, i = gd.data.findIndex(t => t.name === 'vp');
+    if (!sel) { Plotly.restyle(gd, { x: [[]], y: [[]] }, [i]); Plotly.relayout(gd, { shapes: shapes() });
+      info.textContent = 'Вертикальный объём за выбранный отрезок: «Выделить отрезок» (или Shift) и протяните мышью по графику.'; return; }
+    const a = sel.a < sel.b ? sel.a : sel.b, b = sel.a < sel.b ? sel.b : sel.a;
+    const lv = new Map(); let tot = 0, rub = 0, nd = 0;
+    days.forEach(d => { if (d < a || d > b) return; nd++; const r = VL[d];
+      for (let j = 1; j < r.length; j++) { const L = r[0] + j - 1, K = Math.floor(L / step) * step; lv.set(K, (lv.get(K) || 0) + r[j]); tot += r[j]; rub += r[j] * (L + 0.5); } });
+    const lev = [...lv.entries()].sort((x, y) => x[0] - y[0]);
+    if (!lev.length) { info.textContent = 'За отрезок минуток нет.'; return; }
+    let pi = 0; lev.forEach((e, k) => { if (e[1] > lev[pi][1]) pi = k; });
+    let lo = pi, hi = pi, acc = lev[pi][1];
+    while (acc < 0.7 * tot && (lo > 0 || hi < lev.length - 1)) {
+      const dn = lo > 0 ? lev[lo - 1][1] : -1, up = hi < lev.length - 1 ? lev[hi + 1][1] : -1;
+      if (up >= dn) acc += lev[++hi][1]; else acc += lev[--lo][1];
+    }
+    const colors = lev.map((e, k) => k === pi ? 'rgba(240,140,0,.9)' : (k >= lo && k <= hi ? 'rgba(42,107,216,.6)' : 'rgba(42,107,216,.28)'));
+    Plotly.restyle(gd, { x: [lev.map(e => e[1])], y: [lev.map(e => e[0] + step / 2)], width: [step * 0.92], 'marker.color': [colors] }, [i]);
+    Plotly.relayout(gd, { 'xaxis2.range': [lev[pi][1] / 0.3, 0] });
+    const f = d => d.split('-').reverse().join('.');
+    info.innerHTML = `Отрезок <b>${f(a)} – ${f(b)}</b> (${nd} дн.) · объём <b>${nf(tot)}</b> шт. ≈ <b>${(rub / 1e9).toFixed(1)}</b> млрд ₽ · ` +
+      `<span style="color:#f08c00">■</span> POC <b>${lev[pi][0].toLocaleString('ru-RU')}–${(lev[pi][0] + step).toLocaleString('ru-RU')}</b> ₽ · ` +
+      `<span style="color:#2a6bd8">■</span> 70% объёма <b>${lev[lo][0].toLocaleString('ru-RU')} – ${(lev[hi][0] + step).toLocaleString('ru-RU')}</b> ₽`;
+  }
+  const down = e => {
+    if (!(mode || e.shiftKey) || e.button !== 0) return;
+    const d = dayAt(e); if (!d) return;
+    e.stopPropagation(); e.preventDefault(); drag = { a: d, b: d }; corridor(drag);
+  };
+  gd.addEventListener('pointerdown', down, true); gd.addEventListener('mousedown', down, true);
+  window.addEventListener('pointermove', e => { if (!drag) return; const d = dayAt(e); if (d && d !== drag.b) { drag.b = d; corridor(drag); } }, true);
+  window.addEventListener('pointerup', () => { if (!drag) return; sel = drag; drag = null; profile(); if (mode) setMode(false); }, true);
+  selBtn.onclick = () => setMode(!mode);
+  document.getElementById('vpClr').onclick = () => { sel = null; profile(); };
+  stepEl.onchange = profile;
+})();
+"""
+
+
 def page(hours: dict) -> None:
-    """Интерактивная разметка автора на LKOH (последние 3 года) — для глаза."""
+    """Интерактивная разметка автора на LKOH (последние 3 года) — для глаза; плюс коридор и вертикальный объём."""
+    import json
+
+    import plotly.graph_objects as go
+
     d = mine.to_daily(hours["LKOH"])
     pats = cp.detect_patterns(d, cp.Config())
     cp.evaluate(d, pats, cp.Config())
-    cp.plot_patterns(d, pats, str(OUT / "lkoh_timur.html"), last=750, no_gaps=True, plotlyjs=True,
-                     title="LKOH, дневные свечи — разметка фигур кодом Тимура (наведите на фигуру — оценки условий)")
+    out = OUT / "lkoh_timur.html"
+    fig = cp.plot_patterns(d, pats, str(out), last=750, no_gaps=True, plotlyjs=True,
+                           title="LKOH, дневные свечи — разметка фигур кодом Тимура (наведите на фигуру — оценки условий)")
+    vl = day_levels("LKOH", d.index[-750:])
+    fig.add_trace(go.Bar(name="vp", x=[], y=[], orientation="h", xaxis="x2", yaxis="y", showlegend=False,
+                         marker=dict(line=dict(width=0)), hovertemplate="%{y:.0f} ₽: %{x:,.0f} шт.<extra>объём</extra>"))
+    fig.update_layout(xaxis2=dict(overlaying="x", side="top", range=[1, 0], showgrid=False, showticklabels=False,
+                                  zeroline=False, fixedrange=True, visible=False))
+    fig.write_html(str(out), include_plotlyjs=True, div_id="chart",
+                   post_script=VP_JS.replace("__VL__", json.dumps(vl, separators=(",", ":"))))
+    print(f"{out.relative_to(ROOT)}: {len(vl)} дней с объёмом, {out.stat().st_size / 1e6:.1f} МБ")
 
 
 if __name__ == "__main__":
-    main()
+    if "--page" in sys.argv:
+        page({"LKOH": mine.hourly("LKOH")})
+    else:
+        main()

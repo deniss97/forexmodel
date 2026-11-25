@@ -411,6 +411,52 @@ def broker_view(lots: dict, want: str | None = None, sandbox: bool = False) -> d
         return {"ошибка": str(e)[:200]}
 
 
+def broker_exit_prices(want: str | None = None, sandbox: bool = False, path: Path | None = None) -> list[str]:
+    """Цена и время выхода по исполнению у брокера, а не по последней свече контура или цене стопа стратегии.
+
+    Для закрытых сделок счёта (исполнение API или вручную) без отметки «выход у брокера» берёт операции продажи этой
+    бумаги после покупки, пока не наберётся проданное количество, и пишет средневзвешенную цену и время последней продажи.
+    Возвращает строки для сообщения о поправках (пусто — нечего было поправлять или нет связи с брокером).
+    """
+    path = path or TRADES
+    if not path.exists():
+        return []
+    t = pd.read_csv(path)
+    if "выход у брокера" not in t:
+        t["выход у брокера"] = pd.NA
+    need = t["выход"].notna() & t["исполнение"].isin(["API", "вручную"]) & t["выход у брокера"].isna()
+    if not need.any():
+        return []
+    try:
+        from forexmodel.broker.tinvest import TInvest, q2d
+
+        api = TInvest(sandbox=sandbox)
+        acc = account_id(api, want)
+        uids = json.loads((OUT / "uids.json").read_text())
+        start = pd.to_datetime(t.loc[need, "исполнено_в"].fillna(t.loc[need, "вход_в"])).min() - pd.Timedelta(hours=4)
+        ops = api.operations(acc, start, pd.Timestamp.now("UTC").tz_localize(None))
+    except Exception:
+        return []
+    sells = pd.DataFrame([{"uid": o.get("instrumentUid"), "штук": int(o.get("quantity", 0)), "цена": float(q2d(o["price"])),
+                           "время": pd.Timestamp(o["date"]).tz_convert("Europe/Moscow").tz_localize(None)}
+                          for o in ops if o.get("operationType") == "OPERATION_TYPE_SELL" and o.get("price")])
+    notes = []
+    for i in t.index[need]:
+        r = t.loc[i]
+        since = pd.Timestamp(r["исполнено_в"] if pd.notna(r["исполнено_в"]) else r["вход_в"])
+        s = sells[(sells["uid"] == uids.get(r["бумага"])) & (sells["время"] >= since)].sort_values("время") if len(sells) else sells
+        s = s[s["штук"].cumsum().shift(fill_value=0) < r["штук"]] if len(s) else s
+        if not len(s) or s["штук"].sum() < r["штук"]:
+            continue                            # продажа ещё не видна (или продано не всё) — попробуем в следующий час
+        price = float((s["цена"] * s["штук"]).sum() / s["штук"].sum())
+        old = r["цена выхода"]
+        t.loc[i, ["цена выхода", "выход", "выход у брокера"]] = [price, str(s["время"].iloc[-1]), "да"]
+        notes.append(f"• {r['стратегия']} {r['бумага']}: продано {s['время'].iloc[-1]:%d.%m %H:%M} по {price:.2f}"
+                     + (f" (в журнале было {float(old):.2f})" if pd.notna(old) and abs(float(old) - price) > 1e-6 else ""))
+    t.to_csv(path, index=False)
+    return notes
+
+
 # ---------------------------------------------------------------- запуск
 
 def load_state() -> dict:
@@ -551,13 +597,17 @@ def run(cfg: dict, now: pd.Timestamp, use_broker: bool) -> tuple[list[tuple[str,
                         st["алерты"][k] = str(now.date())
             gone = [p for p in positions if p.get("статус") == "нет у брокера"]
             append_csv(TRADES, [{**p, "выход": now, "причина": "нет у брокера (стоп или продано вручную)", "цена выхода": prices.get(p["бумага"]),
-                                 "закрыто": now} for p in gone])          # цена выхода — последняя цена данных, приближённо
+                                 "закрыто": now} for p in gone])          # приближённо; ниже — поправка по исполнению у брокера
             positions = [p for p in positions if p.get("статус") != "нет у брокера"]
             extra = set(b["бумаги"]) - {p["бумага"] for p in positions}
             key = "лишние " + ",".join(sorted(extra))
             if extra and st["алерты"].get(key) != str(now.date()):
                 msgs.append(("⚠️ На счёте бумаги, которых нет у контура: " + ", ".join(f"{t} {b['бумаги'][t]} шт." for t in sorted(extra)), None))
                 st["алерты"][key] = str(now.date())
+    if use_broker and cfg.get("mode") in ("manual", "button", "auto"):   # и после закрытия последней позиции
+        fixed = broker_exit_prices(cfg.get("account"), sandbox=cfg.get("broker") == "sandbox")
+        if fixed:
+            msgs.append(("🧾 Цена выхода по исполнению у брокера:\n" + "\n".join(fixed), None))
 
     # 3а. отсечки дивидендов по позициям счёта — из API Т-Инвестиций, раз в день на позицию
     todo = [p for p in positions if st["алерты"].get("дивиденды " + pid(p)) != str(now.date())]
